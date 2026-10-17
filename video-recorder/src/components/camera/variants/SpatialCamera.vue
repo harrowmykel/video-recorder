@@ -67,36 +67,6 @@ const emit = defineEmits<{
         <Sparkles class="w-3 h-3" />
         <span>Studio Blur</span>
       </div>
-
-      <!-- Live Dynamic Size Readout during resize -->
-      <div
-        v-if="props.isResizing"
-        class="absolute inset-0 bg-slate-950/50 backdrop-blur-sm z-20 flex flex-col items-center justify-center pointer-events-none"
-      >
-        <span class="px-2.5 py-1 rounded-full spatial-glass-dark border border-sky-400/60 text-xs font-mono font-bold text-sky-300 shadow-2xl">
-          {{ props.customDiameter }}px
-        </span>
-      </div>
-
-      <!-- Interactive Corner Drag Resize Handle -->
-      <transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0 scale-75"
-        enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100 scale-100"
-        leave-to-class="opacity-0 scale-75"
-      >
-        <div
-          v-if="props.isHovered"
-          data-resize-handle="true"
-          @mousedown.stop="emit('startResize', $event)"
-          class="absolute bottom-2.5 right-2.5 w-6 h-6 rounded-full spatial-glass-dark hover:bg-sky-500/80 border border-white/25 hover:border-sky-300 text-white flex items-center justify-center cursor-nwse-resize shadow-lg z-20 backdrop-blur-md transition-all active:scale-95 group/handle"
-          title="Drag or Scroll to Resize"
-        >
-          <Scaling class="w-3.5 h-3.5 text-white/80 group-hover/handle:text-white transition-transform duration-200" />
-        </div>
-      </transition>
     </div>
 
     <!-- Safe-Zone Floating Spatial Dock (Beneath Circle, Never Clipped) -->
@@ -112,6 +82,14 @@ const emit = defineEmits<{
         v-if="props.isHovered"
         class="absolute top-full pt-2.5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto"
       >
+        <!-- Floating Live Size HUD during resize above toolbar -->
+        <div
+          v-if="props.isResizing"
+          class="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full spatial-glass-dark border border-sky-400/50 text-[10px] font-mono font-bold text-sky-300 shadow-2xl pointer-events-none whitespace-nowrap"
+        >
+          {{ props.customDiameter }}px
+        </div>
+
         <div class="flex items-center gap-1 px-2.5 py-1.5 rounded-full spatial-glass-dark shadow-2xl whitespace-nowrap">
           <button
             @click="emit('setShape', props.shape === 'circle' ? 'squircle' : 'circle')"
@@ -142,6 +120,19 @@ const emit = defineEmits<{
             title="Large Preset (340px)"
           >
             L
+          </button>
+
+          <!-- Freeform Resize Drag Button in Toolbar -->
+          <button
+            data-resize-handle="true"
+            @mousedown.stop="emit('startResize', $event)"
+            :class="[
+              'w-6 h-6 rounded-full flex items-center justify-center transition cursor-ew-resize',
+              props.customDiameter || props.isResizing ? 'bg-sky-400/30 text-sky-200 border border-sky-300/40' : 'spatial-pill-btn text-white/70 hover:text-white'
+            ]"
+            :title="props.customDiameter ? `Custom ${props.customDiameter}px (Drag or Scroll to Resize)` : 'Drag to Custom Resize'"
+          >
+            <Scaling class="w-3 h-3" />
           </button>
 
           <div class="w-px h-3.5 bg-white/20 mx-0.5"></div>

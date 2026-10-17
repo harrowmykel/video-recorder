@@ -69,36 +69,6 @@ const emit = defineEmits<{
         <Sparkles class="w-3 h-3" />
         <span>AI Cutout</span>
       </div>
-
-      <!-- Live Dynamic Size Readout during resize -->
-      <div
-        v-if="props.isResizing"
-        class="absolute inset-0 bg-black/50 backdrop-blur-sm z-20 flex flex-col items-center justify-center pointer-events-none"
-      >
-        <span class="px-2.5 py-1 rounded-lg bg-black/90 border border-rose-500/60 text-xs font-mono font-bold text-rose-300 shadow-2xl">
-          {{ props.customDiameter }}px
-        </span>
-      </div>
-
-      <!-- Interactive Corner Drag Resize Handle -->
-      <transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0 scale-75"
-        enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100 scale-100"
-        leave-to-class="opacity-0 scale-75"
-      >
-        <div
-          v-if="props.isHovered"
-          data-resize-handle="true"
-          @mousedown.stop="emit('startResize', $event)"
-          class="absolute bottom-2.5 right-2.5 w-6 h-6 rounded-full bg-black/80 hover:bg-rose-500/90 border border-white/20 hover:border-rose-300 text-white flex items-center justify-center cursor-nwse-resize shadow-lg z-20 backdrop-blur-md transition-all active:scale-95 group/handle"
-          title="Drag or Scroll to Resize"
-        >
-          <Scaling class="w-3.5 h-3.5 text-white/80 group-hover/handle:text-white transition-transform duration-200" />
-        </div>
-      </transition>
     </div>
 
     <!-- Floating Dock Beneath the Camera Frame (Outside Circle, Never Clipped) -->
@@ -114,6 +84,14 @@ const emit = defineEmits<{
         v-if="props.isHovered"
         class="absolute top-full pt-2.5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto"
       >
+        <!-- Floating Live Size HUD during resize above toolbar -->
+        <div
+          v-if="props.isResizing"
+          class="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-black/95 text-rose-300 text-[10px] font-mono font-bold border border-rose-500/50 shadow-2xl pointer-events-none whitespace-nowrap"
+        >
+          {{ props.customDiameter }}px
+        </div>
+
         <div class="flex items-center gap-1 px-2 py-1 rounded-xl obsidian-panel shadow-2xl whitespace-nowrap">
           <!-- Shape -->
           <button
@@ -147,6 +125,19 @@ const emit = defineEmits<{
             title="Large Preset (340px)"
           >
             L
+          </button>
+
+          <!-- Freeform Resize Drag Button in Toolbar -->
+          <button
+            data-resize-handle="true"
+            @mousedown.stop="emit('startResize', $event)"
+            :class="[
+              'w-6 h-6 rounded-lg flex items-center justify-center transition cursor-ew-resize',
+              props.customDiameter || props.isResizing ? 'bg-rose-500/30 text-rose-300 border border-rose-400/50' : 'obsidian-btn text-white/70 hover:text-white'
+            ]"
+            :title="props.customDiameter ? `Custom ${props.customDiameter}px (Drag or Scroll to Resize)` : 'Drag to Custom Resize'"
+          >
+            <Scaling class="w-3.5 h-3.5" />
           </button>
 
           <div class="w-px h-3.5 bg-white/15 mx-0.5"></div>

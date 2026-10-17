@@ -59,37 +59,6 @@ const emit = defineEmits<{
       <div class="absolute top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/90 border border-zinc-700 text-[9px] text-[#00e676] z-10 uppercase tracking-wider">
         CAM_01 • {{ props.isRecording ? 'REC_LOCK' : 'STBY' }}
       </div>
-
-      <!-- Live Dynamic Size Readout during resize -->
-      <div
-        v-if="props.isResizing"
-        class="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex flex-col items-center justify-center pointer-events-none"
-      >
-        <span class="px-2 py-0.5 rounded bg-[#0b0c0e] border border-[#ff5500] text-[10px] font-mono font-bold text-[#ff5500] uppercase tracking-wider shadow-2xl">
-          SCALE // {{ props.customDiameter }}PX
-        </span>
-      </div>
-
-      <!-- Interactive Corner Drag Resize Handle -->
-      <transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0 scale-75"
-        enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100 scale-100"
-        leave-to-class="opacity-0 scale-75"
-      >
-        <div
-          v-if="props.isHovered"
-          data-resize-handle="true"
-          @mousedown.stop="emit('startResize', $event)"
-          class="absolute bottom-2 right-2 px-1.5 py-1 rounded bg-[#0b0c0e]/95 border border-zinc-700 hover:border-[#ff5500] text-zinc-300 hover:text-[#ff5500] flex items-center gap-1 cursor-nwse-resize shadow-lg z-20 transition-all active:scale-95 group/handle"
-          title="Drag or Scroll to Resize"
-        >
-          <Scaling class="w-3 h-3" />
-          <span class="text-[8px] font-bold tracking-tighter">RSZ</span>
-        </div>
-      </transition>
     </div>
 
     <!-- Bottom Technical Control Strip (Beneath Circle, Never Clipped) -->
@@ -105,6 +74,14 @@ const emit = defineEmits<{
         v-if="props.isHovered"
         class="absolute top-full pt-2.5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto"
       >
+        <!-- Floating Live Size HUD during resize above toolbar -->
+        <div
+          v-if="props.isResizing"
+          class="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-[#0b0c0e] border border-[#ff5500] text-[9px] font-mono font-bold text-[#ff5500] shadow-2xl pointer-events-none whitespace-nowrap"
+        >
+          SCALE // {{ props.customDiameter }}PX
+        </div>
+
         <div class="flex items-center gap-1 px-2 py-1 rounded bg-[#0b0c0e]/95 border border-zinc-700 shadow-2xl whitespace-nowrap">
           <button
             @click="emit('setShape', props.shape === 'circle' ? 'squircle' : 'circle')"
@@ -135,6 +112,20 @@ const emit = defineEmits<{
             title="L Preset (340px)"
           >
             L
+          </button>
+
+          <!-- Freeform Resize Drag Button in Toolbar -->
+          <button
+            data-resize-handle="true"
+            @mousedown.stop="emit('startResize', $event)"
+            :class="[
+              'px-1.5 py-0.5 rounded-sm text-[10px] font-bold flex items-center gap-0.5 transition cursor-ew-resize',
+              props.customDiameter || props.isResizing ? 'bg-[#ff5500] text-black' : 'tactile-key text-zinc-300 hover:text-white'
+            ]"
+            :title="props.customDiameter ? `Custom ${props.customDiameter}px (Drag or Scroll to Resize)` : 'Drag to Custom Resize'"
+          >
+            <Scaling class="w-3 h-3" />
+            <span v-if="props.customDiameter" class="text-[9px]">{{ props.customDiameter }}</span>
           </button>
 
           <div class="w-px h-3 bg-zinc-700 mx-0.5"></div>
