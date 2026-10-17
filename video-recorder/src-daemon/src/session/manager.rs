@@ -293,17 +293,24 @@ impl SessionManager {
         std::fs::write(&webm_path, bytes)?;
 
         let mp4_path = target_dir.join("camera_raw.mp4");
-        // Remux/transcode webm to camera_raw.mp4 if camera_raw.mp4 wasn't already recorded by v4l2
-        if !mp4_path.exists() || std::fs::metadata(&mp4_path).map(|m| m.len() < 1024).unwrap_or(true) {
-            let _ = Command::new("ffmpeg")
-                .arg("-y")
-                .arg("-i")
-                .arg(&webm_path)
-                .args(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"])
-                .arg(&mp4_path)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+        let tmp_mp4_path = target_dir.join("camera_raw_uploaded.mp4");
+        let status = Command::new("ffmpeg")
+            .arg("-y")
+            .arg("-i")
+            .arg(&webm_path)
+            .args([
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+            ])
+            .arg(&tmp_mp4_path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+
+        if status.map(|s| s.success()).unwrap_or(false) && tmp_mp4_path.exists() {
+            let _ = std::fs::rename(&tmp_mp4_path, &mp4_path);
         }
 
         Ok(webm_path)

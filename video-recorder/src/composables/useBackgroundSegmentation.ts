@@ -257,7 +257,43 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
               drawGradientBackdrop(ctx, cw, ch);
             }
             ctx.restore();
+          } else if (mode === 'off') {
+            const fallbackGrad = ctx.createLinearGradient(0, 0, 0, ch);
+            fallbackGrad.addColorStop(0, '#161922');
+            fallbackGrad.addColorStop(0.5, '#0e1017');
+            fallbackGrad.addColorStop(1, '#07080b');
+            ctx.fillStyle = fallbackGrad;
+            ctx.fillRect(0, 0, cw, ch);
           }
+
+          // Draw subtle fallback FaceCam silhouette on canvas so MediaRecorder always captures valid video frames
+          const cx = cw / 2;
+          const cy = ch / 2 - ch * 0.04;
+          const r = Math.min(cw, ch) * 0.14;
+          const pulse = 1 + 0.04 * Math.sin(Date.now() / 260);
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, r * pulse, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(244, 63, 94, 0.22)';
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(251, 113, 133, 0.45)';
+          ctx.stroke();
+
+          // Head & shoulders icon inside circle
+          ctx.beginPath();
+          ctx.arc(cx, cy - r * 0.18, r * 0.28, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(254, 205, 211, 0.85)';
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(cx, cy + r * 0.42, r * 0.46, Math.PI * 1.15, Math.PI * 1.85);
+          ctx.strokeStyle = 'rgba(254, 205, 211, 0.85)';
+          ctx.lineWidth = Math.max(3, r * 0.14);
+          ctx.lineCap = 'round';
+          ctx.stroke();
+          ctx.restore();
         }
       }
     }

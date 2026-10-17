@@ -290,6 +290,8 @@ function handleOpenSettings() {
   activePopover.value = null;
   if (isNativeOverlayWindow()) {
     openDesktopSettingsWindow();
+    emit('openSettingsModal');
+    return;
   }
   isSettingsOpen.value = true;
   emit('openSettingsModal');

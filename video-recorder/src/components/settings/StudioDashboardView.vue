@@ -29,7 +29,7 @@ import { useTheme } from '../../composables/useTheme';
 import { THEME_LIST } from '../../themes';
 import { useStudioState } from '../../composables/useStudioState';
 import { useMediaDevices } from '../../composables/useMediaDevices';
-import { fetchCaptureSources } from '../../lib/tauriBridge';
+import { fetchCaptureSources, isNativeOverlayWindow } from '../../lib/tauriBridge';
 import type { DisplaySourceInfo, WindowSourceInfo } from '../../types/studio';
 
 const props = defineProps<{
@@ -77,8 +77,9 @@ const {
 
 const { cameras, microphones, liveMicLevel, refreshDevices, startMicMeter } = useMediaDevices();
 
+const isNativeWindow = isNativeOverlayWindow();
 const activeSection = shallowRef<'workspace' | 'settings' | 'backgrounds' | 'ai_studio'>(
-  props.initialSection || 'workspace'
+  props.initialSection || (isNativeWindow ? 'settings' : 'workspace')
 );
 const displays = ref<DisplaySourceInfo[]>([]);
 const windows = ref<WindowSourceInfo[]>([]);
@@ -114,8 +115,15 @@ async function handleBgDrop(e: DragEvent) {
 
 onMounted(() => {
   const path = window.location.pathname.toLowerCase();
-  const tabParam = new URLSearchParams(window.location.search).get('tab');
-  if (path.includes('setting') || path.includes('app') || tabParam === 'settings') {
+  const searchParams = new URLSearchParams(window.location.search);
+  const tabParam = searchParams.get('tab');
+  const winParam = searchParams.get('window');
+  if (
+    winParam === 'settings' ||
+    path.includes('setting') ||
+    path.includes('app') ||
+    tabParam === 'settings'
+  ) {
     activeSection.value = 'settings';
   } else if (tabParam === 'backgrounds') {
     activeSection.value = 'backgrounds';
@@ -144,6 +152,7 @@ onMounted(() => {
         <!-- Interactive Navigation Tabs -->
         <nav class="flex items-center space-x-1.5 text-xs font-medium">
           <button
+            v-if="!isNativeWindow && props.initialSection !== 'settings'"
             @click="activeSection = 'workspace'"
             :class="[
               'px-3 py-1.5 rounded-xl transition flex items-center gap-1.5',

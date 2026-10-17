@@ -398,24 +398,60 @@ export async function selectExportDirectory(defaultPath?: string): Promise<strin
   return null;
 }
 
+const exportedDirectories = new Set<string>();
+
+export async function checkDirectoryNotEmpty(
+  targetDir: string
+): Promise<{ exists: boolean; notEmpty: boolean; fileCount: number }> {
+  const normalized = targetDir.trim().replace(/[\\/]+$/, '');
+  if (!normalized) {
+    return { exists: false, notEmpty: false, fileCount: 0 };
+  }
+
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('check_directory_not_empty', normalized);
+      if (res && typeof res.notEmpty === 'boolean') {
+        if (res.notEmpty) {
+          exportedDirectories.add(normalized);
+        }
+        return res;
+      }
+    } catch {}
+  }
+
+  if (exportedDirectories.has(normalized)) {
+    return { exists: true, notEmpty: true, fileCount: 6 };
+  }
+
+  return { exists: false, notEmpty: false, fileCount: 0 };
+}
+
 export async function exportSessionPackage(
   targetDir: string,
   sessionMetadata?: unknown,
   preset: string = 'premiere_xml'
 ): Promise<{ success: boolean; targetDir?: string; error?: string }> {
+  const normalized = targetDir.trim().replace(/[\\/]+$/, '');
+
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
     try {
-      return await window.__ELECTRON_OVERLAY__.invoke('export_session_package', {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('export_session_package', {
         targetDir,
         sessionMetadata,
         preset,
       });
+      if (res?.success) {
+        exportedDirectories.add(normalized);
+      }
+      return res;
     } catch (e: any) {
       return { success: false, error: e.message };
     }
   }
 
   await new Promise((resolve) => setTimeout(resolve, 600));
+  exportedDirectories.add(normalized);
   return { success: true, targetDir };
 }
 

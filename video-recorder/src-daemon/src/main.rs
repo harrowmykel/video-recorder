@@ -238,9 +238,6 @@ async fn main() {
         .or(models_route)
         .with(cors);
 
-    // Also serve built dist/ SPA on port 1420 if Vite is not already running on 1420
-    spawn_static_web_app_if_needed();
-
     let start_port: u16 = std::env::var("DAEMON_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
@@ -269,26 +266,6 @@ async fn main() {
     } else {
         eprintln!("[Rust Core Daemon] FATAL: Could not bind to any port in range {}..={}", start_port, start_port + 20);
         std::process::exit(1);
-    }
-}
-
-fn spawn_static_web_app_if_needed() {
-    let candidate_dist_dirs = [
-        std::env::current_dir().unwrap_or_default().join("dist"),
-        PathBuf::from("/home/micheal/git/video-recorder/video-recorder/dist"),
-    ];
-
-    let dist_dir = candidate_dist_dirs.into_iter().find(|d| d.join("index.html").exists());
-    if let Some(dist_path) = dist_dir {
-        let index_file = dist_path.join("index.html");
-        let static_files = warp::fs::dir(dist_path.clone());
-        let spa_fallback = warp::fs::file(index_file);
-        let web_routes = static_files.or(spa_fallback);
-
-        if let Ok((addr, fut)) = warp::serve(web_routes).try_bind_ephemeral(([127, 0, 0, 1], 1420)) {
-            println!("[Rust Core Daemon] Serving Studio Web App & Settings on http://{}", addr);
-            tokio::spawn(fut);
-        }
     }
 }
 

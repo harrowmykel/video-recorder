@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from 'vue';
 import type { CameraShape, CameraSize } from '../../types/studio';
-import { moveOverlayWindow, resizeOverlayWindow, uploadRecordedCameraTrack } from '../../lib/tauriBridge';
+import {
+  moveOverlayWindow,
+  resizeOverlayWindow,
+  uploadRecordedCameraTrack,
+  broadcastEvent,
+} from '../../lib/tauriBridge';
 import { useTheme } from '../../composables/useTheme';
 import { useStudioState } from '../../composables/useStudioState';
 import { useBackgroundSegmentation } from '../../composables/useBackgroundSegmentation';
@@ -31,6 +36,7 @@ const emit = defineEmits<{
 
 const { currentTheme, initTheme } = useTheme();
 const {
+  recordingState,
   selectedCameraId,
   cameraShape: shape,
   cameraSize: size,
@@ -39,6 +45,7 @@ const {
   bgMode,
   bgImageUrl,
   bgGradient,
+  lastRecordedSession,
   setCustomBgImageFromFile,
   cycleBgMode,
 } = useStudioState();
@@ -100,27 +107,56 @@ watch(selectedCameraId, (newId) => {
   startCameraStream(newId);
 });
 
-// Record composited canvas stream when recording starts, and upload on stop
+// Record composited canvas stream across recording/pause/resume and upload on stop
 watch(
-  () => props.isRecording,
-  (rec) => {
-    if (rec) {
-      startCanvasRecording();
+  [() => props.isRecording, recordingState],
+  ([recProp, state]) => {
+    const isActivelyRecording = state === 'recording' || recProp;
+    const isPaused = state === 'paused';
+
+    if (isPaused) {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        try {
+          mediaRecorder.pause();
+        } catch {}
+      }
+      return;
+    }
+
+    if (isActivelyRecording) {
+      if (!hasCameraStream.value) {
+        startCameraStream(selectedCameraId.value);
+      }
+      if (mediaRecorder && mediaRecorder.state === 'paused') {
+        try {
+          mediaRecorder.resume();
+        } catch {}
+      } else if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+        startCanvasRecording();
+      }
     } else {
       stopCanvasRecording();
     }
   }
 );
 
+function resolveSupportedMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined') return undefined;
+  const candidates = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ];
+  return candidates.find((c) => MediaRecorder.isTypeSupported(c));
+}
+
 function startCanvasRecording() {
   if (!canvasRef.value || typeof MediaRecorder === 'undefined') return;
   try {
     recordedChunks = [];
     const stream = canvasRef.value.captureStream(30);
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
-    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    const mimeType = resolveSupportedMimeType();
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     mediaRecorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size > 0) {
         recordedChunks.push(ev.data);
@@ -128,12 +164,26 @@ function startCanvasRecording() {
     };
     mediaRecorder.onstop = async () => {
       if (recordedChunks.length > 0) {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        await uploadRecordedCameraTrack(blob);
+        const blob = new Blob(recordedChunks, { type: mimeType || 'video/webm' });
+        const uploadedPath = await uploadRecordedCameraTrack(blob);
+        const ts = Date.now();
+        if (lastRecordedSession.value) {
+          const baseCamUrl = (lastRecordedSession.value.cameraUrl || '').replace(/\?t=\d+$/, '');
+          if (baseCamUrl) {
+            lastRecordedSession.value = {
+              ...lastRecordedSession.value,
+              cameraUrl: `${baseCamUrl}?t=${ts}`,
+            };
+          }
+        }
+        broadcastEvent('camera_track_uploaded', {
+          cameraPath: uploadedPath,
+          timestamp: ts,
+        });
       }
       recordedChunks = [];
     };
-    mediaRecorder.start(500);
+    mediaRecorder.start(250);
   } catch (err) {
     console.warn('[CameraBubble] MediaRecorder start failed:', err);
   }
@@ -141,6 +191,9 @@ function startCanvasRecording() {
 
 function stopCanvasRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try {
+      mediaRecorder.requestData();
+    } catch {}
     try {
       mediaRecorder.stop();
     } catch {}
@@ -337,7 +390,7 @@ const activeCameraVariant = computed(() => {
 
 <template>
   <div
-    v-if="!isHidden"
+    v-show="!isHidden"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     class="relative select-none flex flex-col items-center group"

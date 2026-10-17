@@ -32,8 +32,7 @@ function startDaemonIfAvailable() {
 app.commandLine.appendSwitch('enable-transparent-visuals');
 app.commandLine.appendSwitch('no-sandbox');
 
-const DEV_URL = process.env.VITE_DEV_URL || 'http://localhost:1420';
-const isDev = !app.isPackaged;
+const DEV_URL = process.env.VITE_DEV_URL || '';
 
 let windows = {
   toolbar: null,
@@ -47,11 +46,19 @@ let windows = {
 
 let isDockedToCamera = false;
 
+function getPackagedFileUrl(windowName) {
+  return `file://${path.join(__dirname, '../dist/index.html')}?window=${windowName}`;
+}
+
 function getWindowUrl(windowName) {
-  if (isDev) {
+  const distIndex = path.join(__dirname, '../dist/index.html');
+  if (DEV_URL) {
     return `${DEV_URL}/?window=${windowName}`;
   }
-  return `file://${path.join(__dirname, '../dist/index.html')}?window=${windowName}`;
+  if (fs.existsSync(distIndex)) {
+    return getPackagedFileUrl(windowName);
+  }
+  return `http://localhost:1420/?window=${windowName}`;
 }
 
 function createWindow(label, options) {
@@ -73,7 +80,16 @@ function createWindow(label, options) {
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   }
 
-  win.loadURL(getWindowUrl(label));
+  const targetUrl = getWindowUrl(label);
+  win.loadURL(targetUrl);
+
+  win.webContents.on('did-fail-load', (_event, _errorCode, _errorDescription, validatedURL) => {
+    const fallbackUrl = getPackagedFileUrl(label);
+    if (validatedURL && !validatedURL.startsWith('file://') && fs.existsSync(path.join(__dirname, '../dist/index.html'))) {
+      win.loadURL(fallbackUrl);
+    }
+  });
+
   win.on('closed', () => {
     windows[label] = null;
   });
@@ -455,12 +471,33 @@ ipcMain.handle('get_default_videos_dir', () => {
   }
 });
 
+ipcMain.handle('check_directory_not_empty', (_event, targetDir) => {
+  if (!targetDir) return { exists: false, notEmpty: false, fileCount: 0 };
+  try {
+    const resolved = targetDir.startsWith('~/')
+      ? path.join(app.getPath('home'), targetDir.slice(2))
+      : targetDir;
+    if (!fs.existsSync(resolved)) {
+      return { exists: false, notEmpty: false, fileCount: 0 };
+    }
+    const entries = fs.readdirSync(resolved);
+    return { exists: true, notEmpty: entries.length > 0, fileCount: entries.length };
+  } catch {
+    return { exists: false, notEmpty: false, fileCount: 0 };
+  }
+});
+
 ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMetadata, preset = 'premiere_xml' }) => {
   try {
     fs.mkdirSync(targetDir, { recursive: true });
 
-    // Copy recorded media files from session outputDir if available and distinct from targetDir
-    const sourceDir = sessionMetadata && sessionMetadata.outputDir ? sessionMetadata.outputDir : null;
+    // Copy recorded media files from session outputDir (or screenPath dirname) if available and distinct from targetDir
+    const sourceDir =
+      sessionMetadata && sessionMetadata.outputDir
+        ? sessionMetadata.outputDir
+        : sessionMetadata && sessionMetadata.screenPath
+          ? path.dirname(sessionMetadata.screenPath)
+          : null;
     if (sourceDir && fs.existsSync(sourceDir) && path.resolve(sourceDir) !== path.resolve(targetDir)) {
       const mediaFiles = [
         'screen_clean.mp4',

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { shallowRef, watch } from 'vue';
 import {
   Folder,
   FolderOpen,
+  FolderPlus,
+  AlertTriangle,
   CheckCircle2,
   Download,
   X,
@@ -15,7 +17,15 @@ import {
   Copy,
   Check
 } from 'lucide-vue-next';
-import { getDefaultVideosDirectory, selectExportDirectory, exportSessionPackage, openExportDirectory } from '../../lib/tauriBridge';
+import {
+  getDefaultVideosDirectory,
+  selectExportDirectory,
+  exportSessionPackage,
+  openExportDirectory,
+  checkDirectoryNotEmpty,
+} from '../../lib/tauriBridge';
+
+type ExportPresetType = 'premiere_xml' | 'capcut_draft' | 'mp4_bundle';
 
 const props = withDefaults(
   defineProps<{
@@ -34,17 +44,18 @@ const emit = defineEmits<{
   (e: 'exported', targetDir: string): void;
 }>();
 
-const exportPath = ref('');
-const isExporting = ref(false);
-const exportProgress = ref(0);
-const isComplete = ref(false);
-const isCopied = ref(false);
-const openError = ref<string | null>(null);
-const exportPreset = ref<'premiere_xml' | 'capcut_draft' | 'mp4_bundle'>('premiere_xml');
+const exportPath = shallowRef('');
+const baseSessionExportPath = shallowRef('');
+const isExporting = shallowRef(false);
+const exportProgress = shallowRef(0);
+const isComplete = shallowRef(false);
+const hasSavedPackage = shallowRef(false);
+const isCopied = shallowRef(false);
+const openError = shallowRef<string | null>(null);
+const folderNotEmptyAlert = shallowRef<string | null>(null);
+const exportPreset = shallowRef<ExportPresetType>('premiere_xml');
 
-// Generate default export path: [videos folder]/record_studio/[date-time]_[session_id]
-async function initializeDefaultPath() {
-  const baseVideosDir = await getDefaultVideosDirectory();
+function buildTimestampedPath(baseVideosDir: string, presetSuffix?: string) {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -55,12 +66,42 @@ async function initializeDefaultPath() {
 
   const dateTime = `${year}-${month}-${day}_${hours}${minutes}${seconds}`;
   const sid = props.sessionId || `session_${year}${month}${day}_${hours}${minutes}${seconds}`;
-  
+
   let normalizedBase = baseVideosDir.replace(/[\\/]+$/, '');
   if (!normalizedBase.endsWith('record_studio')) {
     normalizedBase = `${normalizedBase}/record_studio`;
   }
-  exportPath.value = `${normalizedBase}/${dateTime}_${sid}`;
+  const suffix = presetSuffix ? `_${presetSuffix}` : '';
+  return `${normalizedBase}/${dateTime}_${sid}${suffix}`;
+}
+
+// Generate default export path: [videos folder]/record_studio/[date-time]_[session_id]
+async function initializeDefaultPath() {
+  const baseVideosDir = await getDefaultVideosDirectory();
+  const generated = buildTimestampedPath(baseVideosDir);
+  baseSessionExportPath.value = generated;
+  exportPath.value = generated;
+  await validateFolderEmptyState(generated, false);
+}
+
+async function validateFolderEmptyState(pathToCheck: string, showBrowserAlert: boolean) {
+  const trimmed = pathToCheck.trim();
+  if (!trimmed) {
+    folderNotEmptyAlert.value = null;
+    return false;
+  }
+  const status = await checkDirectoryNotEmpty(trimmed);
+  if (status.notEmpty) {
+    const msg = `Folder is not empty: "${trimmed}" already contains ${status.fileCount || 'exported'} files. You can create a new folder or export into this folder.`;
+    folderNotEmptyAlert.value = msg;
+    if (showBrowserAlert && typeof window !== 'undefined') {
+      window.alert(`Folder is not empty!\n\nDestination "${trimmed}" already contains exported files. You can click "Create New Folder" or proceed to export the new preset format.`);
+    }
+    return true;
+  } else {
+    folderNotEmptyAlert.value = null;
+    return false;
+  }
 }
 
 watch(
@@ -70,18 +111,55 @@ watch(
       isExporting.value = false;
       exportProgress.value = 0;
       isComplete.value = false;
+      hasSavedPackage.value = false;
       isCopied.value = false;
       openError.value = null;
+      folderNotEmptyAlert.value = null;
       initializeDefaultPath();
     }
   },
   { immediate: true }
 );
 
+async function handleSelectPreset(newPreset: ExportPresetType) {
+  if (isExporting.value) return;
+  const previousPreset = exportPreset.value;
+  exportPreset.value = newPreset;
+
+  if (previousPreset !== newPreset && (isComplete.value || hasSavedPackage.value)) {
+    // Allow new export creation when preset format changes after saving
+    isComplete.value = false;
+    exportProgress.value = 0;
+    await validateFolderEmptyState(exportPath.value, true);
+  } else if (previousPreset !== newPreset) {
+    await validateFolderEmptyState(exportPath.value, false);
+  }
+}
+
+async function handleCreateNewFolderForPreset() {
+  const baseVideosDir = await getDefaultVideosDirectory();
+  const newDir = buildTimestampedPath(baseVideosDir, exportPreset.value);
+  exportPath.value = newDir;
+  isComplete.value = false;
+  exportProgress.value = 0;
+  folderNotEmptyAlert.value = null;
+}
+
+async function handlePathInputChange() {
+  if (isComplete.value) {
+    isComplete.value = false;
+    exportProgress.value = 0;
+  }
+  await validateFolderEmptyState(exportPath.value, false);
+}
+
 async function handleBrowse() {
   const chosenDir = await selectExportDirectory(exportPath.value);
   if (chosenDir) {
     exportPath.value = chosenDir;
+    isComplete.value = false;
+    exportProgress.value = 0;
+    await validateFolderEmptyState(chosenDir, true);
   }
 }
 
@@ -104,6 +182,8 @@ async function handleStartExport() {
 
     if (res.success) {
       isComplete.value = true;
+      hasSavedPackage.value = true;
+      folderNotEmptyAlert.value = null;
       emit('exported', exportPath.value.trim());
     } else {
       alert(`Export failed: ${res.error || 'Unknown error'}`);
@@ -178,14 +258,15 @@ async function handleOpenPath() {
               <input
                 v-model="exportPath"
                 type="text"
-                :disabled="isExporting || isComplete"
+                :disabled="isExporting"
+                @input="handlePathInputChange"
                 class="w-full pl-10 pr-4 py-2.5 bg-black/50 border border-white/10 rounded-xl text-xs font-mono text-gray-200 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition"
                 placeholder="/path/to/Videos/date-time_session_id"
               />
             </div>
             <button
               @click="handleBrowse"
-              :disabled="isExporting || isComplete"
+              :disabled="isExporting"
               class="px-4 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-white transition flex items-center space-x-2 shrink-0 active:scale-95 disabled:opacity-50"
             >
               <FolderOpen class="w-4 h-4 text-indigo-400" />
@@ -195,6 +276,28 @@ async function handleOpenPath() {
           <p class="text-[11px] text-gray-500 font-mono">
             Default: <span class="text-gray-400">[videos folder]/record_studio/[date-time]_[session_id]/***</span>
           </p>
+
+          <!-- Folder Not Empty Alert Banner -->
+          <div
+            v-if="folderNotEmptyAlert"
+            class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-between gap-3 text-amber-200"
+          >
+            <div class="flex items-start gap-2.5 text-xs">
+              <AlertTriangle class="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <span class="font-bold text-amber-300 block">Folder is not empty</span>
+                <span class="text-[11px] text-amber-200/90 leading-snug block">{{ folderNotEmptyAlert }}</span>
+              </div>
+            </div>
+            <button
+              @click="handleCreateNewFolderForPreset"
+              class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition active:scale-95"
+              title="Generate a new clean folder for this preset"
+            >
+              <FolderPlus class="w-3.5 h-3.5 text-amber-300" />
+              <span>Create New Folder</span>
+            </button>
+          </div>
         </div>
 
         <!-- Preset Selection (Premiere XML vs CapCut Draft vs Raw Bundle) -->
@@ -205,7 +308,7 @@ async function handleOpenPath() {
           <div class="grid grid-cols-3 gap-2.5">
             <!-- Preset 1: Premiere & DaVinci XML Sync -->
             <div
-              @click="exportPreset = 'premiere_xml'"
+              @click="handleSelectPreset('premiere_xml')"
               :class="[
                 'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
                 exportPreset === 'premiere_xml'
@@ -224,7 +327,7 @@ async function handleOpenPath() {
 
             <!-- Preset 2: CapCut Draft & PIP Sync -->
             <div
-              @click="exportPreset = 'capcut_draft'"
+              @click="handleSelectPreset('capcut_draft')"
               :class="[
                 'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
                 exportPreset === 'capcut_draft'
@@ -243,7 +346,7 @@ async function handleOpenPath() {
 
             <!-- Preset 3: Full Raw Asset Archive -->
             <div
-              @click="exportPreset = 'mp4_bundle'"
+              @click="handleSelectPreset('mp4_bundle')"
               :class="[
                 'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
                 exportPreset === 'mp4_bundle'

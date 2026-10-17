@@ -241,7 +241,7 @@ onUnmounted(() => {
         <CameraBubble
           :is-hidden="isCameraHidden"
           :audio-volume="audioVolume"
-          :is-recording="recordingState === 'recording'"
+          :is-recording="recordingState === 'recording' || recordingState === 'paused'"
           @hide="handleToggleCamera"
         />
       </div>

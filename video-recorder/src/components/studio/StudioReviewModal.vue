@@ -15,7 +15,7 @@ import {
   RefreshCw
 } from 'lucide-vue-next';
 import type { CameraTelemetryPoint, RecordingSession } from '../../types/studio';
-import { fetchRecordedSessions, openExportDirectory } from '../../lib/tauriBridge';
+import { fetchRecordedSessions, openExportDirectory, subscribeToEvent } from '../../lib/tauriBridge';
 import { useStudioState } from '../../composables/useStudioState';
 import DragDropBgRemover from './DragDropBgRemover.vue';
 import ExportDestinationModal from './ExportDestinationModal.vue';
@@ -53,6 +53,7 @@ const sysAudioRef = useTemplateRef<HTMLAudioElement>('sysAudioRef');
 const timelineRef = useTemplateRef<HTMLDivElement>('timelineRef');
 
 let fallbackPlayInterval: ReturnType<typeof setInterval> | null = null;
+let unsubscribeCameraUpload: (() => void) | null = null;
 
 const activeSession = computed<RecordingSession | null>(() => {
   if (selectedSessionId.value) {
@@ -249,10 +250,20 @@ function formatTime(secs: number) {
 
 onMounted(() => {
   loadSessionsList();
+  unsubscribeCameraUpload = subscribeToEvent<{ timestamp?: number }>('camera_track_uploaded', async () => {
+    await loadSessionsList();
+    if (cameraVideoRef.value) {
+      cameraVideoRef.value.load();
+    }
+  });
 });
 
 onUnmounted(() => {
   pausePlayback();
+  if (unsubscribeCameraUpload) {
+    unsubscribeCameraUpload();
+    unsubscribeCameraUpload = null;
+  }
 });
 </script>
 
