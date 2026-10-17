@@ -1,60 +1,47 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use serde::{Deserialize, Serialize};
+mod capture;
+mod ai;
+mod session;
+
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
+use session::{SessionManager, SessionMetadata};
+use ai::{process_video_background, OutputFormat};
 
-#[derive(Default)]
 pub struct AppState {
-    pub is_recording: Mutex<bool>,
-    pub current_session_id: Mutex<Option<String>>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SessionResponse {
-    pub session_id: String,
-    pub status: String,
+    pub session_manager: Mutex<SessionManager>,
 }
 
 #[tauri::command]
-fn start_recording(state: State<AppState>) -> Result<SessionResponse, String> {
-    let mut is_rec = state.is_recording.lock().map_err(|e| e.to_string())?;
-    *is_rec = true;
-    let session_id = format!("session_{}", chrono::Local::now().format("%Y%m%d_%H%M%S"));
-    let mut current_id = state.current_session_id.lock().map_err(|e| e.to_string())?;
-    *current_id = Some(session_id.clone());
-
-    println!("[Rust Core] Started isolated multi-track recording: {}", session_id);
-    Ok(SessionResponse {
-        session_id,
-        status: "recording".to_string(),
-    })
+fn start_recording(state: State<AppState>) -> Result<String, String> {
+    let mut manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    let base_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("recordings");
+    let session_id = manager.start(&base_dir).map_err(|e| e.to_string())?;
+    Ok(session_id)
 }
 
 #[tauri::command]
-fn stop_recording(state: State<AppState>) -> Result<SessionResponse, String> {
-    let mut is_rec = state.is_recording.lock().map_err(|e| e.to_string())?;
-    *is_rec = false;
-    let mut current_id = state.current_session_id.lock().map_err(|e| e.to_string())?;
-    let session_id = current_id.take().unwrap_or_else(|| "unknown".to_string());
-
-    println!("[Rust Core] Finalizing recording session: {}", session_id);
-    Ok(SessionResponse {
-        session_id,
-        status: "saved".to_string(),
-    })
+fn stop_recording(state: State<AppState>) -> Result<Option<SessionMetadata>, String> {
+    let mut manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    let metadata = manager.stop().map_err(|e| e.to_string())?;
+    Ok(metadata)
 }
 
 #[tauri::command]
 fn discard_recording(state: State<AppState>) -> Result<bool, String> {
-    let mut is_rec = state.is_recording.lock().map_err(|e| e.to_string())?;
-    *is_rec = false;
-    let mut current_id = state.current_session_id.lock().map_err(|e| e.to_string())?;
-    let _ = current_id.take();
-
-    println!("[Rust Core] Discarded recording buffer (Loom instant trash)");
+    let mut manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.discard().map_err(|e| e.to_string())?;
     Ok(true)
+}
+
+#[tauri::command]
+fn toggle_live_zoom(state: State<AppState>, active: bool) -> Result<bool, String> {
+    let manager = state.session_manager.lock().map_err(|e| e.to_string())?;
+    manager.toggle_live_zoom(active);
+    Ok(active)
 }
 
 #[tauri::command]
@@ -76,14 +63,30 @@ fn toggle_camera_bubble(app: AppHandle) -> Result<bool, String> {
     }
 }
 
+#[tauri::command]
+fn extract_transparent_background(file_path: String, format: String) -> Result<String, String> {
+    let path = PathBuf::from(file_path);
+    let out_format = match format.as_str() {
+        "webm_alpha" => OutputFormat::WebmAlpha,
+        "luma_matte" => OutputFormat::LumaMatte,
+        _ => OutputFormat::ProRes4444,
+    };
+    let output = process_video_background(&path, out_format).map_err(|e| e.to_string())?;
+    Ok(output.to_string_lossy().to_string())
+}
+
 fn main() {
     tauri::Builder::default()
-        .manage(AppState::default())
+        .manage(AppState {
+            session_manager: Mutex::new(SessionManager::default()),
+        })
         .invoke_handler(tauri::generate_handler![
             start_recording,
             stop_recording,
             discard_recording,
-            toggle_camera_bubble
+            toggle_live_zoom,
+            toggle_camera_bubble,
+            extract_transparent_background
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

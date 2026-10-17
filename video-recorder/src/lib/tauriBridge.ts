@@ -1,9 +1,13 @@
+// Universal Bridge for Tauri v2 Desktop and Local Rust Capture Daemon
+
 import { RecordingSession, AudioLevels } from '../types/studio';
 
+const DAEMON_URL = 'http://127.0.0.1:4820';
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window ? new BroadcastChannel('studio_recorder_bus') : null;
 
 export async function invokeCommand<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  // 1. If running inside native Tauri runtime
   if (isTauri) {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
@@ -14,7 +18,51 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
     }
   }
 
-  // Web fallback simulation
+  // 2. If running in browser, communicate with local Rust capture daemon
+  try {
+    let endpoint = '';
+    let method = 'POST';
+    let body: any = null;
+
+    switch (cmd) {
+      case 'start_recording':
+        endpoint = '/start';
+        break;
+      case 'stop_recording':
+        endpoint = '/stop';
+        break;
+      case 'discard_recording':
+        endpoint = '/discard';
+        break;
+      case 'extract_transparent_background':
+        endpoint = '/extract_bg';
+        body = args;
+        break;
+      case 'get_status':
+        endpoint = '/status';
+        method = 'GET';
+        break;
+      default:
+        endpoint = '';
+    }
+
+    if (endpoint) {
+      const resp = await fetch(`${DAEMON_URL}${endpoint}`, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        console.log(`[Rust Daemon Response] ${cmd}:`, json);
+        return json as T;
+      }
+    }
+  } catch (err) {
+    // Daemon offline, gracefully fallback to preview simulation
+    console.log(`[Rust Daemon] Offline, using interactive simulation for ${cmd}`);
+  }
+
   return mockCommandResponse<T>(cmd, args);
 }
 

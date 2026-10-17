@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "daemon:build": "cargo build --manifest-path src-daemon/Cargo.toml",
+    "daemon:start": "./src-daemon/target/debug/recorder-daemon"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
