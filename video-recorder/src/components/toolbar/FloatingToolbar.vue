@@ -18,10 +18,12 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
-  Monitor
+  Monitor,
+  Film,
+  X
 } from 'lucide-vue-next';
 import { RecordingState } from '../../types/studio';
-import { invokeCommand } from '../../lib/tauriBridge';
+import { invokeCommand, moveOverlayWindow, resizeOverlayWindow, quitOverlayApp } from '../../lib/tauriBridge';
 
 const recordingState = defineModel<RecordingState>('recordingState', { required: true });
 
@@ -50,6 +52,44 @@ const audioLevel = shallowRef(0.4);
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 let vuInterval: ReturnType<typeof setInterval> | null = null;
 let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Native OS window pointer dragging
+let isDraggingWindow = false;
+let lastScreenX = 0;
+let lastScreenY = 0;
+
+function onDragMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('button, input, select, a')) return;
+  isDraggingWindow = true;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+  window.addEventListener('mousemove', onDragMouseMove);
+  window.addEventListener('mouseup', onDragMouseUp);
+}
+
+function onDragMouseMove(e: MouseEvent) {
+  if (!isDraggingWindow) return;
+  const dx = e.screenX - lastScreenX;
+  const dy = e.screenY - lastScreenY;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+  moveOverlayWindow('toolbar', dx, dy);
+}
+
+function onDragMouseUp() {
+  isDraggingWindow = false;
+  window.removeEventListener('mousemove', onDragMouseMove);
+  window.removeEventListener('mouseup', onDragMouseUp);
+}
+
+watch([isCollapsed, recordingState], ([collapsed, state]) => {
+  if (collapsed && (state === 'recording' || state === 'paused')) {
+    resizeOverlayWindow('toolbar', 160, 60);
+  } else {
+    resizeOverlayWindow('toolbar', 640, 84);
+  }
+});
 
 // Timer during recording
 watch(
@@ -92,6 +132,7 @@ onUnmounted(() => {
   if (timerInterval) clearInterval(timerInterval);
   if (vuInterval) clearInterval(vuInterval);
   if (idleTimeout) clearTimeout(idleTimeout);
+  onDragMouseUp();
 });
 
 // Loom Idle Dimming: Dim to 25% opacity when cursor leaves during recording
@@ -154,6 +195,7 @@ async function handleRestart() {
     <!-- Collapsed Mini-Dot View -->
     <div
       v-if="isCollapsed && (recordingState === 'recording' || recordingState === 'paused')"
+      @mousedown="onDragMouseDown"
       class="glass-pill px-3.5 py-1.5 rounded-full flex items-center space-x-2 text-xs font-mono cursor-pointer border border-white/10 hover:border-red-500/50 transition-all shadow-xl hover:scale-105 active:scale-95"
       @click="isCollapsed = false"
       title="Click to expand controls"
@@ -166,6 +208,7 @@ async function handleRestart() {
     <!-- Full Floating Pill (Ultra-Refined) -->
     <div
       v-else
+      @mousedown="onDragMouseDown"
       @mouseenter="isHovered = true; isIdleDimmed = false;"
       @mouseleave="isHovered = false; resetIdleTimer();"
       class="glass-pill rounded-2xl px-4 py-2.5 flex items-center space-x-3 select-none transition-all duration-300"
@@ -175,8 +218,12 @@ async function handleRestart() {
       ]"
     >
       <!-- Draggable Grip Indicator -->
-      <div class="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 transition-colors pr-0.5">
-        <GripVertical class="w-4 h-4" />
+      <div
+        data-tauri-drag-region
+        class="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 transition-colors pr-0.5"
+        title="Drag Floating Toolbar"
+      >
+        <GripVertical class="w-4 h-4 pointer-events-none" />
       </div>
 
       <!-- State: IDLE Controls -->
@@ -344,6 +391,16 @@ async function handleRestart() {
         <Link class="w-3.5 h-3.5" />
       </button>
 
+      <!-- Open Studio Review & Batch AI Window (when idle) -->
+      <button
+        v-if="recordingState === 'idle'"
+        @click="recordingState = 'review'"
+        class="p-2 rounded-xl text-gray-400 hover:bg-white/10 hover:text-indigo-300 transition-all active:scale-95"
+        title="Open Studio Review & Batch AI Matting"
+      >
+        <Film class="w-3.5 h-3.5" />
+      </button>
+
       <!-- Collapse to Mini Dot -->
       <button
         v-if="recordingState !== 'idle'"
@@ -352,6 +409,16 @@ async function handleRestart() {
         title="Collapse to Mini Indicator"
       >
         <ChevronDown class="w-3.5 h-3.5" />
+      </button>
+
+      <!-- Quit Overlay Button (when idle) -->
+      <button
+        v-else
+        @click="quitOverlayApp()"
+        class="p-1.5 hover:bg-red-500/20 rounded-lg text-gray-500 hover:text-red-300 transition-colors"
+        title="Close Overlay"
+      >
+        <X class="w-3.5 h-3.5" />
       </button>
     </div>
   </div>

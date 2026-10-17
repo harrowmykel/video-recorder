@@ -47,6 +47,7 @@ watch(
 // Simulated audio fluctuation for camera halo
 let audioInterval: ReturnType<typeof setInterval> | null = null;
 let unsubscribeSync: (() => void) | null = null;
+let unsubscribeShortcut: (() => void) | null = null;
 
 async function handleCountdownComplete() {
   recordingState.value = 'recording';
@@ -79,6 +80,35 @@ function handleToggleDock() {
   isDockedToCamera.value = !isDockedToCamera.value;
 }
 
+function executeShortcutAction(action: string) {
+  switch (action) {
+    case 'record':
+      if (recordingState.value === 'idle') {
+        recordingState.value = 'countdown';
+      } else if (recordingState.value === 'recording' || recordingState.value === 'paused') {
+        recordingState.value = 'review';
+        invokeCommand('stop_recording').catch(() => {});
+      }
+      break;
+    case 'pause':
+      if (recordingState.value === 'recording') {
+        recordingState.value = 'paused';
+      } else if (recordingState.value === 'paused') {
+        recordingState.value = 'recording';
+      }
+      break;
+    case 'camera':
+      handleToggleCamera();
+      break;
+    case 'zoom':
+      handleToggleLiveZoom();
+      break;
+    case 'annotation':
+      handleToggleAnnotation();
+      break;
+  }
+}
+
 // Global Shortcuts (Task 1.2)
 function handleGlobalHotkeys(e: KeyboardEvent) {
   const isCtrlOrCmd = e.ctrlKey || e.metaKey;
@@ -87,32 +117,23 @@ function handleGlobalHotkeys(e: KeyboardEvent) {
   switch (e.code) {
     case 'KeyR':
       e.preventDefault();
-      if (recordingState.value === 'idle') {
-        recordingState.value = 'countdown';
-      } else if (recordingState.value === 'recording' || recordingState.value === 'paused') {
-        recordingState.value = 'review';
-        invokeCommand('stop_recording').catch(() => {});
-      }
+      executeShortcutAction('record');
       break;
     case 'Space':
       e.preventDefault();
-      if (recordingState.value === 'recording') {
-        recordingState.value = 'paused';
-      } else if (recordingState.value === 'paused') {
-        recordingState.value = 'recording';
-      }
+      executeShortcutAction('pause');
       break;
     case 'KeyH':
       e.preventDefault();
-      handleToggleCamera();
+      executeShortcutAction('camera');
       break;
     case 'KeyZ':
       e.preventDefault();
-      handleToggleLiveZoom();
+      executeShortcutAction('zoom');
       break;
     case 'KeyA':
       e.preventDefault();
-      handleToggleAnnotation();
+      executeShortcutAction('annotation');
       break;
   }
 }
@@ -140,6 +161,15 @@ onMounted(() => {
       isSyncingFromBus = false;
     }, 50);
   });
+
+  // Subscribe to OS global shortcuts routed from the desktop shell
+  if (targetWindow.value === 'toolbar' || targetWindow.value === 'preview-all') {
+    unsubscribeShortcut = subscribeToEvent<{ action: string }>('global_shortcut', (payload) => {
+      if (payload?.action) {
+        executeShortcutAction(payload.action);
+      }
+    });
+  }
 });
 
 onUnmounted(() => {
@@ -152,14 +182,18 @@ onUnmounted(() => {
     unsubscribeSync();
     unsubscribeSync = null;
   }
+  if (unsubscribeShortcut) {
+    unsubscribeShortcut();
+    unsubscribeShortcut = null;
+  }
 });
 </script>
 
 <template>
-  <div class="w-screen h-screen overflow-hidden select-none font-sans">
-    <!-- Standalone Window Modes for Tauri Multi-Window -->
+  <div class="w-screen h-screen overflow-hidden select-none font-sans bg-transparent">
+    <!-- Standalone Window Modes for Native Multi-Window Desktop Overlay -->
     <template v-if="targetWindow === 'toolbar'">
-      <div class="p-2">
+      <div class="w-full h-full flex items-center justify-center">
         <FloatingToolbar
           v-model:recording-state="recordingState"
           :is-camera-hidden="isCameraHidden"
@@ -175,31 +209,39 @@ onUnmounted(() => {
     </template>
 
     <template v-else-if="targetWindow === 'camera'">
-      <div class="p-2">
+      <div class="w-full h-full flex items-center justify-center">
         <CameraBubble
           :is-hidden="isCameraHidden"
           :audio-volume="audioVolume"
           :is-recording="recordingState === 'recording'"
-          @hide="isCameraHidden = true"
+          @hide="handleToggleCamera"
         />
       </div>
     </template>
 
     <template v-else-if="targetWindow === 'annotations'">
       <AnnotationCanvas
-        :is-active="true"
+        :is-active="isAnnotationActive"
         @close="isAnnotationActive = false"
       />
     </template>
 
     <template v-else-if="targetWindow === 'countdown'">
       <CountdownOverlay
+        v-if="recordingState === 'countdown'"
         @complete="handleCountdownComplete"
         @cancel="handleCountdownCancel"
       />
     </template>
 
-    <!-- Comprehensive Interactive Workspace Preview Harness (Default Web Preview) -->
+    <template v-else-if="targetWindow === 'studio'">
+      <StudioReviewModal
+        v-if="recordingState === 'review'"
+        @close="recordingState = 'idle'"
+      />
+    </template>
+
+    <!-- Comprehensive Interactive Workspace Preview Harness (Default Web Browser Preview) -->
     <template v-else>
       <div class="relative w-full h-full bg-[#08090E] flex flex-col justify-between overflow-hidden">
         <!-- Ambient Studio Lighting Glows -->

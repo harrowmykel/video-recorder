@@ -1,8 +1,23 @@
-// Universal Bridge for Tauri v2 Desktop and Local Rust Capture Daemon
+// Universal Bridge for Native Desktop Overlays (Electron / Tauri v2) and Local Rust Capture Daemon
+
+export interface ElectronOverlayAPI {
+  send: (channel: string, payload?: unknown) => void;
+  on: (channel: string, callback: (payload: any) => void) => () => void;
+}
+
+declare global {
+  interface Window {
+    __ELECTRON_OVERLAY__?: ElectronOverlayAPI;
+  }
+}
 
 const DAEMON_URL = 'http://127.0.0.1:4820';
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window ? new BroadcastChannel('studio_recorder_bus') : null;
+
+export function isNativeOverlayWindow(): boolean {
+  return typeof window !== 'undefined' && (isTauri || Boolean(window.__ELECTRON_OVERLAY__));
+}
 
 export async function invokeCommand<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   // 1. If running inside native Tauri runtime
@@ -16,11 +31,11 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
     }
   }
 
-  // 2. If running in browser, communicate with local Rust capture daemon
+  // 2. Communicate with local Rust capture daemon
   try {
     let endpoint = '';
     let method = 'POST';
-    let body: any = null;
+    let body: unknown = null;
 
     switch (cmd) {
       case 'start_recording':
@@ -60,7 +75,7 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
         return json as T;
       }
     }
-  } catch (err) {
+  } catch (_err) {
     // Daemon offline, gracefully fallback to preview simulation
     console.log(`[Rust Daemon] Offline, using interactive simulation for ${cmd}`);
   }
@@ -72,19 +87,81 @@ export function broadcastEvent(event: string, payload: unknown) {
   if (channel) {
     channel.postMessage({ event, payload });
   }
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('overlay_event', { event, payload });
+  }
 }
 
 export function subscribeToEvent<T>(event: string, callback: (payload: T) => void): () => void {
-  if (!channel) return () => {};
+  const cleanups: Array<() => void> = [];
 
-  const listener = (msg: MessageEvent) => {
-    if (msg.data?.event === event) {
-      callback(msg.data.payload);
-    }
+  if (channel) {
+    const listener = (msg: MessageEvent) => {
+      if (msg.data?.event === event) {
+        callback(msg.data.payload);
+      }
+    };
+    channel.addEventListener('message', listener);
+    cleanups.push(() => channel.removeEventListener('message', listener));
+  }
+
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    const unsub = window.__ELECTRON_OVERLAY__.on('overlay_event', (data: { event: string; payload: T }) => {
+      if (data?.event === event) {
+        callback(data.payload);
+      }
+    });
+    cleanups.push(unsub);
+  }
+
+  return () => {
+    cleanups.forEach((fn) => fn());
   };
+}
 
-  channel.addEventListener('message', listener);
-  return () => channel.removeEventListener('message', listener);
+export async function moveOverlayWindow(windowLabel: string, dx: number, dy: number) {
+  if (dx === 0 && dy === 0) return;
+
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('move_window', { windowLabel, dx, dy });
+    return;
+  }
+
+  if (isTauri) {
+    try {
+      const { getCurrentWindow, PhysicalPosition } = await import('@tauri-apps/api/window');
+      const win = getCurrentWindow();
+      const pos = await win.outerPosition();
+      await win.setPosition(new PhysicalPosition(pos.x + dx, pos.y + dy));
+    } catch (e) {
+      console.warn('[Tauri Window] move failed:', e);
+    }
+  }
+}
+
+export async function resizeOverlayWindow(windowLabel: string, width: number, height: number) {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('resize_window', { windowLabel, width, height });
+    return;
+  }
+
+  if (isTauri) {
+    try {
+      const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
+      const win = getCurrentWindow();
+      await win.setSize(new LogicalSize(width, height));
+    } catch (e) {
+      console.warn('[Tauri Window] resize failed:', e);
+    }
+  }
+}
+
+export function quitOverlayApp() {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('quit_app');
+  } else if (typeof window !== 'undefined') {
+    window.close();
+  }
 }
 
 function mockCommandResponse<T>(cmd: string, _args?: Record<string, unknown>): Promise<T> {

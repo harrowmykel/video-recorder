@@ -13,21 +13,24 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "label": "studio",
-        "title": "Screen & Camera Studio",
-        "url": "index.html?window=studio",
-        "width": 1280,
-        "height": 820,
-        "resizable": true,
-        "fullscreen": false,
-        "visible": true
-      },
-      {
         "label": "toolbar",
         "title": "Recorder Controls",
         "url": "index.html?window=toolbar",
-        "width": 520,
-        "height": 72,
+        "width": 640,
+        "height": 84,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": false,
+        "resizable": false,
+        "visible": true
+      },
+      {
+        "label": "camera_bubble",
+        "title": "Camera Overlay",
+        "url": "index.html?window=camera",
+        "width": 288,
+        "height": 288,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
@@ -36,17 +39,15 @@
         "visible": true
       },
       {
-        "label": "camera_bubble",
-        "title": "Camera Overlay",
-        "url": "index.html?window=camera",
-        "width": 260,
-        "height": 260,
+        "label": "countdown",
+        "title": "Recording Countdown",
+        "url": "index.html?window=countdown",
+        "fullscreen": true,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "resizable": true,
-        "visible": true
+        "visible": false
       },
       {
         "label": "annotations",
@@ -57,6 +58,18 @@
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
+        "visible": false
+      },
+      {
+        "label": "studio",
+        "title": "Screen & Camera Studio",
+        "url": "index.html?window=studio",
+        "width": 1240,
+        "height": 840,
+        "decorations": false,
+        "transparent": true,
+        "resizable": true,
+        "fullscreen": false,
         "visible": false
       }
     ],

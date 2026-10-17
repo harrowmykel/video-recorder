@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { shallowRef, computed, onMounted, onUnmounted, useTemplateRef, nextTick } from 'vue';
+import { shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from 'vue';
 import {
   FlipHorizontal,
   Sparkles,
@@ -12,6 +12,7 @@ import {
   Radio
 } from 'lucide-vue-next';
 import { CameraShape, CameraSize, BgRemovalMode } from '../../types/studio';
+import { moveOverlayWindow, resizeOverlayWindow } from '../../lib/tauriBridge';
 
 const props = withDefaults(
   defineProps<{
@@ -40,6 +41,36 @@ const videoRef = useTemplateRef<HTMLVideoElement>('videoRef');
 
 let mediaStream: MediaStream | null = null;
 
+// Native OS window pointer dragging
+let isDraggingWindow = false;
+let lastScreenX = 0;
+let lastScreenY = 0;
+
+function onDragMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('button, input, select, a')) return;
+  isDraggingWindow = true;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+  window.addEventListener('mousemove', onDragMouseMove);
+  window.addEventListener('mouseup', onDragMouseUp);
+}
+
+function onDragMouseMove(e: MouseEvent) {
+  if (!isDraggingWindow) return;
+  const dx = e.screenX - lastScreenX;
+  const dy = e.screenY - lastScreenY;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+  moveOverlayWindow('camera', dx, dy);
+}
+
+function onDragMouseUp() {
+  isDraggingWindow = false;
+  window.removeEventListener('mousemove', onDragMouseMove);
+  window.removeEventListener('mouseup', onDragMouseUp);
+}
+
 onMounted(async () => {
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -62,6 +93,7 @@ onUnmounted(() => {
   if (mediaStream) {
     mediaStream.getTracks().forEach((t) => t.stop());
   }
+  onDragMouseUp();
 });
 
 // Size dimensions
@@ -74,6 +106,15 @@ const dimensions = computed(() => {
   };
   return map[size.value];
 });
+
+watch(
+  dimensions,
+  ({ width, height }) => {
+    // Include 48px padding for speaking halo glow and shadow
+    resizeOverlayWindow('camera', width + 48, height + 48);
+  },
+  { immediate: true }
+);
 
 // Shape classes
 const shapeClass = computed(() => {
@@ -121,10 +162,11 @@ function toggleBgMode() {
 <template>
   <div
     v-if="!isHidden"
+    @mousedown="onDragMouseDown"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     :style="haloStyle"
-    class="relative select-none overflow-hidden transition-all duration-300 border border-white/20 bg-studio-surface group"
+    class="relative select-none overflow-hidden transition-all duration-300 border border-white/20 bg-studio-surface group cursor-grab active:cursor-grabbing"
     :class="[
       isRecording ? 'border-red-500/80' : 'border-white/20',
       shapeClass
