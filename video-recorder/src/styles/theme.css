@@ -3,14 +3,57 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* Default: Obsidian Precision */
+  :root,
+  [data-theme="obsidian"] {
     --studio-bg: #090A0F;
     --studio-surface: #12141A;
     --studio-card: #181B22;
     --studio-border: rgba(255, 255, 255, 0.08);
+    --studio-accent: #F43F5E;
     --studio-crimson: #FF3B30;
     --studio-indigo: #6366F1;
     --studio-emerald: #10B981;
+    --dock-radius: 1.25rem;
+  }
+
+  /* Spatial Frosted Glass */
+  [data-theme="spatial"] {
+    --studio-bg: #070913;
+    --studio-surface: rgba(22, 27, 46, 0.85);
+    --studio-card: rgba(30, 41, 59, 0.65);
+    --studio-border: rgba(255, 255, 255, 0.16);
+    --studio-accent: #38BDF8;
+    --studio-crimson: #FB7185;
+    --studio-indigo: #818CF8;
+    --studio-emerald: #34D399;
+    --dock-radius: 9999px;
+  }
+
+  /* Broadcast Graphite */
+  [data-theme="graphite"] {
+    --studio-bg: #0B0C0E;
+    --studio-surface: #121418;
+    --studio-card: #1B1E24;
+    --studio-border: #2D323C;
+    --studio-accent: #FF5500;
+    --studio-crimson: #FF2A2A;
+    --studio-indigo: #FFB800;
+    --studio-emerald: #00E676;
+    --dock-radius: 0.5rem;
+  }
+
+  /* Nordic Alabaster & Ink */
+  [data-theme="nordic"] {
+    --studio-bg: #F4F6F9;
+    --studio-surface: #FFFFFF;
+    --studio-card: #F8FAFC;
+    --studio-border: #E2E8F0;
+    --studio-accent: #2563EB;
+    --studio-crimson: #EF4444;
+    --studio-indigo: #3B82F6;
+    --studio-emerald: #10B981;
+    --dock-radius: 1rem;
   }
 
   html,
@@ -26,59 +69,104 @@
   }
 }
 
-/* Luxurious Ultra-Refined Frosted Glass */
-.glass-pill {
-  background: rgba(18, 20, 26, 0.78);
+/* =====================================================================
+   THEME 01: OBSIDIAN PRECISION STYLES
+   ===================================================================== */
+.obsidian-panel {
+  background: rgba(11, 12, 16, 0.92);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 
-    0 20px 40px -10px rgba(0, 0, 0, 0.7),
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-    0 1px 2px 0 rgba(255, 255, 255, 0.15) inset;
+  box-shadow:
+    0 20px 40px -10px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
-.glass-panel {
-  background: rgba(15, 17, 23, 0.88);
-  backdrop-filter: blur(32px) saturate(190%);
-  -webkit-backdrop-filter: blur(32px) saturate(190%);
+.obsidian-btn {
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 
-    0 32px 64px -16px rgba(0, 0, 0, 0.85),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  transition: all 0.15s ease;
+}
+.obsidian-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
-.glass-card {
-  background: rgba(24, 27, 34, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+/* =====================================================================
+   THEME 02: SPATIAL FROSTED GLASS STYLES
+   ===================================================================== */
+.spatial-glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 20px 45px -12px rgba(0, 0, 0, 0.7),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-.glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(28, 32, 40, 0.75);
+.spatial-glass-dark {
+  background: linear-gradient(160deg, rgba(22, 27, 46, 0.85) 0%, rgba(12, 15, 28, 0.92) 100%);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.75),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.22);
 }
 
-/* Metallic Sheen Button Effect */
-.btn-primary {
-  background: linear-gradient(180deg, #FF453A 0%, #D70015 100%);
-  box-shadow: 
-    0 1px 2px rgba(255, 255, 255, 0.35) inset,
-    0 8px 16px -4px rgba(239, 68, 68, 0.45),
-    0 2px 4px rgba(0, 0, 0, 0.2);
+.spatial-pill-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.btn-primary:hover {
-  background: linear-gradient(180deg, #FF5A4F 0%, #E00018 100%);
+.spatial-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
 }
 
-.btn-indigo {
-  background: linear-gradient(180deg, #6366F1 0%, #4F46E5 100%);
-  box-shadow: 
-    0 1px 2px rgba(255, 255, 255, 0.3) inset,
-    0 8px 16px -4px rgba(99, 102, 241, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.2);
+/* =====================================================================
+   THEME 03: BROADCAST GRAPHITE STYLES
+   ===================================================================== */
+.machined-chassis {
+  background: linear-gradient(180deg, #1B1E24 0%, #121418 100%);
+  border: 1px solid #2D323C;
+  box-shadow:
+    0 14px 28px -6px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.tactile-key {
+  background: linear-gradient(180deg, #252932 0%, #1B1E25 100%);
+  border: 1px solid #353B47;
+  box-shadow:
+    0 2px 0 0 #0B0C0E,
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.1s ease;
+}
+.tactile-key:hover {
+  background: linear-gradient(180deg, #2C313C 0%, #20242C 100%);
+  border-color: #454D5C;
+}
+.tactile-key:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 0 #0B0C0E;
+}
+
+.recessed-screen {
+  background: #090A0C;
+  border: 1px solid #22262E;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.85);
+}
+
+/* =====================================================================
+   THEME 04: NORDIC MINIMAL STYLES
+   ===================================================================== */
+.nordic-surface {
+  box-shadow:
+    0 12px 32px -8px rgba(15, 23, 42, 0.12),
+    0 2px 6px -1px rgba(15, 23, 42, 0.06);
 }
 
 /* Custom Sleek Scrollbar */

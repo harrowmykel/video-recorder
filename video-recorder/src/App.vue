@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { shallowRef, onMounted, onUnmounted, watch } from 'vue';
+import { shallowRef, ref, onMounted, onUnmounted, watch } from 'vue';
 import FloatingToolbar from './components/toolbar/FloatingToolbar.vue';
 import CameraBubble from './components/camera/CameraBubble.vue';
 import CountdownOverlay from './components/countdown/CountdownOverlay.vue';
 import AnnotationCanvas from './components/annotations/AnnotationCanvas.vue';
 import StudioReviewModal from './components/studio/StudioReviewModal.vue';
+import ThemeSelectorModal from './components/settings/ThemeSelectorModal.vue';
+import { useTheme } from './composables/useTheme';
 import { RecordingState } from './types/studio';
 import { invokeCommand, broadcastEvent, subscribeToEvent } from './lib/tauriBridge';
 import {
   Wifi,
-  BatteryCharging
+  BatteryCharging,
+  Palette
 } from 'lucide-vue-next';
+
+const { currentTheme, themeMeta, initTheme } = useTheme();
+const isThemeModalOpen = ref(false);
 
 // Read window target from URL query parameter
 const urlParams = new URLSearchParams(window.location.search);
@@ -139,6 +145,7 @@ function handleGlobalHotkeys(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  initTheme();
   audioInterval = setInterval(() => {
     if (recordingState.value === 'recording') {
       audioVolume.value = 0.25 + Math.random() * 0.55;
@@ -279,6 +286,14 @@ onUnmounted(() => {
               Open Studio Review Modal
             </button>
 
+            <button
+              @click="isThemeModalOpen = true"
+              class="px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 text-rose-300 font-semibold transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+            >
+              <Palette class="w-3.5 h-3.5" />
+              <span>Theme: {{ themeMeta[currentTheme].name }}</span>
+            </button>
+
             <div class="flex items-center space-x-2 text-gray-400 pl-2">
               <Wifi class="w-3.5 h-3.5" />
               <BatteryCharging class="w-3.5 h-3.5 text-emerald-400" />
@@ -370,6 +385,12 @@ onUnmounted(() => {
         <StudioReviewModal
           v-if="recordingState === 'review'"
           @close="recordingState = 'idle'"
+        />
+
+        <!-- Studio Theme Selector Modal -->
+        <ThemeSelectorModal
+          :is-open="isThemeModalOpen"
+          @close="isThemeModalOpen = false"
         />
       </div>
     </template>

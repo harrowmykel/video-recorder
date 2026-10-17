@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { playCountdownTone } from '../../lib/audioTone';
+import { useTheme } from '../../composables/useTheme';
 
 const emit = defineEmits<{
   (e: 'complete'): void;
   (e: 'cancel'): void;
 }>();
+
+const { currentTheme, initTheme } = useTheme();
 
 const count = ref<number | 'ACTION'>(3);
 let timeouts: ReturnType<typeof setTimeout>[] = [];
@@ -17,9 +20,9 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  initTheme();
   window.addEventListener('keydown', handleKeydown);
 
-  // Play initial metronome beep
   playCountdownTone('tick');
 
   timeouts.push(
@@ -59,50 +62,62 @@ onUnmounted(() => {
 <template>
   <div
     @click="emit('cancel')"
-    class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm cursor-pointer select-none"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md cursor-pointer select-none"
   >
-    <transition
-      name="countdown-pop"
-      mode="out-in"
-    >
-      <div
-        :key="count"
-        class="flex flex-col items-center"
-      >
-        <span
-          class="font-black tracking-tighter"
-          :class="[
-            count === 'ACTION'
-              ? 'text-6xl md:text-8xl text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-rose-400 to-amber-300 drop-shadow-[0_10px_25px_rgba(239,68,68,0.6)]'
-              : 'text-8xl md:text-9xl text-white font-mono drop-shadow-[0_10px_30px_rgba(255,255,255,0.4)]'
-          ]"
-        >
+    <!-- Spatial Theme Layout (VisionOS Radial Progress Glass) -->
+    <template v-if="currentTheme === 'spatial'">
+      <div class="relative w-52 h-52 rounded-full spatial-glass flex flex-col items-center justify-center shadow-2xl">
+        <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3" />
+          <circle
+            cx="60" cy="60" r="54" fill="none" stroke="#38bdf8" stroke-width="4"
+            stroke-dasharray="339.29"
+            :stroke-dashoffset="count === 3 ? 113 : count === 2 ? 226 : 339"
+            stroke-linecap="round"
+            class="transition-all duration-700"
+          />
+        </svg>
+        <span class="text-7xl font-extrabold text-white tracking-tighter drop-shadow-lg">
           {{ count }}
         </span>
+        <span class="text-[11px] font-semibold uppercase tracking-widest text-sky-300 mt-1">Get Ready</span>
       </div>
-    </transition>
+    </template>
 
-    <p class="mt-8 text-xs font-mono tracking-widest text-gray-300 uppercase opacity-80">
+    <!-- Graphite Theme Layout (SMPTE Broadcast Crosshair Leader) -->
+    <template v-else-if="currentTheme === 'graphite'">
+      <div class="relative w-52 h-52 rounded-lg recessed-screen border-2 border-zinc-700 flex flex-col items-center justify-center font-mono">
+        <div class="absolute inset-x-0 top-1/2 h-px bg-zinc-800"></div>
+        <div class="absolute inset-y-0 left-1/2 w-px bg-zinc-800"></div>
+        <span class="relative z-10 text-7xl font-bold text-white tabular-nums tracking-widest drop-shadow">
+          {{ typeof count === 'number' ? `0${count}` : count }}
+        </span>
+        <span class="relative z-10 text-[10px] uppercase tracking-widest text-[#ff5500] mt-1 font-bold">PRE-ROLLSYNC</span>
+      </div>
+    </template>
+
+    <!-- Nordic Theme Layout (Ceramic Card Medallion) -->
+    <template v-else-if="currentTheme === 'nordic'">
+      <div class="w-48 h-48 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col items-center justify-center">
+        <span class="text-7xl font-extrabold text-slate-900 dark:text-white tabular-nums">
+          {{ count }}
+        </span>
+        <span class="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mt-1">Starting Capture</span>
+      </div>
+    </template>
+
+    <!-- Obsidian Theme Layout (Raycast / Precision Disc) -->
+    <template v-else>
+      <div class="relative w-52 h-52 rounded-full obsidian-panel flex flex-col items-center justify-center shadow-2xl border-white/15">
+        <span class="text-8xl font-black font-mono text-white tracking-tight drop-shadow-[0_10px_30px_rgba(244,63,94,0.35)]">
+          {{ count }}
+        </span>
+        <span class="text-xs font-mono uppercase tracking-widest text-rose-400 mt-1 font-bold">PRE-RECORD</span>
+      </div>
+    </template>
+
+    <p class="mt-8 text-xs font-mono tracking-widest text-white/50 uppercase">
       Click anywhere or press Esc to cancel
     </p>
   </div>
 </template>
-
-<style scoped>
-.countdown-pop-enter-active {
-  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.countdown-pop-leave-active {
-  transition: all 0.25s ease-in;
-}
-.countdown-pop-enter-from {
-  opacity: 0;
-  transform: scale(2.2);
-  filter: blur(8px);
-}
-.countdown-pop-leave-to {
-  opacity: 0;
-  transform: scale(0.6);
-  filter: blur(6px);
-}
-</style>
