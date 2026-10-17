@@ -1,6 +1,6 @@
 # Project Roadmap: Multi-Platform Screen & Camera Studio Recorder
 
-A modern, high-performance, 100% offline screen and camera recording studio built with **Tauri v2 (Rust + React/TypeScript)**. Features isolated multi-track recording (clean screen + separate raw/transparent camera), real-time & post-recording AI background removal, mouse telemetry for Screen-Studio-style zoom, and floating overlays.
+A modern, high-performance, 100% offline screen and camera recording studio built with **Tauri v2 (Rust + Vue 3 / TypeScript)**. Features isolated multi-track recording (clean screen + separate raw/transparent camera), real-time & post-recording AI background removal, mouse telemetry for Screen-Studio-style zoom, and floating overlays.
 
 ---
 

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StudioRecorder",
+  "version": "0.1.0",
+  "identifier": "com.studiorecorder.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "studio",
+        "title": "Screen & Camera Studio",
+        "url": "index.html?window=studio",
+        "width": 1280,
+        "height": 820,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": true
+      },
+      {
+        "label": "toolbar",
+        "title": "Recorder Controls",
+        "url": "index.html?window=toolbar",
+        "width": 520,
+        "height": 72,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "visible": true
+      },
+      {
+        "label": "camera_bubble",
+        "title": "Camera Overlay",
+        "url": "index.html?window=camera",
+        "width": 260,
+        "height": 260,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": true,
+        "visible": true
+      },
+      {
+        "label": "annotations",
+        "title": "Screen Annotations",
+        "url": "index.html?window=annotations",
+        "fullscreen": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
