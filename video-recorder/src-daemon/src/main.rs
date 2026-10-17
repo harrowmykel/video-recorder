@@ -90,6 +90,17 @@ async fn main() {
             }
         });
 
+    // 6. AI Model catalog route
+    let models_route = warp::path("models")
+        .and(warp::get())
+        .map(|| {
+            if let Ok(manager) = ai::ModelManager::new() {
+                warp::reply::json(&manager.list_models())
+            } else {
+                warp::reply::json(&Vec::<ai::ModelInfo>::new())
+            }
+        });
+
     // Enable CORS for frontend dev server
     let cors = warp::cors()
         .allow_any_origin()
@@ -101,6 +112,7 @@ async fn main() {
         .or(stop_route)
         .or(discard_route)
         .or(extract_route)
+        .or(models_route)
         .with(cors);
 
     println!("[Rust Core Daemon] Hardware capture service listening on http://127.0.0.1:4820");

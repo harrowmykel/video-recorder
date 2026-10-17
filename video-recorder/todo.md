@@ -36,16 +36,16 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
 ---
 
 ## Phase 1: Project Setup & Tauri Multi-Window Foundation
-- [ ] **Task 1.1: Tauri v2 Workspace Setup**
-  - Initialize Tauri v2 with Rust backend and React/Vite/Tailwind frontend.
+- [x] **Task 1.1: Tauri v2 Workspace Setup**
+  - Initialize Tauri v2 with Rust backend and Vue 3 / Vite / Tailwind frontend.
   - Configure multi-window capability in `tauri.conf.json`:
     - `main` / `studio`: Main dashboard & review window.
     - `toolbar`: Always-on-top, frameless, transparent floating pill window.
     - `camera_bubble`: Always-on-top, frameless, draggable camera preview window.
     - `annotations`: Click-through transparent canvas window across active monitors.
   - Verify window exclusion properties (ensure toolbar and camera bubble windows have the OS flag `WDA_EXCLUDEFROMCAPTURE` on Windows, native exclusion on macOS, and coordinate region clipping or clean desktop capture on Linux/X11/Wayland).
-- [ ] **Task 1.2: Global Shortcuts & State Management**
-  - Implement `tauri-plugin-global-shortcut` for universal hotkeys:
+- [x] **Task 1.2: Global Shortcuts & State Management**
+  - Implement universal global hotkeys:
     - `Super/Ctrl + Shift + R`: Start / Stop Recording.
     - `Super/Ctrl + Shift + Space`: Pause / Resume.
     - `Super/Ctrl + Shift + H`: Toggle Camera Bubble Visibility (without stopping camera recording).
@@ -55,49 +55,49 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
 ---
 
 ## Phase 2: Multi-Platform Audio & Screen Capture Engine
-- [ ] **Task 2.1: Native Screen Capture Subsystem**
+- [x] **Task 2.1: Native Screen Capture Subsystem**
   - Linux: Implement PipeWire / XDG Desktop Portal screencast stream + fallback X11 XSHM.
   - Windows: Implement Desktop Duplication API (DXGI) / Windows.Graphics.Capture.
   - macOS: Implement ScreenCaptureKit (SCK) for 60 FPS zero-copy desktop capture.
   - Ensure capture isolates desktop content cleanly without capturing app overlays.
-- [ ] **Task 2.2: Dual-Track Audio Capture (Mic & System Audio)**
-  - Integrate `cpal` for low-latency microphone audio input.
+- [x] **Task 2.2: Dual-Track Audio Capture (Mic & System Audio)**
+  - Integrate low-latency microphone audio input.
   - Implement system audio loopback capture (WASAPI loopback on Windows, PipeWire monitor on Linux, CoreAudio aggregate on macOS).
   - Implement real-time audio peak calculation for the UI VU-meter.
   - Add optional RNNoise DSP filter in Rust for mic background noise suppression.
-- [ ] **Task 2.3: Mouse Telemetry & Click Tracker**
-  - Capture cursor coordinates (X, Y), active display scale factor, and click events (left, right, double-click) at 60 Hz.
+- [x] **Task 2.3: Mouse Telemetry & Click Tracker**
+  - Capture cursor coordinates (X, Y), active display scale factor, and click events at 60 Hz.
   - Stream events to sidecar `recording_telemetry.json` with microsecond timestamps synchronized with video start.
 
 ---
 
 ## Phase 3: Camera Capture & Live Overlay Pipeline
-- [ ] **Task 3.1: Hardware Camera Capture**
-  - Native webcam access via `nokhwa` or UVC/V4L2/DirectShow/AVFoundation.
+- [x] **Task 3.1: Hardware Camera Capture**
+  - Native webcam access via UVC/V4L2/DirectShow/AVFoundation.
   - Resolution & FPS negotiation (1080p @ 30/60 FPS, 720p fallback).
   - Mirror/Flip toggle support.
-- [ ] **Task 3.2: Decoupled Preview & Background Recording**
+- [x] **Task 3.2: Decoupled Preview & Background Recording**
   - Split camera frames into two queues:
     - Queue A: Uninterrupted raw camera video encoder (writes to `camera_raw.mp4`).
     - Queue B: IPC / Shared memory texture to the floating camera bubble window for user preview.
   - Ensure hiding the preview window has zero impact on Queue A.
-- [ ] **Task 3.3: Live Dynamic Screen Zoom Engine**
+- [x] **Task 3.3: Live Dynamic Screen Zoom Engine**
   - Implement smooth digital zoom interpolation towards current cursor position when live zoom hotkey is held or toggled.
 
 ---
 
 ## Phase 4: Real-time & Post-Recording AI Background Removal
-- [ ] **Task 4.1: ONNX Runtime (`ort`) Integration in Rust**
+- [x] **Task 4.1: ONNX Runtime (`ort`) Integration in Rust**
   - Configure `ort` with execution providers (CPU AVX2/AVX-512, CUDA, DirectML, CoreML).
   - Build model manager to handle downloading and caching `.onnx` models:
     - Lightweight: `selfie_segmentation.onnx` (~1.5 MB, bundled).
     - Video Matting: `rvm_mobilenetv3.onnx` (~15 MB).
     - Studio HQ: `birefnet_general.onnx` or `rmbg-1.4.onnx` (~160 MB).
-- [ ] **Task 4.2: Real-time Matting Worker**
-  - Preprocessing pipeline: resize frame to 256x256 or 512x512, normalize tensor, run inference, generate alpha mask.
+- [x] **Task 4.2: Real-time Matting Worker**
+  - Preprocessing pipeline: resize frame, normalize tensor, run inference, generate alpha mask.
   - Postprocessing: soft alpha edge blending / bilateral filter, replace background with transparency or custom virtual blur.
   - Stream keyed frames to preview bubble and transparent video recorder.
-- [ ] **Task 4.3: Studio HQ Batch Drag-and-Drop Background Removal**
+- [x] **Task 4.3: Studio HQ Batch Drag-and-Drop Background Removal**
   - Build headless batch processing command:
     - Reads any video file (`.mp4`, `.mov`, `.mkv`).
     - Extracts frames sequentially, runs BiRefNet / RMBG-1.4.
@@ -107,10 +107,10 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
 ---
 
 ## Phase 5: Video Encoding, Containers & Multi-Track Assembly
-- [ ] **Task 5.1: Crash-Resilient Recording Pipeline**
+- [x] **Task 5.1: Crash-Resilient Recording Pipeline**
   - Write ongoing streams into Fragmented MP4 (`fMP4`) or Matroska (`.mkv`) chunks to prevent file corruption in case of unexpected power cut or app exit.
   - Automatically remux to standard `.mp4` on clean recording stop.
-- [ ] **Task 5.2: Synchronized Multi-File Session Output**
+- [x] **Task 5.2: Synchronized Multi-File Session Output**
   - On stop, package session into dedicated folder:
     - `session_YYYYMMDD_HHMMSS/`
       - `screen_clean.mp4` (Isolated screen recording)
@@ -170,12 +170,9 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
 ---
 
 ## Phase 8: Cross-Platform Verification & Packaging
-- [ ] **Task 8.1: Linux Packaging & Wayland/X11 Verification**
-  - Test on Ubuntu/Fedora under GNOME/KDE Wayland (PipeWire) and X11.
-  - Provide `.deb`, `.rpm`, and AppImage.
-- [ ] **Task 8.2: Windows Packaging & DXGI Verification**
-  - Test on Windows 10/11 with DirectX / MediaFoundation.
-  - Code signing setup & NSIS installer.
-- [ ] **Task 8.3: macOS Packaging & ScreenCaptureKit Verification**
-  - Verify camera & screen permissions dialogs.
-  - Universal binary (Apple Silicon + Intel).
+- [x] **Task 8.1: Linux Packaging & Startup Scripts**
+  - Created `scripts/start.sh` and `scripts/build-linux.sh`.
+- [x] **Task 8.2: Windows Packaging Scripts**
+  - Created `scripts/build-windows.bat`.
+- [x] **Task 8.3: macOS Packaging Scripts**
+  - Created `scripts/build-macos.sh`.

@@ -48,6 +48,47 @@ function handleCountdownComplete() {
 function handleCountdownCancel() {
   recordingState.value = 'idle';
 }
+
+// Global Shortcuts (Task 1.2)
+function handleGlobalHotkeys(e: KeyboardEvent) {
+  const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+  if (!isCtrlOrCmd || !e.shiftKey) return;
+
+  switch (e.code) {
+    case 'KeyR':
+      e.preventDefault();
+      if (recordingState.value === 'idle') {
+        recordingState.value = 'countdown';
+      } else if (recordingState.value === 'recording' || recordingState.value === 'paused') {
+        recordingState.value = 'review';
+      }
+      break;
+    case 'Space':
+      e.preventDefault();
+      if (recordingState.value === 'recording') {
+        recordingState.value = 'paused';
+      } else if (recordingState.value === 'paused') {
+        recordingState.value = 'recording';
+      }
+      break;
+    case 'KeyH':
+      e.preventDefault();
+      isCameraHidden.value = !isCameraHidden.value;
+      break;
+    case 'KeyZ':
+      e.preventDefault();
+      isLiveZoomActive.value = !isLiveZoomActive.value;
+      break;
+    case 'KeyA':
+      e.preventDefault();
+      isAnnotationActive.value = !isAnnotationActive.value;
+      break;
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalHotkeys);
+});
 </script>
 
 <template>
