@@ -147,11 +147,22 @@ impl SessionManager {
             eprintln!("[SessionManager] Warning starting screen recorder: {}", e);
         }
 
-        // 2. Start Camera Recorder (if V4L2 device is not locked by browser preview; browser MediaRecorder also uploads camera track)
-        let mut camera_rec = CameraRecorder::new(camera_path);
-        if let Err(e) = camera_rec.start(req.camera_device.as_deref()) {
-            eprintln!("[SessionManager] Warning starting camera recorder: {}", e);
-        }
+        // 2. Start Camera Recorder (skipped if user selected 'none' or no camera)
+        let is_camera_disabled = match req.camera_device.as_deref() {
+            Some("none") | Some("") => true,
+            _ => false,
+        };
+
+        let camera_rec = if !is_camera_disabled {
+            let mut rec = CameraRecorder::new(camera_path);
+            if let Err(e) = rec.start(req.camera_device.as_deref()) {
+                eprintln!("[SessionManager] Warning starting camera recorder: {}", e);
+            }
+            Some(rec)
+        } else {
+            println!("[SessionManager] Camera recording disabled by user ('none')");
+            None
+        };
 
         // 3. Start Audio Recorder
         let mut audio_rec = AudioRecorder::new(mic_path, sys_path);
@@ -171,7 +182,7 @@ impl SessionManager {
         self.started_at = Some(Instant::now());
         self.is_paused = false;
         self.screen_recorder = Some(screen_rec);
-        self.camera_recorder = Some(camera_rec);
+        self.camera_recorder = camera_rec;
         self.audio_recorder = Some(audio_rec);
         self.telemetry_logger = Some(telemetry_log);
 
@@ -281,6 +292,9 @@ impl SessionManager {
     }
 
     pub fn save_uploaded_camera_track(&self, bytes: &[u8]) -> Result<PathBuf> {
+        if bytes.is_empty() {
+            return Ok(PathBuf::new());
+        }
         let target_dir = self
             .session_dir
             .as_ref()
@@ -366,13 +380,20 @@ pub fn list_recorded_sessions(base_dir: &Path) -> Vec<SessionMetadata> {
                         .and_then(|n| n.to_str())
                         .unwrap_or("session")
                         .to_string();
+                    let cam_track = path.join("camera_raw.mp4");
+                    let camera_raw_track = if cam_track.exists() {
+                        cam_track.to_string_lossy().to_string()
+                    } else {
+                        String::new()
+                    };
+
                     list.push(SessionMetadata {
                         id,
                         created_at: Local::now().to_rfc3339(),
                         duration_ms: 15000,
                         session_dir: path.to_string_lossy().to_string(),
                         screen_track: screen_path.to_string_lossy().to_string(),
-                        camera_raw_track: path.join("camera_raw.mp4").to_string_lossy().to_string(),
+                        camera_raw_track,
                         mic_track: path.join("audio_mic.wav").to_string_lossy().to_string(),
                         sys_audio_track: path.join("audio_system.wav").to_string_lossy().to_string(),
                         telemetry_file: path.join("telemetry.json").to_string_lossy().to_string(),

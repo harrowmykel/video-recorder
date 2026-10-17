@@ -76,6 +76,13 @@ async function startCameraStream(deviceId?: string) {
     mediaStream.getTracks().forEach((t) => t.stop());
     mediaStream = null;
   }
+  if (videoRef.value) {
+    videoRef.value.srcObject = null;
+  }
+  if (!deviceId || deviceId === 'none') {
+    hasCameraStream.value = false;
+    return;
+  }
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
     hasCameraStream.value = false;
     return;
@@ -104,13 +111,21 @@ async function startCameraStream(deviceId?: string) {
 
 // Switch camera stream in real time when selectedCameraId changes
 watch(selectedCameraId, (newId) => {
+  if (newId === 'none') {
+    stopCanvasRecording();
+  }
   startCameraStream(newId);
 });
 
 // Record composited canvas stream across recording/pause/resume and upload on stop
 watch(
-  [() => props.isRecording, recordingState],
-  ([recProp, state]) => {
+  [() => props.isRecording, recordingState, selectedCameraId],
+  ([recProp, state, camId]) => {
+    if (camId === 'none') {
+      stopCanvasRecording();
+      return;
+    }
+
     const isActivelyRecording = state === 'recording' || recProp;
     const isPaused = state === 'paused';
 
@@ -125,7 +140,7 @@ watch(
 
     if (isActivelyRecording) {
       if (!hasCameraStream.value) {
-        startCameraStream(selectedCameraId.value);
+        startCameraStream(camId);
       }
       if (mediaRecorder && mediaRecorder.state === 'paused') {
         try {
@@ -151,6 +166,7 @@ function resolveSupportedMimeType(): string | undefined {
 }
 
 function startCanvasRecording() {
+  if (selectedCameraId.value === 'none') return;
   if (!canvasRef.value || typeof MediaRecorder === 'undefined') return;
   try {
     recordedChunks = [];
@@ -294,7 +310,11 @@ function onDragMouseUp() {
 
 onMounted(async () => {
   initTheme();
-  await startCameraStream(selectedCameraId.value);
+  if (selectedCameraId.value !== 'none') {
+    await startCameraStream(selectedCameraId.value);
+  } else {
+    hasCameraStream.value = false;
+  }
   startSegmentationLoop();
 });
 
@@ -390,7 +410,7 @@ const activeCameraVariant = computed(() => {
 
 <template>
   <div
-    v-show="!isHidden"
+    v-show="!isHidden && selectedCameraId !== 'none'"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
     class="relative select-none flex flex-col items-center group"

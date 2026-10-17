@@ -45,7 +45,7 @@ export interface StartRecordingOptions {
   fps?: number;
   mic_muted?: boolean;
   sys_audio_muted?: boolean;
-  camera_device?: string;
+  camera_device?: string | 'none';
   mic_device?: string;
 }
 

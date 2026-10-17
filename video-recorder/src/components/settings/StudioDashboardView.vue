@@ -20,7 +20,8 @@ import {
   Maximize2,
   Link2,
   Eye,
-  EyeOff
+  EyeOff,
+  VideoOff
 } from 'lucide-vue-next';
 import FloatingToolbar from '../toolbar/FloatingToolbar.vue';
 import CameraBubble from '../camera/CameraBubble.vue';
@@ -508,6 +509,23 @@ onMounted(() => {
           <div class="space-y-1.5">
             <label class="text-[10px] font-mono uppercase text-white/50 block">Active Camera Device</label>
             <div class="space-y-1.5">
+              <!-- Dedicated No Camera (Screen Only) Option -->
+              <button
+                @click="selectedCameraId = 'none'; isCameraHidden = true"
+                :class="[
+                  'w-full px-3.5 py-2.5 rounded-xl text-left text-xs flex items-center justify-between border transition',
+                  selectedCameraId === 'none'
+                    ? 'bg-rose-500/20 border-rose-400/50 text-white font-semibold'
+                    : 'bg-white/5 border-white/10 text-white/75 hover:bg-white/10'
+                ]"
+              >
+                <div class="flex items-center gap-2.5 truncate pr-2">
+                  <VideoOff class="w-4 h-4 text-rose-400 shrink-0" />
+                  <span class="truncate">No Camera (Screen Only)</span>
+                </div>
+                <Check v-if="selectedCameraId === 'none'" class="w-4 h-4 text-rose-400 shrink-0" />
+              </button>
+
               <button
                 v-for="cam in cameras"
                 :key="cam.deviceId"
@@ -519,7 +537,10 @@ onMounted(() => {
                     : 'bg-white/5 border-white/10 text-white/75 hover:bg-white/10'
                 ]"
               >
-                <span class="truncate pr-2">{{ cam.label }}</span>
+                <div class="flex items-center gap-2.5 truncate pr-2">
+                  <Video class="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span class="truncate">{{ cam.label }}</span>
+                </div>
                 <Check v-if="selectedCameraId === cam.deviceId" class="w-4 h-4 text-indigo-400 shrink-0" />
               </button>
             </div>
@@ -792,19 +813,42 @@ onMounted(() => {
         <!-- Right 5 Cols: Live Interactive Camera Bubble Preview -->
         <div class="lg:col-span-5 p-6 rounded-3xl bg-[#0e111a]/90 border border-white/10 shadow-2xl flex flex-col items-center justify-center min-h-[420px] space-y-5">
           <div class="text-xs font-mono uppercase tracking-wider text-white/50">
-            Live Real-Time Camera Preview (Mode: <span class="text-rose-400 font-bold">{{ bgMode }}</span>)
+            Live Real-Time Camera Preview <span v-if="selectedCameraId !== 'none'">(Mode: <span class="text-rose-400 font-bold">{{ bgMode }}</span>)</span>
           </div>
 
-          <CameraBubble
-            :is-hidden="false"
-            :audio-volume="props.audioVolume"
-            :is-recording="recordingState === 'recording'"
-            @hide="isCameraHidden = true"
-          />
+          <template v-if="selectedCameraId !== 'none'">
+            <CameraBubble
+              :is-hidden="false"
+              :audio-volume="props.audioVolume"
+              :is-recording="recordingState === 'recording'"
+              @hide="isCameraHidden = true"
+            />
 
-          <p class="text-[11px] text-white/40 text-center max-w-xs">
-            Hover over the camera frame above to test quick resize, shape morphing, or custom background image upload.
-          </p>
+            <p class="text-[11px] text-white/40 text-center max-w-xs">
+              Hover over the camera frame above to test quick resize, shape morphing, or custom background image upload.
+            </p>
+          </template>
+
+          <template v-else>
+            <div class="flex flex-col items-center justify-center text-center p-8 space-y-4 max-w-sm">
+              <div class="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400 shadow-xl shadow-rose-950/40">
+                <VideoOff class="w-8 h-8" />
+              </div>
+              <div class="space-y-1">
+                <h4 class="text-sm font-bold text-white">Camera Recording Disabled</h4>
+                <p class="text-xs text-white/60 leading-relaxed">
+                  Recordings will capture clean screen and audio without a facecam overlay track.
+                </p>
+              </div>
+              <button
+                @click="selectedCameraId = cameras[0]?.deviceId || 'default'; isCameraHidden = false;"
+                class="px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold flex items-center gap-2 shadow-lg transition"
+              >
+                <Video class="w-3.5 h-3.5" />
+                <span>Turn Camera On</span>
+              </button>
+            </div>
+          </template>
         </div>
       </div>
     </main>

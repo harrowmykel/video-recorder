@@ -26,6 +26,7 @@ const props = defineProps<{
   elapsedSeconds: number;
   formattedTime: string;
   isCameraHidden: boolean;
+  isCameraDisabled?: boolean;
   isMicMuted: boolean;
   isSysAudioMuted: boolean;
   isAnnotationActive: boolean;
@@ -120,14 +121,16 @@ const emit = defineEmits<{
       @click="emit('toggleCamera')"
       :class="[
         'h-8 px-3 rounded-xl text-xs font-medium flex items-center gap-1.5 transition',
-        props.isCameraHidden
-          ? 'bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-300'
-          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+        props.isCameraDisabled
+          ? 'bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-300'
+          : props.isCameraHidden
+            ? 'bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-300'
+            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
       ]"
-      :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+      :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
     >
-      <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-      <span>{{ props.isCameraHidden ? 'Show Cam' : 'Cam' }}</span>
+      <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" :class="props.isCameraDisabled ? 'text-rose-500' : 'text-blue-600 dark:text-blue-400'" />
+      <span>{{ props.isCameraDisabled ? 'No Cam' : (props.isCameraHidden ? 'Show Cam' : 'Cam') }}</span>
     </button>
 
     <button
@@ -216,14 +219,16 @@ const emit = defineEmits<{
         @click="emit('toggleCamera')"
         :class="[
           'h-9 px-2.5 text-xs font-medium flex items-center gap-1.5 transition',
-          !props.isCameraHidden
-            ? 'text-slate-800 dark:text-slate-200'
-            : 'text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20'
+          props.isCameraDisabled
+            ? 'text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20'
+            : !props.isCameraHidden
+              ? 'text-slate-800 dark:text-slate-200'
+              : 'text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20'
         ]"
-        :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+        :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
       >
-        <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-        <span>{{ props.isCameraHidden ? 'Show Cam' : 'Cam' }}</span>
+        <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" :class="props.isCameraDisabled ? 'text-rose-500' : 'text-blue-600 dark:text-blue-400'" />
+        <span>{{ props.isCameraDisabled ? 'No Cam' : (props.isCameraHidden ? 'Show Cam' : 'Cam') }}</span>
       </button>
       <button
         @click="emit('openCameraMenu')"

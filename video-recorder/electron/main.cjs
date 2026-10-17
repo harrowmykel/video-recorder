@@ -339,6 +339,7 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
     const {
       recordingState,
       isCameraHidden,
+      selectedCameraId,
       isDockedToCamera: docked,
       isAnnotationActive,
       isAreaSelectorOpen,
@@ -356,10 +357,11 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
     }
 
     // 1. Camera visibility
-    if (typeof isCameraHidden === 'boolean' && windows.camera && !windows.camera.isDestroyed()) {
-      if (isCameraHidden && windows.camera.isVisible()) {
+    const shouldHideCamera = Boolean(isCameraHidden || selectedCameraId === 'none');
+    if (windows.camera && !windows.camera.isDestroyed()) {
+      if (shouldHideCamera && windows.camera.isVisible()) {
         windows.camera.hide();
-      } else if (!isCameraHidden && !windows.camera.isVisible()) {
+      } else if (!shouldHideCamera && !windows.camera.isVisible()) {
         windows.camera.showInactive();
       }
     }
@@ -563,35 +565,24 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
       deviceDisplay: screen.getPrimaryDisplay().bounds,
     }, null, 2));
 
+    // Check if camera track was recorded in this session
+    const hasCameraFile =
+      fs.existsSync(path.join(targetDir, 'camera_raw.mp4')) ||
+      fs.existsSync(path.join(targetDir, 'camera_alpha.webm')) ||
+      Boolean(
+        sessionMetadata &&
+        sessionMetadata.cameraRawPath &&
+        sessionMetadata.cameraRawPath.trim().length > 0 &&
+        fs.existsSync(sessionMetadata.cameraRawPath)
+      );
+
     // 3. Write Premiere / DaVinci XML Sync (XMEML with Basic Motion keyframes)
     const premiereCenterX = Number(((initialPoint.normX || 0.8) - 0.5 + ((initialPoint.width || 288) / (1920 * 2))).toFixed(4));
     const premiereCenterY = Number(((initialPoint.normY || 0.7) - 0.5 + ((initialPoint.height || 288) / (1080 * 2))).toFixed(4));
     const premiereScale = Number((((initialPoint.width || 288) / 1920) * 100).toFixed(2));
 
-    const xmlPath = path.join(targetDir, 'project_sync.xml');
-    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE xmeml>
-<xmeml version="4">
-  <project>
-    <name>Studio Sync Package</name>
-    <children>
-      <sequence id="sequence-1">
-        <name>Synchronized Recording</name>
-        <rate><timebase>60</timebase></rate>
-        <media>
-          <video>
-            <track>
-              <!-- Video Track 1: Clean Screen Recording -->
-              <clipitem id="clipitem-screen">
-                <name>screen_clean.mp4</name>
-                <duration>2520</duration>
-                <rate><timebase>60</timebase></rate>
-                <file id="file-screen">
-                  <name>screen_clean.mp4</name>
-                  <pathurl>file://screen_clean.mp4</pathurl>
-                </file>
-              </clipitem>
-            </track>
+    const cameraXmlTrack = hasCameraFile
+      ? `
             <track>
               <!-- Video Track 2: Decoupled Camera Feed positioned with recorded telemetry -->
               <clipitem id="clipitem-camera">
@@ -623,7 +614,33 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
                   </effect>
                 </filter>
               </clipitem>
-            </track>
+            </track>`
+      : '';
+
+    const xmlPath = path.join(targetDir, 'project_sync.xml');
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="4">
+  <project>
+    <name>Studio Sync Package</name>
+    <children>
+      <sequence id="sequence-1">
+        <name>Synchronized Recording</name>
+        <rate><timebase>60</timebase></rate>
+        <media>
+          <video>
+            <track>
+              <!-- Video Track 1: Clean Screen Recording -->
+              <clipitem id="clipitem-screen">
+                <name>screen_clean.mp4</name>
+                <duration>2520</duration>
+                <rate><timebase>60</timebase></rate>
+                <file id="file-screen">
+                  <name>screen_clean.mp4</name>
+                  <pathurl>file://screen_clean.mp4</pathurl>
+                </file>
+              </clipitem>
+            </track>${cameraXmlTrack}
           </video>
           <audio>
             <!-- Audio Track 1: Microphone Stem -->
@@ -653,30 +670,102 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
     const capcutY = Number((-( (initialPoint.normY || 0.7) - 0.5) * 2).toFixed(4));
     const capcutScale = Number(((initialPoint.width || 288) / 1920).toFixed(4));
 
+    const capcutVideos = [
+      {
+        id: 'mat_screen_0',
+        path: 'screen_clean.mp4',
+        type: 'video',
+        width: 1920,
+        height: 1080,
+        duration: 42000000
+      }
+    ];
+
+    if (hasCameraFile) {
+      capcutVideos.push({
+        id: 'mat_camera_1',
+        path: 'camera_raw.mp4',
+        type: 'video',
+        width: 1280,
+        height: 720,
+        duration: 42000000
+      });
+    }
+
+    const capcutTracks = [
+      {
+        id: 'track_screen_main',
+        type: 'video',
+        segments: [
+          {
+            id: 'seg_screen',
+            material_id: 'mat_screen_0',
+            target_timerange: { duration: 42000000, start: 0 },
+            source_timerange: { duration: 42000000, start: 0 }
+          }
+        ]
+      }
+    ];
+
+    if (hasCameraFile) {
+      capcutTracks.push({
+        id: 'track_camera_pip',
+        type: 'video',
+        segments: [
+          {
+            id: 'seg_camera',
+            material_id: 'mat_camera_1',
+            target_timerange: { duration: 42000000, start: 0 },
+            source_timerange: { duration: 42000000, start: 0 },
+            clip: {
+              transform: {
+                x: capcutX,
+                y: capcutY
+              },
+              scale: {
+                x: capcutScale,
+                y: capcutScale
+              }
+            }
+          }
+        ]
+      });
+    }
+
+    capcutTracks.push(
+      {
+        id: 'track_mic_audio',
+        type: 'audio',
+        segments: [
+          {
+            id: 'seg_mic',
+            material_id: 'mat_mic_audio',
+            target_timerange: { duration: 42000000, start: 0 },
+            source_timerange: { duration: 42000000, start: 0 }
+          }
+        ]
+      },
+      {
+        id: 'track_sys_audio',
+        type: 'audio',
+        segments: [
+          {
+            id: 'seg_sys',
+            material_id: 'mat_sys_audio',
+            target_timerange: { duration: 42000000, start: 0 },
+            source_timerange: { duration: 42000000, start: 0 }
+          }
+        ]
+      }
+    );
+
     const capcutDraftContent = {
       canvas_config: { height: 1080, ratio: 'original', width: 1920 },
       color_space: 0,
       duration: 42000000,
       fps: 60.0,
       materials: {
-        videos: [
-          {
-            id: 'mat_screen_0',
-            path: 'screen_clean.mp4',
-            type: 'video',
-            width: 1920,
-            height: 1080,
-            duration: 42000000
-          },
-          {
-            id: 'mat_camera_1',
-            path: 'camera_raw.mp4',
-            type: 'video',
-            width: 1280,
-            height: 720,
-            duration: 42000000
-          }
-        ],
+        videos: capcutVideos,
         audios: [
           {
             id: 'mat_mic_audio',
@@ -692,66 +781,7 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
           }
         ]
       },
-      tracks: [
-        {
-          id: 'track_screen_main',
-          type: 'video',
-          segments: [
-            {
-              id: 'seg_screen',
-              material_id: 'mat_screen_0',
-              target_timerange: { duration: 42000000, start: 0 },
-              source_timerange: { duration: 42000000, start: 0 }
-            }
-          ]
-        },
-        {
-          id: 'track_camera_pip',
-          type: 'video',
-          segments: [
-            {
-              id: 'seg_camera',
-              material_id: 'mat_camera_1',
-              target_timerange: { duration: 42000000, start: 0 },
-              source_timerange: { duration: 42000000, start: 0 },
-              clip: {
-                transform: {
-                  x: capcutX,
-                  y: capcutY
-                },
-                scale: {
-                  x: capcutScale,
-                  y: capcutScale
-                }
-              }
-            }
-          ]
-        },
-        {
-          id: 'track_mic_audio',
-          type: 'audio',
-          segments: [
-            {
-              id: 'seg_mic',
-              material_id: 'mat_mic_audio',
-              target_timerange: { duration: 42000000, start: 0 },
-              source_timerange: { duration: 42000000, start: 0 }
-            }
-          ]
-        },
-        {
-          id: 'track_sys_audio',
-          type: 'audio',
-          segments: [
-            {
-              id: 'seg_sys',
-              material_id: 'mat_sys_audio',
-              target_timerange: { duration: 42000000, start: 0 },
-              source_timerange: { duration: 42000000, start: 0 }
-            }
-          ]
-        }
-      ]
+      tracks: capcutTracks
     };
 
     const capcutDraftMeta = {

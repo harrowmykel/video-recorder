@@ -21,6 +21,7 @@ const props = defineProps<{
   elapsedSeconds: number;
   formattedTime: string;
   isCameraHidden: boolean;
+  isCameraDisabled?: boolean;
   isMicMuted: boolean;
   isSysAudioMuted: boolean;
   isAnnotationActive: boolean;
@@ -117,12 +118,16 @@ const emit = defineEmits<{
       @click="emit('toggleCamera')"
       :class="[
         'h-9 px-2.5 rounded tactile-key text-xs font-mono flex items-center gap-1.5 transition',
-        props.isCameraHidden ? 'border-[#ff5500] text-[#ff5500]' : 'text-zinc-300'
+        props.isCameraDisabled
+          ? 'border-rose-500/50 text-rose-400'
+          : props.isCameraHidden
+            ? 'border-[#ff5500] text-[#ff5500]'
+            : 'text-zinc-300'
       ]"
-      :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+      :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
     >
-      <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5" />
-      <span>{{ props.isCameraHidden ? 'SHOW CAM' : 'CAM' }}</span>
+      <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" :class="props.isCameraDisabled ? 'text-rose-400' : ''" />
+      <span>{{ props.isCameraDisabled ? 'NO CAM' : (props.isCameraHidden ? 'SHOW CAM' : 'CAM') }}</span>
     </button>
 
     <button
@@ -211,16 +216,20 @@ const emit = defineEmits<{
         @click="emit('toggleCamera')"
         :class="[
           'h-9 px-2 text-xs flex items-center gap-1 transition',
-          !props.isCameraHidden ? 'text-zinc-200' : 'text-[#ff5500]'
+          props.isCameraDisabled
+            ? 'text-rose-400'
+            : !props.isCameraHidden
+              ? 'text-zinc-200'
+              : 'text-[#ff5500]'
         ]"
-        :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+        :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
       >
         <span
           class="w-1.5 h-1.5 rounded-full"
-          :class="!props.isCameraHidden ? 'bg-[#00e676]' : 'bg-[#ff5500]'"
+          :class="props.isCameraDisabled ? 'bg-rose-500' : (!props.isCameraHidden ? 'bg-[#00e676]' : 'bg-[#ff5500]')"
         ></span>
-        <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5" />
-        <span>{{ props.isCameraHidden ? 'SHOW CAM' : 'CAM' }}</span>
+        <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" />
+        <span>{{ props.isCameraDisabled ? 'NO CAM' : (props.isCameraHidden ? 'SHOW CAM' : 'CAM') }}</span>
       </button>
       <button
         @click="emit('openCameraMenu')"

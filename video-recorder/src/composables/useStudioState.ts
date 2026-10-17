@@ -1,4 +1,4 @@
-import { shallowRef, ref, watch } from 'vue';
+import { shallowRef, ref, computed, watch } from 'vue';
 import type {
   RecordingState,
   CameraShape,
@@ -153,6 +153,7 @@ const targetFps = shallowRef<number>(60);
 
 // Audio & Camera Device State
 const selectedCameraId = shallowRef<string>('default');
+const isCameraDisabled = computed(() => selectedCameraId.value === 'none');
 const selectedMicId = shallowRef<string>('default');
 const isMicMuted = shallowRef(false);
 const isSysAudioMuted = shallowRef(false);
@@ -393,6 +394,7 @@ export function useStudioState() {
     isSourceModalOpen,
     targetFps,
     selectedCameraId,
+    isCameraDisabled,
     selectedMicId,
     isMicMuted,
     isSysAudioMuted,

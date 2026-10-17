@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { shallowRef, watch } from 'vue';
+import { shallowRef, computed, watch } from 'vue';
 import {
   Folder,
   FolderOpen,
@@ -43,6 +43,15 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'exported', targetDir: string): void;
 }>();
+
+const hasCameraTrack = computed(() => {
+  const meta = props.sessionMetadata;
+  if (!meta) return true;
+  if (typeof meta.cameraRawPath === 'string') {
+    return meta.cameraRawPath.trim().length > 0;
+  }
+  return true;
+});
 
 const exportPath = shallowRef('');
 const baseSessionExportPath = shallowRef('');
@@ -375,13 +384,21 @@ async function handleOpenPath() {
               <FileVideo class="w-3.5 h-3.5 text-indigo-400" />
               <span>screen_clean.mp4 (60fps)</span>
             </div>
-            <div class="flex items-center space-x-2">
+            <div v-if="hasCameraTrack" class="flex items-center space-x-2">
               <FileVideo class="w-3.5 h-3.5 text-rose-400" />
               <span>camera_raw.mp4 (1080p)</span>
             </div>
-            <div class="flex items-center space-x-2">
+            <div v-else class="flex items-center space-x-2 text-gray-500">
+              <FileVideo class="w-3.5 h-3.5 text-gray-600" />
+              <span class="line-through">camera_raw.mp4 (None)</span>
+            </div>
+            <div v-if="hasCameraTrack" class="flex items-center space-x-2">
               <Sparkles class="w-3.5 h-3.5 text-amber-400" />
               <span>camera_alpha.webm (Transparent PIP)</span>
+            </div>
+            <div v-else class="flex items-center space-x-2 text-gray-500">
+              <Sparkles class="w-3.5 h-3.5 text-gray-600" />
+              <span class="line-through">camera_alpha.webm (None)</span>
             </div>
             <div class="flex items-center space-x-2">
               <FileAudio class="w-3.5 h-3.5 text-emerald-400" />

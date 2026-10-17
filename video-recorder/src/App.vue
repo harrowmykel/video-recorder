@@ -68,7 +68,7 @@ async function handleCountdownComplete() {
       width: 240,
       height: 240,
       shape: cameraShape.value,
-      hidden: isCameraHidden.value,
+      hidden: isCameraHidden.value || selectedCameraId.value === 'none',
     },
   ];
   try {

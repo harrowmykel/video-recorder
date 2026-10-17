@@ -64,6 +64,14 @@ const activeSession = computed<RecordingSession | null>(() => {
   return sessions.value[0] || null;
 });
 
+const hasCameraTrack = computed(() => {
+  return Boolean(
+    activeSession.value?.cameraRawPath &&
+    activeSession.value.cameraRawPath.trim().length > 0 &&
+    activeSession.value?.cameraUrl
+  );
+});
+
 const currentSessionId = computed(() => activeSession.value?.id || 'session_latest');
 
 async function loadSessionsList() {
@@ -400,7 +408,7 @@ onUnmounted(() => {
 
             <!-- Picture-in-Picture Decoupled Camera Track Preview -->
             <div
-              v-if="isCameraPiPVisible"
+              v-if="isCameraPiPVisible && hasCameraTrack"
               class="absolute aspect-square rounded-[36px] border-2 border-red-500/80 bg-[#161822] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col items-center justify-center text-white transition-all duration-300"
               :style="pipStyle"
             >
@@ -457,13 +465,20 @@ onUnmounted(() => {
                   <span class="font-sans font-medium text-xs">Simulate Cursor Auto-Zoom</span>
                 </label>
                 <div class="h-3 w-px bg-white/10" />
-                <label class="flex items-center space-x-2 cursor-pointer text-gray-300 hover:text-white">
+                <label
+                  :class="[
+                    'flex items-center space-x-2 text-xs transition',
+                    hasCameraTrack ? 'cursor-pointer text-gray-300 hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500'
+                  ]"
+                  :title="hasCameraTrack ? 'Toggle Camera PiP Overlay' : 'No camera track was recorded in this session'"
+                >
                   <input
                     type="checkbox"
                     v-model="isCameraPiPVisible"
-                    class="rounded accent-red-500"
+                    :disabled="!hasCameraTrack"
+                    class="rounded accent-red-500 disabled:opacity-30"
                   />
-                  <span class="font-sans font-medium text-xs">Show Camera PiP</span>
+                  <span class="font-sans font-medium">{{ hasCameraTrack ? 'Show Camera PiP' : 'No Camera Track' }}</span>
                 </label>
               </div>
             </div>
