@@ -124,7 +124,7 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
 ---
 
 ## Phase 6: UI Implementation & Micro-Interactions (from UI Design Prompt)
-- [ ] **Task 6.1: Floating Toolbar Pill & Satellite Bar (`toolbar`)**
+- [x] **Task 6.1: Floating Toolbar Pill & Satellite Bar (`toolbar`)**
   - Implement draggable, glassmorphism floating pill with dual modes:
     - Mode A: Independent floating pill anywhere on screen.
     - Mode B: Satellite docking (magnetically docked adjacent to the Camera Bubble).
@@ -135,16 +135,16 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
   - Popovers for audio/cam device selection and screen region picker.
   - **Idle Opacity Fading:** Auto-dims to 20% opacity during active recording when cursor is idle, restoring on mouse hover.
   - Auto-collapse to mini status dot when idle or recording.
-- [ ] **Task 6.2: Floating Camera Bubble (`camera_bubble`)**
+- [x] **Task 6.2: Floating Camera Bubble (`camera_bubble`)**
   - Shape morphing: Circle (Loom-style), Squircle, and 16:9 widescreen.
   - Preset size toggles (S, M, L, and Fullscreen Cam toggle) + free edge resizing.
   - **Speaking Pulse Ring:** Audio-reactive glowing border ring that pulses dynamically with microphone input volume.
   - **Avatar Fallback:** Seamlessly displays user profile photo / initials with active speaking wave if camera is turned off or occluded.
   - Hover action menu: Hide preview, flip camera, toggle background cutout.
-- [ ] **Task 6.3: Annotation Screen Canvas (`annotations`)**
+- [x] **Task 6.3: Annotation Screen Canvas (`annotations`)**
   - Interactive overlay for drawing arrows, freehand pen, rounded boxes, step numbers (1, 2, 3), and spotlight highlighter.
   - Auto-fade mode (drawings fade away after 3 seconds) vs persistent mode.
-- [ ] **Task 6.4: 3-2-1 Countdown Overlay with Audio Metronome**
+- [x] **Task 6.4: 3-2-1 Countdown Overlay with Audio Metronome**
   - Sleek large typographic counter: 3 -> 2 -> 1 -> ACTION with smooth scale-down and blur-out animation.
   - Audio metronome sync: Crisp audio beeps (`beep... beep... BOOP!`) so users can look away from the screen and know the exact second recording goes live.
   - Full-screen or localized transparent countdown with click-to-cancel.
@@ -152,18 +152,18 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
 ---
 
 ## Phase 7: Studio Review & Export Window
-- [ ] **Task 7.1: Synchronized Dual-Track Video Player**
+- [x] **Task 7.1: Synchronized Dual-Track Video Player**
   - Side-by-side or picture-in-picture preview of `screen_clean.mp4` and `camera_raw.mp4`.
   - Scrub bar that keeps both tracks perfectly aligned to the exact millisecond.
   - Interactive In/Out trim markers to cut beginning and ending dead time.
-- [ ] **Task 7.2: Post-Recording One-Click AI Matting**
+- [x] **Task 7.2: Post-Recording One-Click AI Matting**
   - "Remove Background" button with model selector (Fast vs Studio HQ BiRefNet).
-  - Preview before-and-after split-slider on camera footage.
-  - Background options: Transparent (Alpha), Blur, Solid Color, or Custom Studio Image/Gradient.
-- [ ] **Task 7.3: Drag-and-Drop Batch Processing Utility Tab**
+- [x] **Task 7.3: Drag-and-Drop Batch Processing Utility Tab**
   - Standalone tab to drop any external video file to extract background.
   - Real-time preview of processing speed, frame counter, and output format selector (`ProRes 4444`, `WebM VP9`, `Luma Matte Mask`).
-- [ ] **Task 7.4: Telemetry Auto-Zoom Preview (Screen-Studio Style)**
+  - Preview before-and-after split-slider on camera footage.
+  - Background options: Transparent (Alpha), Blur, Solid Color, or Custom Studio Image/Gradient.
+- [x] **Task 7.4: Telemetry Auto-Zoom Preview (Screen-Studio Style)**
   - Toggle to preview smooth dynamic auto-zooming onto mouse clicks.
   - Export composite video with auto-zoom baked in, or export project package for Premiere / DaVinci.
 
