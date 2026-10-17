@@ -25,6 +25,7 @@
     "appId": "com.studiorecorder.app",
     "productName": "Screen Studio Recorder",
     "executableName": "video-recorder-studio",
+    "afterPack": "scripts/afterPack.cjs",
     "directories": {
       "output": "release"
     },

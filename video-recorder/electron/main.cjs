@@ -71,6 +71,7 @@ function createWindow(label, options) {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
     ...options,
   });
@@ -101,6 +102,9 @@ function openOrFocusSettingsWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const workArea = primaryDisplay.workArea;
   if (windows.settings && !windows.settings.isDestroyed()) {
+    if (windows.settings.isMinimized()) {
+      windows.settings.restore();
+    }
     windows.settings.show();
     windows.settings.focus();
     return;
@@ -136,6 +140,9 @@ function createOverlayWindows() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const workArea = primaryDisplay.workArea;
   const fullBounds = primaryDisplay.bounds;
+
+  // 0. Open Settings & Devices Window by default on startup
+  openOrFocusSettingsWindow();
 
   // 1. Floating Toolbar Pill (Bottom-Center)
   const tbWidth = 760;
@@ -307,6 +314,10 @@ ipcMain.on('resize_window', (_event, { windowLabel, width, height }) => {
   if (windowLabel === 'camera' && isDockedToCamera) {
     snapToolbarToCamera();
   }
+});
+
+ipcMain.on('open_settings_window', () => {
+  openOrFocusSettingsWindow();
 });
 
 ipcMain.on('overlay_event', (senderEvent, data) => {

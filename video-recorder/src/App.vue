@@ -15,9 +15,11 @@ import {
   subscribeToEvent,
   getCameraTelemetry,
   buildRecordingSessionFromDaemonMeta,
+  isNativeOverlayWindow,
 } from './lib/tauriBridge';
 
 const { initTheme } = useTheme();
+const isNativeOverlay = isNativeOverlayWindow();
 const {
   recordingState,
   isCameraHidden,
@@ -294,30 +296,32 @@ onUnmounted(() => {
           @open-area-picker="isAreaSelectorOpen = true"
         />
 
-        <!-- Interactive Area Selector Overlay -->
+        <!-- Interactive Area Selector Overlay (Browser mode only; Electron uses dedicated 'area' window) -->
         <AreaSelectorOverlay
+          v-if="!isNativeOverlay"
           :is-open="isAreaSelectorOpen"
           v-model="captureArea"
           @confirm="(r) => { captureArea = r; selectedWindowTitle = `Region (${r.width}×${r.height})`; isAreaSelectorOpen = false; }"
           @close="isAreaSelectorOpen = false"
         />
 
-        <!-- Countdown Overlay -->
+        <!-- Countdown Overlay (Browser mode only; Electron uses dedicated 'countdown' window) -->
         <CountdownOverlay
-          v-if="recordingState === 'countdown'"
+          v-if="!isNativeOverlay && recordingState === 'countdown'"
           @complete="handleCountdownComplete"
           @cancel="handleCountdownCancel"
         />
 
-        <!-- In-Recording Annotation Canvas Overlay -->
+        <!-- In-Recording Annotation Canvas Overlay (Browser mode only; Electron uses dedicated 'annotations' window) -->
         <AnnotationCanvas
+          v-if="!isNativeOverlay"
           :is-active="isAnnotationActive"
           @close="isAnnotationActive = false"
         />
 
-        <!-- Studio Review & Export Modal -->
+        <!-- Studio Review & Export Modal (Browser mode only; Electron uses dedicated 'studio' window) -->
         <StudioReviewModal
-          v-if="recordingState === 'review'"
+          v-if="!isNativeOverlay && recordingState === 'review'"
           :camera-telemetry="sessionCameraTelemetry"
           @close="recordingState = 'idle'"
         />

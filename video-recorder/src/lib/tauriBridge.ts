@@ -255,27 +255,38 @@ export async function fetchRecordedSessions(): Promise<RecordingSession[]> {
   return [];
 }
 
-export function broadcastEvent(event: string, payload: unknown) {
-  if (channel) {
-    channel.postMessage({ event, payload });
+function toSerializable<T>(value: T): T {
+  if (value === undefined || value === null) return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
   }
+}
+
+export function broadcastEvent(event: string, payload: unknown) {
+  const safePayload = toSerializable(payload);
+
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
-    window.__ELECTRON_OVERLAY__.send('overlay_event', { event, payload });
+    try {
+      window.__ELECTRON_OVERLAY__.send('overlay_event', { event, payload: safePayload });
+    } catch (err) {
+      console.warn('[Electron IPC] Failed to send overlay_event:', err);
+    }
+    return;
+  }
+
+  if (channel) {
+    try {
+      channel.postMessage({ event, payload: safePayload });
+    } catch (err) {
+      console.warn('[BroadcastChannel] Failed to postMessage:', err);
+    }
   }
 }
 
 export function subscribeToEvent<T>(event: string, callback: (payload: T) => void): () => void {
   const cleanups: Array<() => void> = [];
-
-  if (channel) {
-    const listener = (msg: MessageEvent) => {
-      if (msg.data?.event === event) {
-        callback(msg.data.payload);
-      }
-    };
-    channel.addEventListener('message', listener);
-    cleanups.push(() => channel.removeEventListener('message', listener));
-  }
 
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
     const unsub = window.__ELECTRON_OVERLAY__.on('overlay_event', (data: { event: string; payload: T }) => {
@@ -284,6 +295,14 @@ export function subscribeToEvent<T>(event: string, callback: (payload: T) => voi
       }
     });
     cleanups.push(unsub);
+  } else if (channel) {
+    const listener = (msg: MessageEvent) => {
+      if (msg.data?.event === event) {
+        callback(msg.data.payload);
+      }
+    };
+    channel.addEventListener('message', listener);
+    cleanups.push(() => channel.removeEventListener('message', listener));
   }
 
   return () => {
@@ -331,6 +350,7 @@ export async function resizeOverlayWindow(windowLabel: string, width: number, he
 export function openDesktopSettingsWindow() {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
     window.__ELECTRON_OVERLAY__.send('open_settings_window');
+    window.__ELECTRON_OVERLAY__.send('overlay_event', { event: 'open_settings_window' });
   }
 }
 

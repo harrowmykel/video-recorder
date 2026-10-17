@@ -243,7 +243,7 @@ function broadcastFullState() {
     selectedDisplayId: selectedDisplayId.value,
     selectedWindowId: selectedWindowId.value,
     selectedWindowTitle: selectedWindowTitle.value,
-    captureArea: captureArea.value,
+    captureArea: { ...captureArea.value },
     isAreaSelectorOpen: isAreaSelectorOpen.value,
     isSourceModalOpen: isSourceModalOpen.value,
     targetFps: targetFps.value,
@@ -258,7 +258,7 @@ function broadcastFullState() {
     bgMode: bgMode.value,
     bgImageUrl: bgImageUrl.value,
     bgGradient: bgGradient.value,
-    lastRecordedSession: lastRecordedSession.value,
+    lastRecordedSession: lastRecordedSession.value ? { ...lastRecordedSession.value } : null,
   });
 }
 
@@ -280,7 +280,7 @@ export function useStudioState() {
       if (payload.selectedDisplayId !== undefined) selectedDisplayId.value = payload.selectedDisplayId;
       if (payload.selectedWindowId !== undefined) selectedWindowId.value = payload.selectedWindowId;
       if (payload.selectedWindowTitle !== undefined) selectedWindowTitle.value = payload.selectedWindowTitle;
-      if (payload.captureArea !== undefined) captureArea.value = payload.captureArea;
+      if (payload.captureArea !== undefined) captureArea.value = { ...payload.captureArea };
       if (payload.isAreaSelectorOpen !== undefined) isAreaSelectorOpen.value = payload.isAreaSelectorOpen;
       if (payload.isSourceModalOpen !== undefined) isSourceModalOpen.value = payload.isSourceModalOpen;
       if (payload.targetFps !== undefined) targetFps.value = payload.targetFps;
@@ -297,22 +297,23 @@ export function useStudioState() {
       if (payload.bgGradient !== undefined) bgGradient.value = payload.bgGradient;
       if (payload.lastRecordedSession !== undefined) lastRecordedSession.value = payload.lastRecordedSession;
 
-      savePersistedSettings();
       setTimeout(() => {
         isSyncingFromBus = false;
       }, 40);
     });
 
-    // Listen to storage events across browser tabs on localhost:1420
-    window.addEventListener('storage', (e) => {
-      if (e.key === STORAGE_KEY_SETTINGS && e.newValue) {
-        isSyncingFromBus = true;
-        loadPersistedSettings();
-        setTimeout(() => {
-          isSyncingFromBus = false;
-        }, 40);
-      }
-    });
+    // Listen to storage events across browser tabs when not using Electron IPC
+    if (!window.__ELECTRON_OVERLAY__) {
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEY_SETTINGS && e.newValue) {
+          isSyncingFromBus = true;
+          loadPersistedSettings();
+          setTimeout(() => {
+            isSyncingFromBus = false;
+          }, 40);
+        }
+      });
+    }
 
     watch(
       [
