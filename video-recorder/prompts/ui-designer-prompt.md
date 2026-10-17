@@ -34,12 +34,16 @@ Your objective is to design and implement the complete visual language, componen
      - Pulsing Red Recording Indicator Dot with live elapsed timer (`00:04:12` in tabular mono font).
      - Pause / Resume toggle button (switches between amber pause and red resume).
      - Stop / Finish recording button (prominent square icon, stops session and launches Studio Review).
+     - **Instant Discard / Trash Button (`🗑`):** Single-click scrap action that dumps the active recording and resets instantly to ready state without opening folders or saving trash.
+     - **Quick Restart Button (`↺`):** One-click retake that discards current buffer and triggers an immediate fresh 3-2-1 countdown.
      - Camera Eye Toggle icon: Instantly hides/shows the camera overlay bubble on screen (with tooltip: *"Camera continues recording in background"*).
      - Mic mute toggle with live reactive VU-meter.
      - Live Zoom trigger button (with hotkey indicator `Ctrl+Shift+Z`).
      - Annotation Pen button (opens drawing toolbar).
-  3. **Collapsed Mini-Dot / Mini-Pill State:**
-     - Collapses into a minimal 32px pill or circle showing only: `[● 00:04:12]` and expand chevron on hover to minimize distraction.
+  3. **Behavior & Micro-States:**
+     - **Satellite Docking Mode:** Option to lock the floating pill directly beneath or beside the Camera Bubble so they move as a synchronized unit across the screen.
+     - **Idle Dimming:** Automatically dims toolbar controls to 20% opacity when cursor is not hovering during active recording to eliminate visual distraction.
+     - **Collapsed Mini-Dot State:** Collapses into a minimal 32px pill or circle showing only: `[● 00:04:12]` and expand chevron on hover.
 
 ---
 
@@ -50,11 +54,12 @@ Your objective is to design and implement the complete visual language, componen
   - Circle (Loom-style bubble)
   - Squircle (iOS-style rounded square)
   - 16:9 Widescreen rectangle (rounded corners)
-* **Visual Styling:**
+* **Visual Styling & Feedback:**
   - Ambient shadow (`shadow-2xl`), crisp edge border.
   - **Audio-Reactive Halo:** Subtle ring surrounding the bubble that dynamically glows emerald/cyan based on microphone input volume when speaking.
+  - **Avatar Fallback:** When camera is toggled off, smoothly transitions to a circular user avatar / initials with the audio-reactive halo still active.
 * **On-Hover Action Palette (Overlaid on bubble):**
-  - **Size Presets:** Quick buttons for `S` (160px), `M` (240px), `L` (360px) + free-form corner drag handles.
+  - **Size Presets:** Quick buttons for `S` (160px), `M` (240px), `L` (360px), and `Fullscreen` toggle + free-form corner drag handles.
   - **Shape Switcher:** One-click toggle between Circle / Squircle / 16:9.
   - **Flip/Mirror Toggle:** Flips webcam horizontally.
   - **AI Cutout Toggle:** One-click toggle for real-time background removal / virtual blur.
@@ -62,10 +67,11 @@ Your objective is to design and implement the complete visual language, componen
 
 ---
 
-### C. 3-2-1 Cinematic Countdown Overlay
+### C. 3-2-1 Cinematic Countdown Overlay with Audio Metronome
 *Transparent, centered screen overlay triggered right after pressing record.*
 - Sleek large typographic counter: `3` -> `2` -> `1` -> `ACTION` with smooth scale-down and blur-out animation.
-- Subtle "Press Esc to cancel" caption at the bottom.
+- Synchronized audio beeps: `beep... beep... BOOP!` so presenters can position themselves and know the exact live moment without watching the screen.
+- Subtle "Press Esc or click to cancel" caption at the bottom.
 
 ---
 

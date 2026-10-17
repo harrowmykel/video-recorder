@@ -124,20 +124,29 @@ A modern, high-performance, 100% offline screen and camera recording studio buil
 ---
 
 ## Phase 6: UI Implementation & Micro-Interactions (from UI Design Prompt)
-- [ ] **Task 6.1: Floating Toolbar Pill (`toolbar`)**
-  - Implement draggable, glassmorphism floating pill.
+- [ ] **Task 6.1: Floating Toolbar Pill & Satellite Bar (`toolbar`)**
+  - Implement draggable, glassmorphism floating pill with dual modes:
+    - Mode A: Independent floating pill anywhere on screen.
+    - Mode B: Satellite docking (magnetically docked adjacent to the Camera Bubble).
   - Record / Pause / Stop states, animated timer, audio VU-meter bar.
+  - **Loom-style Instant Actions:**
+    - Instant Discard / Trash button (`🗑`): Scraps the current buffer in 1 click and resets to ready state.
+    - Quick Restart button (`↺`): Discards current take and triggers fresh 3-2-1 countdown immediately.
   - Popovers for audio/cam device selection and screen region picker.
+  - **Idle Opacity Fading:** Auto-dims to 20% opacity during active recording when cursor is idle, restoring on mouse hover.
   - Auto-collapse to mini status dot when idle or recording.
 - [ ] **Task 6.2: Floating Camera Bubble (`camera_bubble`)**
   - Shape morphing: Circle (Loom-style), Squircle, and 16:9 widescreen.
-  - Preset size toggles (S, M, L) + free edge resizing.
-  - Audio-reactive border ring (glows subtly when speaking).
+  - Preset size toggles (S, M, L, and Fullscreen Cam toggle) + free edge resizing.
+  - **Speaking Pulse Ring:** Audio-reactive glowing border ring that pulses dynamically with microphone input volume.
+  - **Avatar Fallback:** Seamlessly displays user profile photo / initials with active speaking wave if camera is turned off or occluded.
   - Hover action menu: Hide preview, flip camera, toggle background cutout.
 - [ ] **Task 6.3: Annotation Screen Canvas (`annotations`)**
   - Interactive overlay for drawing arrows, freehand pen, rounded boxes, step numbers (1, 2, 3), and spotlight highlighter.
   - Auto-fade mode (drawings fade away after 3 seconds) vs persistent mode.
-- [ ] **Task 6.4: 3-2-1 Countdown Overlay**
+- [ ] **Task 6.4: 3-2-1 Countdown Overlay with Audio Metronome**
+  - Sleek large typographic counter: 3 -> 2 -> 1 -> ACTION with smooth scale-down and blur-out animation.
+  - Audio metronome sync: Crisp audio beeps (`beep... beep... BOOP!`) so users can look away from the screen and know the exact second recording goes live.
   - Full-screen or localized transparent countdown with click-to-cancel.
 
 ---
