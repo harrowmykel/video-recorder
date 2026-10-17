@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld('__ELECTRON_OVERLAY__', {
   send(channel, payload) {
     ipcRenderer.send(channel, payload);
   },
+  invoke(channel, payload) {
+    return ipcRenderer.invoke(channel, payload);
+  },
   on(channel, callback) {
     const listener = (_event, data) => callback(data);
     ipcRenderer.on(channel, listener);

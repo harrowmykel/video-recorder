@@ -216,7 +216,7 @@ onUnmounted(() => {
     </template>
 
     <template v-else-if="targetWindow === 'camera'">
-      <div class="w-full h-full flex items-center justify-center">
+      <div class="w-full h-full flex flex-col items-center justify-start pt-3">
         <CameraBubble
           :is-hidden="isCameraHidden"
           :audio-volume="audioVolume"
@@ -323,8 +323,8 @@ onUnmounted(() => {
             class="transition-all duration-300 z-10"
             :class="[
               isDockedToCamera
-                ? 'flex flex-col items-center space-y-4'
-                : 'absolute bottom-16 right-16'
+                ? 'flex flex-col items-center space-y-12'
+                : 'absolute bottom-20 right-16'
             ]"
           >
             <CameraBubble

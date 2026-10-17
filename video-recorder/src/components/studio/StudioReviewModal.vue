@@ -14,11 +14,14 @@ import {
   Film
 } from 'lucide-vue-next';
 import DragDropBgRemover from './DragDropBgRemover.vue';
+import ExportDestinationModal from './ExportDestinationModal.vue';
 
 const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+const isExportModalOpen = shallowRef(false);
+const currentSessionId = shallowRef('session_20261017_143245');
 const activeTab = shallowRef<'review' | 'batch_ai'>('review');
 const isPlaying = shallowRef(false);
 const currentTime = shallowRef(14.2);
@@ -248,7 +251,7 @@ function showAlert(msg: string) {
                 </button>
 
                 <button
-                  @click="showAlert('Exporting synced package for Premiere Pro / DaVinci Resolve with ProRes 4444 / WebM Alpha.')"
+                  @click="isExportModalOpen = true"
                   class="btn-primary flex items-center space-x-2 px-5 py-2 rounded-xl text-xs font-bold text-white transition-all active:scale-95 cursor-pointer"
                 >
                   <Download class="w-4 h-4" />
@@ -264,6 +267,13 @@ function showAlert(msg: string) {
           <DragDropBgRemover />
         </div>
       </div>
+
+      <!-- Export Destination Chooser Modal -->
+      <ExportDestinationModal
+        :is-open="isExportModalOpen"
+        :session-id="currentSessionId"
+        @close="isExportModalOpen = false"
+      />
     </div>
   </div>
 </template>

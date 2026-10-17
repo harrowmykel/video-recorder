@@ -2,6 +2,7 @@
 
 export interface ElectronOverlayAPI {
   send: (channel: string, payload?: unknown) => void;
+  invoke?: (channel: string, payload?: unknown) => Promise<any>;
   on: (channel: string, callback: (payload: any) => void) => () => void;
 }
 
@@ -196,6 +197,55 @@ export function quitOverlayApp() {
   } else if (typeof window !== 'undefined') {
     window.close();
   }
+}
+
+export async function getDefaultVideosDirectory(): Promise<string> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const dir = await window.__ELECTRON_OVERLAY__.invoke('get_default_videos_dir');
+      if (dir) return dir;
+    } catch {}
+  }
+  return '~/Videos';
+}
+
+export async function selectExportDirectory(defaultPath?: string): Promise<string | null> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const selected = await window.__ELECTRON_OVERLAY__.invoke('select_directory', defaultPath);
+      if (selected) return selected;
+    } catch (e) {
+      console.warn('[Electron] select_directory error:', e);
+    }
+  }
+
+  // Fallback to HTML5 directory picker if available in modern browser
+  if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+    try {
+      const dirHandle = await (window as any).showDirectoryPicker();
+      if (dirHandle?.name) {
+        return `~/Videos/${dirHandle.name}`;
+      }
+    } catch {
+      // User cancelled
+    }
+  }
+
+  return null;
+}
+
+export async function exportSessionPackage(targetDir: string, sessionMetadata?: unknown): Promise<{ success: boolean; targetDir?: string; error?: string }> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      return await window.__ELECTRON_OVERLAY__.invoke('export_session_package', { targetDir, sessionMetadata });
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  // Browser simulation
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  return { success: true, targetDir };
 }
 
 function mockCommandResponse<T>(cmd: string, _args?: Record<string, unknown>): Promise<T> {

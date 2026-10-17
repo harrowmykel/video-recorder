@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -108,13 +108,14 @@ function createOverlayWindows() {
   });
 
   // 2. Floating Camera Bubble (Bottom-Right)
-  const camSize = 288;
+  const camWidth = 288;
+  const camHeight = 350;
   windows.camera = createWindow('camera', {
     title: 'Camera Overlay',
-    width: camSize,
-    height: camSize,
-    x: Math.round(workArea.x + workArea.width - camSize - 36),
-    y: Math.round(workArea.y + workArea.height - camSize - 120),
+    width: camWidth,
+    height: camHeight,
+    x: Math.round(workArea.x + workArea.width - camWidth - 36),
+    y: Math.round(workArea.y + workArea.height - camHeight - 80),
     alwaysOnTop: true,
     skipTaskbar: true,
     show: true,
@@ -298,6 +299,57 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
 
 ipcMain.on('quit_app', () => {
   app.quit();
+});
+
+ipcMain.handle('select_directory', async (_event, defaultPath) => {
+  const primaryWin = windows.studio || windows.toolbar || null;
+  const result = await dialog.showOpenDialog(primaryWin, {
+    title: 'Choose Export Destination Directory',
+    defaultPath: defaultPath || app.getPath('videos'),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return null;
+  }
+  return result.filePaths[0];
+});
+
+ipcMain.handle('get_default_videos_dir', () => {
+  try {
+    return app.getPath('videos');
+  } catch {
+    return path.join(app.getPath('home'), 'Videos');
+  }
+});
+
+ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMetadata }) => {
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+    // If sessionMetadata has files, write summary or manifest
+    const manifestPath = path.join(targetDir, 'package_manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify(sessionMetadata || { exportedAt: new Date().toISOString() }, null, 2));
+
+    // Also write an NLE timeline sync XML (FCPXML / Premiere XML stub)
+    const xmlPath = path.join(targetDir, 'project_sync.xml');
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="4">
+  <project>
+    <name>Studio Sync Package</name>
+    <children>
+      <sequence id="sequence-1">
+        <name>Synchronized Recording</name>
+        <rate><timebase>60</timebase></rate>
+      </sequence>
+    </children>
+  </project>
+</xmeml>`;
+    fs.writeFileSync(xmlPath, xmlContent);
+    return { success: true, targetDir };
+  } catch (err) {
+    console.error('Failed to export package:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 app.whenReady().then(() => {

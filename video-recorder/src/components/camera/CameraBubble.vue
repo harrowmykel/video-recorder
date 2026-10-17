@@ -109,8 +109,8 @@ const dimensions = computed(() => {
 watch(
   dimensions,
   ({ width, height }) => {
-    // 24px padding for speaking glow halo without rectangular clipping
-    resizeOverlayWindow('camera', width + 24, height + 24);
+    // Accommodate speaking glow halo on top/sides and the floating toolbar beneath the circle
+    resizeOverlayWindow('camera', Math.max(width + 32, 240), height + 80);
   },
   { immediate: true }
 );
@@ -186,12 +186,9 @@ const activeCameraVariant = computed(() => {
 <template>
   <div
     v-if="!isHidden"
-    @mousedown="onDragMouseDown"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
-    :style="haloStyle"
-    class="relative select-none overflow-hidden transition-all duration-300 bg-studio-surface group cursor-grab active:cursor-grabbing"
-    :class="shapeClass"
+    class="relative select-none flex flex-col items-center group"
   >
     <component
       :is="activeCameraVariant"
@@ -203,11 +200,13 @@ const activeCameraVariant = computed(() => {
       :is-recording="isRecording"
       :is-hovered="isHovered"
       :shape-class="shapeClass"
+      :halo-style="haloStyle"
       @set-shape="shape = $event"
       @set-size="size = $event"
       @toggle-mirror="isMirrored = !isMirrored"
       @toggle-bg-mode="toggleBgMode"
       @hide="emit('hide')"
+      @drag-mouse-down="onDragMouseDown"
     >
       <template #video>
         <video
