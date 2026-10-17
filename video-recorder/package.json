@@ -5,6 +5,7 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
+    "start": "./run.sh",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -16,9 +17,13 @@
     "package:dir": "npm run build && npm run daemon:build && electron-builder --dir",
     "package:dist": "npm run build && npm run daemon:build && electron-builder"
   },
+  "description": "Studio-grade screen and camera overlay recorder for Linux",
+  "author": "Micheal",
+  "desktopName": "video-recorder-studio",
   "build": {
     "appId": "com.studiorecorder.app",
-    "productName": "Screen & Camera Studio",
+    "productName": "Screen Studio Recorder",
+    "executableName": "video-recorder-studio",
     "directories": {
       "output": "release"
     },
@@ -35,7 +40,10 @@
     ],
     "linux": {
       "target": ["AppImage", "tar.gz"],
-      "category": "Video"
+      "category": "Video",
+      "icon": "build/icon.png",
+      "syncDesktopName": true,
+      "executableArgs": ["--no-sandbox"]
     }
   },
   "dependencies": {
