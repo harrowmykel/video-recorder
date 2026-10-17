@@ -1,5 +1,32 @@
 const { app, BrowserWindow, ipcMain, screen, globalShortcut } = require('electron');
 const path = require('path');
+const { spawn } = require('child_process');
+const fs = require('fs');
+
+let daemonProcess = null;
+
+function startDaemonIfAvailable() {
+  const possiblePaths = [
+    path.join(process.resourcesPath || '', 'bin/recorder-daemon'),
+    path.join(__dirname, '../src-daemon/target/release/recorder-daemon'),
+    path.join(__dirname, '../src-daemon/target/debug/recorder-daemon'),
+  ];
+
+  for (const binPath of possiblePaths) {
+    if (fs.existsSync(binPath)) {
+      try {
+        daemonProcess = spawn(binPath, [], {
+          stdio: 'ignore',
+          detached: false,
+          env: { ...process.env, RUST_BACKTRACE: '1' },
+        });
+        break;
+      } catch (err) {
+        console.warn('[Electron] Could not launch daemon binary:', err);
+      }
+    }
+  }
+}
 
 // Enable transparent visuals on Linux X11 / Wayland compositors
 app.commandLine.appendSwitch('enable-transparent-visuals');
@@ -274,6 +301,10 @@ ipcMain.on('quit_app', () => {
 });
 
 app.whenReady().then(() => {
+  // If packaged, ensure background capture daemon is running
+  if (!isDev) {
+    startDaemonIfAvailable();
+  }
   // Short delay on Linux so X11/Wayland compositor initializes alpha visual cleanly
   setTimeout(() => {
     createOverlayWindows();
@@ -283,6 +314,11 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (daemonProcess && !daemonProcess.killed) {
+    try {
+      daemonProcess.kill('SIGTERM');
+    } catch {}
+  }
 });
 
 app.on('window-all-closed', () => {

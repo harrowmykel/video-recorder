@@ -11,7 +11,40 @@ declare global {
   }
 }
 
-const DAEMON_URL = 'http://127.0.0.1:4820';
+let activeDaemonUrl: string | null = null;
+let lastProbeTime = 0;
+
+export async function resolveDaemonUrl(): Promise<string> {
+  const now = Date.now();
+  if (activeDaemonUrl && now - lastProbeTime < 8000) {
+    return activeDaemonUrl;
+  }
+
+  // Dynamic range probe: 4820 through 4835
+  const candidatePorts = [4820, 4821, 4822, 4823, 4824, 4825, 4826, 4827, 4828, 4829, 4830];
+
+  for (const port of candidatePorts) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180);
+      const res = await fetch(`http://127.0.0.1:${port}/status`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        activeDaemonUrl = `http://127.0.0.1:${port}`;
+        lastProbeTime = now;
+        return activeDaemonUrl;
+      }
+    } catch {
+      // Continue searching
+    }
+  }
+
+  return 'http://127.0.0.1:4820';
+}
+
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window ? new BroadcastChannel('studio_recorder_bus') : null;
 
@@ -64,7 +97,8 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
     }
 
     if (endpoint) {
-      const resp = await fetch(`${DAEMON_URL}${endpoint}`, {
+      const daemonBase = await resolveDaemonUrl();
+      const resp = await fetch(`${daemonBase}${endpoint}`, {
         method,
         headers: body ? { 'Content-Type': 'application/json' } : {},
         body: body ? JSON.stringify(body) : undefined,

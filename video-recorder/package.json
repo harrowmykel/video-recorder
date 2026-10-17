@@ -10,9 +10,33 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "overlay": "electron --no-sandbox electron/main.cjs",
-    "daemon:build": "cargo build --release --manifest-path src-daemon/Cargo.toml",
+    "daemon:build": "export PATH=\"$HOME/.cargo/bin:$PATH\"; cargo build --release --manifest-path src-daemon/Cargo.toml",
     "daemon:stop": "pkill -f recorder-daemon 2>/dev/null || true",
-    "daemon:start": "pkill -f recorder-daemon 2>/dev/null || true; if [ -f ./src-daemon/target/release/recorder-daemon ]; then ./src-daemon/target/release/recorder-daemon; else ./src-daemon/target/debug/recorder-daemon; fi"
+    "daemon:start": "pkill -f recorder-daemon 2>/dev/null || true; if [ -f ./src-daemon/target/release/recorder-daemon ]; then ./src-daemon/target/release/recorder-daemon; else ./src-daemon/target/debug/recorder-daemon; fi",
+    "package:dir": "npm run build && npm run daemon:build && electron-builder --dir",
+    "package:dist": "npm run build && npm run daemon:build && electron-builder"
+  },
+  "build": {
+    "appId": "com.studiorecorder.app",
+    "productName": "Screen & Camera Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "src-daemon/target/release/recorder-daemon"
+    ],
+    "extraResources": [
+      {
+        "from": "src-daemon/target/release/recorder-daemon",
+        "to": "bin/recorder-daemon"
+      }
+    ],
+    "linux": {
+      "target": ["AppImage", "tar.gz"],
+      "category": "Video"
+    }
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -29,6 +53,7 @@
     "@vitejs/plugin-vue": "^5.1.4",
     "autoprefixer": "^10.4.20",
     "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",

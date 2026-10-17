@@ -6,3 +6,4 @@ src-daemon/target
 recordings
 *.log
 .DS_Store
+release/

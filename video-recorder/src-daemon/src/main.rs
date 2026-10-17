@@ -145,6 +145,44 @@ async fn main() {
         .or(models_route)
         .with(cors);
 
-    println!("[Rust Core Daemon] Hardware capture service listening on http://127.0.0.1:4820");
-    warp::serve(routes).run(([127, 0, 0, 1], 4820)).await;
+    let start_port: u16 = std::env::var("DAEMON_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(4820);
+    let port_range = start_port..=(start_port + 20);
+
+    let mut bound_server = None;
+
+    for port in port_range {
+        let addr = ([127, 0, 0, 1], port);
+        match warp::serve(routes.clone()).try_bind_ephemeral(addr) {
+            Ok((actual_addr, fut)) => {
+                println!("[Rust Core Daemon] Hardware capture service listening on http://{}", actual_addr);
+                save_daemon_port(actual_addr.port());
+                bound_server = Some(fut);
+                break;
+            }
+            Err(e) => {
+                eprintln!("[Rust Core Daemon] Port {} unavailable ({}). Searching next port...", port, e);
+            }
+        }
+    }
+
+    if let Some(server_fut) = bound_server {
+        server_fut.await;
+    } else {
+        eprintln!("[Rust Core Daemon] FATAL: Could not bind to any port in range {}..={}", start_port, start_port + 20);
+        std::process::exit(1);
+    }
+}
+
+fn save_daemon_port(port: u16) {
+    let temp_file = std::env::temp_dir().join("video-recorder-daemon.port");
+    let _ = std::fs::write(&temp_file, port.to_string());
+
+    if let Ok(home) = std::env::var("HOME") {
+        let config_dir = PathBuf::from(home).join(".config").join("video-recorder");
+        let _ = std::fs::create_dir_all(&config_dir);
+        let _ = std::fs::write(config_dir.join("daemon.port"), port.to_string());
+    }
 }
