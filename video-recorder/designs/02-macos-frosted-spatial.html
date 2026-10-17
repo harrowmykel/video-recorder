@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design 02 — Spatial Frosted Glass (VisionOS / CleanShot X Style)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #070913;
+      background-image:
+        radial-gradient(at 15% 15%, rgba(56, 189, 248, 0.16) 0px, transparent 48%),
+        radial-gradient(at 85% 10%, rgba(168, 85, 247, 0.18) 0px, transparent 50%),
+        radial-gradient(at 50% 85%, rgba(244, 63, 94, 0.12) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: #f8fafc;
+    }
+    /* Spatial Glass Material */
+    .spatial-glass {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      box-shadow:
+        0 20px 45px -15px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
+        inset 0 -1px 0 0 rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    .spatial-glass-dark {
+      background: linear-gradient(160deg, rgba(22, 27, 46, 0.78) 0%, rgba(12, 15, 28, 0.88) 100%);
+      backdrop-filter: blur(32px) saturate(200%);
+      -webkit-backdrop-filter: blur(32px) saturate(200%);
+      box-shadow:
+        0 24px 48px -12px rgba(0, 0, 0, 0.75),
+        inset 0 1px 1px 0 rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .spatial-pill-btn {
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .spatial-pill-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-1px);
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-sky-400/30 selection:text-sky-200 pb-24">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-50 border-b border-white/10 bg-[#070913]/75 backdrop-blur-2xl">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <a href="index.html" class="px-3.5 py-1.5 rounded-full spatial-pill-btn text-xs font-medium text-white/80 hover:text-white flex items-center gap-1.5">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> All Designs
+        </a>
+        <div class="h-4 w-px bg-white/15"></div>
+        <span class="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-sky-400/15 text-sky-300 border border-sky-400/30">
+          Design 02
+        </span>
+        <h1 class="text-sm font-semibold text-white tracking-tight">Spatial Frosted Glass — Apple VisionOS / CleanShot X Aesthetic</h1>
+      </div>
+      <div class="flex items-center gap-2 text-xs text-white/60">
+        <a href="01-obsidian-raycast.html" class="px-3 py-1.5 rounded-full hover:bg-white/10 transition">01 Obsidian</a>
+        <a href="02-macos-frosted-spatial.html" class="px-3 py-1.5 rounded-full bg-white/15 text-white font-semibold">02 Spatial</a>
+        <a href="03-graphite-davinci-pro.html" class="px-3 py-1.5 rounded-full hover:bg-white/10 transition">03 Graphite</a>
+        <a href="04-nordic-minimal-light-dark.html" class="px-3 py-1.5 rounded-full hover:bg-white/10 transition">04 Nordic</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 pt-10 space-y-16">
+
+    <!-- =====================================================================
+         SECTION 1: FLOATING ACTION PILL / TOOLBAR OVERLAY (ALL 3 STATES)
+         ===================================================================== -->
+    <section class="space-y-5">
+      <div class="flex items-end justify-between border-b border-white/10 pb-3">
+        <div>
+          <span class="text-[11px] font-mono uppercase tracking-widest text-sky-400">Widget 01 • True Capsule Overlay</span>
+          <h2 class="text-xl font-bold text-white mt-0.5">Spatial Floating Capsule Bar (Idle, Recording & Mini-Pill)</h2>
+        </div>
+        <p class="text-xs text-white/60">Full `rounded-full` specular glass capsules • Tactile circular icon wells • Soft luminescent status rings</p>
+      </div>
+
+      <div class="relative rounded-3xl border border-white/15 p-10 overflow-hidden flex flex-col items-center justify-center gap-9 min-h-[340px]"
+           style="background: radial-gradient(circle at 30% 20%, rgba(56, 189, 248, 0.25), rgba(88, 28, 135, 0.25) 55%, rgba(7, 9, 19, 0.95) 100%);">
+
+        <!-- 1A. IDLE / READY STATE -->
+        <div class="flex flex-col items-center gap-2.5 w-full">
+          <span class="text-[11px] font-medium tracking-wider uppercase text-sky-200/70">State A — Ready / Idle Capsule (`h-14 rounded-full`)</span>
+          <div class="spatial-glass-dark h-14 px-3 rounded-full flex items-center gap-2">
+            <!-- Grip Dots -->
+            <div class="pl-2 pr-1 text-white/30 hover:text-white/70 cursor-grab flex items-center">
+              <i data-lucide="grip-vertical" class="w-4 h-4"></i>
+            </div>
+
+            <!-- Source Segmented Capsule -->
+            <div class="flex items-center bg-black/35 p-1 rounded-full border border-white/10">
+              <button class="h-9 px-3.5 rounded-full bg-white/15 text-white text-xs font-semibold flex items-center gap-2 shadow-sm border border-white/15">
+                <i data-lucide="monitor" class="w-3.5 h-3.5 text-sky-300"></i>
+                <span>Display</span>
+              </button>
+              <button class="h-9 px-3.5 rounded-full text-white/65 hover:text-white text-xs font-medium flex items-center gap-2 transition">
+                <i data-lucide="app-window" class="w-3.5 h-3.5"></i>
+                <span>Window</span>
+              </button>
+              <button class="h-9 px-3.5 rounded-full text-white/65 hover:text-white text-xs font-medium flex items-center gap-2 transition">
+                <i data-lucide="crop" class="w-3.5 h-3.5"></i>
+                <span>Area</span>
+              </button>
+            </div>
+
+            <!-- Circular Hardware Toggles with Live Audio Ring -->
+            <div class="flex items-center gap-1.5 px-1">
+              <!-- Camera Active Button -->
+              <div class="flex items-center bg-sky-500/20 border border-sky-400/30 rounded-full p-0.5 pr-2.5 gap-1.5">
+                <button class="w-9 h-9 rounded-full bg-sky-400 text-slate-950 flex items-center justify-center shadow">
+                  <i data-lucide="video" class="w-4 h-4"></i>
+                </button>
+                <span class="text-[11px] font-semibold text-sky-100">FaceCam</span>
+                <i data-lucide="chevron-down" class="w-3 h-3 text-sky-200/70 cursor-pointer"></i>
+              </div>
+
+              <!-- Mic Active Pill with Mini Soundwave -->
+              <div class="flex items-center bg-emerald-500/15 border border-emerald-400/30 rounded-full p-0.5 pr-3 gap-2">
+                <button class="w-9 h-9 rounded-full bg-emerald-400 text-slate-950 flex items-center justify-center shadow">
+                  <i data-lucide="mic" class="w-4 h-4"></i>
+                </button>
+                <div class="flex items-end gap-0.5 h-3.5">
+                  <span class="w-0.5 h-2 bg-emerald-300 rounded-full"></span>
+                  <span class="w-0.5 h-3.5 bg-emerald-300 rounded-full"></span>
+                  <span class="w-0.5 h-2.5 bg-emerald-300 rounded-full"></span>
+                  <span class="w-0.5 h-1.5 bg-white/30 rounded-full"></span>
+                </div>
+                <i data-lucide="chevron-down" class="w-3 h-3 text-emerald-200/70 cursor-pointer"></i>
+              </div>
+
+              <!-- System Audio Circular Button -->
+              <button class="w-10 h-10 rounded-full spatial-pill-btn text-white/80 flex items-center justify-center" title="System Audio">
+                <i data-lucide="volume-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <!-- Utility Circular Buttons -->
+            <div class="flex items-center gap-1.5">
+              <button class="w-10 h-10 rounded-full spatial-pill-btn text-amber-300 flex items-center justify-center" title="AI Background">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+              </button>
+              <button class="w-10 h-10 rounded-full spatial-pill-btn text-white/80 flex items-center justify-center" title="Draw & Annotate">
+                <i data-lucide="pen-tool" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <!-- Primary Record Capsule CTA -->
+            <button class="h-10 px-5 rounded-full bg-gradient-to-b from-rose-400 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-rose-500/30 border border-rose-300/40 transition active:scale-95">
+              <span class="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+              <span>Record</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 1B. ACTIVE RECORDING STATE -->
+        <div class="flex flex-col items-center gap-2.5 w-full">
+          <span class="text-[11px] font-medium tracking-wider uppercase text-rose-300/80">State B — Active Recording Capsule</span>
+          <div class="spatial-glass-dark h-14 px-3 rounded-full flex items-center gap-2.5 border-rose-400/30">
+            <!-- Timer Capsule -->
+            <div class="flex items-center gap-2.5 bg-rose-500/20 border border-rose-400/30 px-3.5 py-1.5 rounded-full">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-400"></span>
+              </span>
+              <span class="font-mono text-xs font-bold text-white tabular-nums tracking-wider">02:41.8</span>
+            </div>
+
+            <!-- Transport Controls -->
+            <button class="h-9 px-3.5 rounded-full spatial-pill-btn text-white/90 text-xs font-medium flex items-center gap-1.5">
+              <i data-lucide="pause" class="w-3.5 h-3.5 text-amber-300"></i>
+              <span>Pause</span>
+            </button>
+            <button class="w-9 h-9 rounded-full spatial-pill-btn text-white/75 flex items-center justify-center" title="Restart">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            </button>
+            <button class="w-9 h-9 rounded-full bg-sky-400/25 border border-sky-300/40 text-sky-200 flex items-center justify-center" title="Annotation Mode Active">
+              <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            </button>
+
+            <!-- Finish / Stop Button -->
+            <button class="h-9 px-4 rounded-full bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 shadow-md transition">
+              <span class="w-2.5 h-2.5 rounded-sm bg-rose-600"></span>
+              <span>Finish</span>
+            </button>
+
+            <button class="w-8 h-8 rounded-full hover:bg-white/10 text-white/50 hover:text-white flex items-center justify-center transition" title="Minimize to Corner">
+              <i data-lucide="minimize-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 1C. COLLAPSED MINI-PILL -->
+        <div class="flex flex-col items-center gap-2">
+          <span class="text-[11px] font-medium tracking-wider uppercase text-white/50">State C — Whisper Mini-Pill</span>
+          <div class="spatial-glass-dark h-9 px-3.5 rounded-full flex items-center gap-2.5 cursor-pointer hover:scale-105 transition">
+            <span class="w-2 h-2 rounded-full bg-rose-400 animate-pulse"></span>
+            <span class="font-mono text-xs font-semibold text-white/90 tabular-nums">02:41</span>
+            <i data-lucide="maximize-2" class="w-3 h-3 text-white/50"></i>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         SECTION 2 & 3: CAMERA OVERLAY BUBBLE + 3-2-1 COUNTDOWN HUD
+         ===================================================================== -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+      <!-- WIDGET 2: FLOATING CAMERA BUBBLE -->
+      <section class="lg:col-span-7 space-y-4">
+        <div class="border-b border-white/10 pb-3">
+          <span class="text-[11px] font-mono uppercase tracking-widest text-sky-400">Widget 02 • Spatial Camera Pod</span>
+          <h2 class="text-xl font-bold text-white mt-0.5">Floating Camera Bubble with Detached Spatial Pill Dock</h2>
+          <p class="text-xs text-white/60 mt-0.5">Clean iridescent rim light + floating glass control pill anchored inside the lower curve.</p>
+        </div>
+
+        <div class="spatial-glass-dark rounded-3xl p-8 flex flex-col sm:flex-row items-center justify-around gap-8 min-h-[340px]">
+
+          <!-- Bubble 1: Default Speaking State -->
+          <div class="flex flex-col items-center gap-3">
+            <div class="relative w-48 h-48 rounded-full p-1 bg-gradient-to-tr from-sky-400 via-indigo-400 to-emerald-300 shadow-[0_12px_30px_rgba(0,0,0,0.6)]">
+              <div class="w-full h-full rounded-full overflow-hidden relative bg-slate-900">
+                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80"
+                     alt="Presenter"
+                     class="w-full h-full object-cover scale-105" />
+                <div class="absolute inset-0 rounded-full ring-1 ring-inset ring-white/30 pointer-events-none"></div>
+              </div>
+              <!-- Floating AI Badge -->
+              <div class="absolute bottom-2 right-2 px-2.5 py-0.5 rounded-full spatial-glass-dark text-[10px] font-semibold text-sky-300 flex items-center gap-1">
+                <i data-lucide="sparkles" class="w-2.5 h-2.5"></i> Studio Blur
+              </div>
+            </div>
+            <span class="text-xs text-white/60">Active Voice Rim Glow</span>
+          </div>
+
+          <!-- Bubble 2: Hover State with Unclipped Spatial Control Capsule -->
+          <div class="flex flex-col items-center gap-3">
+            <div class="relative w-56 h-56 rounded-full p-1 bg-white/20 shadow-[0_16px_36px_rgba(0,0,0,0.65)] group">
+              <div class="w-full h-full rounded-full overflow-hidden relative bg-slate-900">
+                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80"
+                     alt="Presenter Hover"
+                     class="w-full h-full object-cover scale-105 brightness-90" />
+
+                <!-- Top Safe Pill: Shape Switcher -->
+                <div class="absolute top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1 rounded-full spatial-glass-dark">
+                  <button class="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-bold text-white">Circle</button>
+                  <button class="px-2 py-0.5 rounded-full text-[10px] font-medium text-white/70 hover:text-white">Squircle</button>
+                </div>
+
+                <!-- Bottom Safe Capsule: Size, Mirror, AI Cutout -->
+                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2.5 py-1.5 rounded-full spatial-glass-dark">
+                  <button class="w-6 h-6 rounded-full bg-white/15 text-[10px] font-bold text-white">S</button>
+                  <button class="w-6 h-6 rounded-full bg-sky-400 text-slate-950 text-[10px] font-bold">M</button>
+                  <button class="w-6 h-6 rounded-full hover:bg-white/15 text-[10px] font-bold text-white/75">L</button>
+                  <div class="w-px h-3.5 bg-white/20 mx-0.5"></div>
+                  <button class="w-6 h-6 rounded-full hover:bg-white/15 text-white flex items-center justify-center" title="Mirror">
+                    <i data-lucide="flip-horizontal-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button class="w-6 h-6 rounded-full bg-amber-400/25 text-amber-200 flex items-center justify-center" title="AI Cutout">
+                    <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <span class="text-xs text-sky-300 font-medium">Hover Safe-Chord Spatial Capsules</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- WIDGET 3: 3-2-1 COUNTDOWN HUD -->
+      <section class="lg:col-span-5 space-y-4">
+        <div class="border-b border-white/10 pb-3">
+          <span class="text-[11px] font-mono uppercase tracking-widest text-sky-400">Widget 03 • Pre-Roll Spatial HUD</span>
+          <h2 class="text-xl font-bold text-white mt-0.5">3-2-1 Spatial Glass Disc</h2>
+          <p class="text-xs text-white/60 mt-0.5">Translucent glass medallion with radial progress ring.</p>
+        </div>
+
+        <div class="spatial-glass-dark rounded-3xl p-8 flex flex-col items-center justify-center min-h-[340px]">
+          <div class="relative w-44 h-44 rounded-full spatial-glass flex flex-col items-center justify-center">
+            <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3" />
+              <circle cx="60" cy="60" r="54" fill="none" stroke="#38bdf8" stroke-width="3.5"
+                      stroke-dasharray="339.29" stroke-dashoffset="95" stroke-linecap="round" />
+            </svg>
+            <span class="text-6xl font-extrabold text-white tracking-tighter drop-shadow">2</span>
+            <span class="text-[11px] font-semibold uppercase tracking-widest text-sky-300 mt-1">Get Ready</span>
+          </div>
+
+          <button class="mt-5 px-4 py-1.5 rounded-full spatial-pill-btn text-xs text-white/75 hover:text-white flex items-center gap-2">
+            <span>Cancel</span>
+            <kbd class="px-1.5 py-0.5 rounded bg-black/40 text-[10px] font-mono text-white/60">ESC</kbd>
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- =====================================================================
+         SECTION 4: SCREEN ANNOTATION PALETTE & CANVAS
+         ===================================================================== -->
+    <section class="space-y-4">
+      <div class="border-b border-white/10 pb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-sky-400">Widget 04 • Live Screen Markup</span>
+        <h2 class="text-xl font-bold text-white mt-0.5">Spatial Annotation Pill & Numbered Callouts</h2>
+      </div>
+
+      <div class="spatial-glass-dark rounded-3xl p-6 relative min-h-[340px] flex flex-col justify-between overflow-hidden">
+
+        <!-- Floating Spatial Annotation Bar -->
+        <div class="mx-auto spatial-glass px-3 py-2 rounded-full flex items-center gap-2 z-20">
+          <!-- Drawing Tools -->
+          <div class="flex items-center gap-1">
+            <button class="w-9 h-9 rounded-full spatial-pill-btn text-white/70 flex items-center justify-center" title="Cursor">
+              <i data-lucide="mouse-pointer" class="w-4 h-4"></i>
+            </button>
+            <button class="w-9 h-9 rounded-full bg-white text-slate-950 flex items-center justify-center shadow" title="Freehand Pen">
+              <i data-lucide="pen-tool" class="w-4 h-4"></i>
+            </button>
+            <button class="w-9 h-9 rounded-full spatial-pill-btn text-white/80 flex items-center justify-center" title="Arrow">
+              <i data-lucide="move-up-right" class="w-4 h-4"></i>
+            </button>
+            <button class="w-9 h-9 rounded-full spatial-pill-btn text-white/80 flex items-center justify-center" title="Rectangle">
+              <i data-lucide="square" class="w-4 h-4"></i>
+            </button>
+            <button class="w-9 h-9 rounded-full bg-sky-400/25 border border-sky-300/40 text-sky-200 font-mono text-xs font-bold flex items-center justify-center" title="Step Counter">
+              #1
+            </button>
+            <button class="w-9 h-9 rounded-full spatial-pill-btn text-white/80 flex items-center justify-center" title="Laser Pointer">
+              <i data-lucide="wand" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="w-px h-5 bg-white/15"></div>
+
+          <!-- Color Dots -->
+          <div class="flex items-center gap-2 px-1">
+            <button class="w-5 h-5 rounded-full bg-rose-500 ring-2 ring-white scale-110"></button>
+            <button class="w-5 h-5 rounded-full bg-amber-400 opacity-80 hover:opacity-100"></button>
+            <button class="w-5 h-5 rounded-full bg-emerald-400 opacity-80 hover:opacity-100"></button>
+            <button class="w-5 h-5 rounded-full bg-sky-400 opacity-80 hover:opacity-100"></button>
+          </div>
+
+          <div class="w-px h-5 bg-white/15"></div>
+
+          <!-- Auto-Fade Toggle + Clear -->
+          <button class="h-8 px-3 rounded-full bg-sky-400/20 border border-sky-300/30 text-sky-200 text-xs font-semibold flex items-center gap-1.5">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+            <span>Fade 3s</span>
+          </button>
+          <button class="w-8 h-8 rounded-full spatial-pill-btn text-white/75 flex items-center justify-center" title="Undo">
+            <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+          </button>
+          <button class="w-8 h-8 rounded-full hover:bg-rose-500/25 text-rose-300 flex items-center justify-center transition" title="Clear">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <!-- Simulated Annotated Target Area -->
+        <div class="my-auto mx-auto max-w-xl w-full rounded-2xl bg-black/40 border border-white/10 p-5 relative">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300">
+                <i data-lucide="cpu" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-white">Hardware NVENC HEVC Encoder</div>
+                <div class="text-xs text-white/50">Zero-copy PipeWire DMA-BUF capture active</div>
+              </div>
+            </div>
+            <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold">60 FPS Locked</span>
+          </div>
+
+          <!-- Callout Step Badge -->
+          <div class="absolute -top-3 -left-3 w-7 h-7 rounded-full bg-rose-500 text-white font-mono text-xs font-bold flex items-center justify-center shadow-lg ring-2 ring-white">
+            1
+          </div>
+        </div>
+
+        <div class="text-center text-xs text-white/40">
+          Drawings smoothly dissolve after 3 seconds when Auto-Fade is enabled
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         SECTION 5: STUDIO REVIEW, TIMELINE & EXPORT EDITOR
+         ===================================================================== -->
+    <section class="space-y-4">
+      <div class="border-b border-white/10 pb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-sky-400">Widget 05 • Post-Capture Spatial Studio</span>
+        <h2 class="text-xl font-bold text-white mt-0.5">Spatial Review & Non-Destructive Compositor</h2>
+      </div>
+
+      <div class="spatial-glass-dark rounded-3xl overflow-hidden">
+        <!-- Studio Header Bar -->
+        <div class="h-14 px-6 border-b border-white/10 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="px-3 py-1 rounded-full bg-white/10 text-xs font-semibold text-white">Spatial Studio</span>
+            <span class="text-xs text-white/60 font-mono">CleanShot-2026-10-17.mp4</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <button class="h-9 px-4 rounded-full spatial-pill-btn text-xs font-medium text-white/80">Discard</button>
+            <button class="h-9 px-5 rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-500/20">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>Export 4K Video</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Stage + Inspector -->
+        <div class="grid grid-cols-1 lg:grid-cols-12">
+          <div class="lg:col-span-8 p-6 flex flex-col items-center justify-center bg-black/30">
+            <!-- Rounded Wallpaper Frame (Screen Studio / CleanShot style) -->
+            <div class="w-full aspect-video rounded-2xl p-5 bg-gradient-to-br from-sky-500/30 via-indigo-600/30 to-rose-500/30 border border-white/15 flex items-center justify-center relative shadow-2xl">
+              <div class="w-full h-full rounded-xl bg-[#0b1020] border border-white/15 overflow-hidden relative p-5 flex flex-col justify-between">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-rose-400/80"></span>
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-400/80"></span>
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400/80"></span>
+                </div>
+                <div class="my-auto mx-auto text-center space-y-1">
+                  <div class="text-xs font-mono text-sky-300">Auto-Zoom Keyframe 1.5x</div>
+                  <div class="text-lg font-bold text-white">Smooth Cursor Spring Physics</div>
+                </div>
+                <!-- Composited Camera Layer -->
+                <div class="w-20 h-20 rounded-full overflow-hidden border-2 border-white/80 shadow-xl self-end">
+                  <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80" class="w-full h-full object-cover" alt="Cam" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Inspector -->
+          <div class="lg:col-span-4 p-6 border-l border-white/10 space-y-5">
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-white/70">Canvas Padding & Wallpaper</label>
+              <div class="grid grid-cols-4 gap-2">
+                <button class="h-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-600 ring-2 ring-white"></button>
+                <button class="h-8 rounded-xl bg-gradient-to-br from-rose-400 to-amber-500 opacity-70"></button>
+                <button class="h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 opacity-70"></button>
+                <button class="h-8 rounded-xl bg-slate-800 border border-white/15 text-[10px] text-white/70">None</button>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-white/70">Camera Layer Matting</label>
+              <div class="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <i data-lucide="sparkles" class="w-4 h-4 text-sky-300"></i>
+                  <div>
+                    <div class="text-xs font-semibold text-white">AI Person Cutout</div>
+                    <div class="text-[11px] text-white/50">MODNet ONNX Alpha</div>
+                  </div>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full bg-sky-400/20 text-sky-300 text-[11px] font-semibold">Active</span>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-white/70">Export Format</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button class="p-2.5 rounded-2xl bg-white/15 border border-white/25 text-left">
+                  <div class="text-xs font-bold text-white">MP4 (H.264)</div>
+                  <div class="text-[10px] text-white/60">Universal 60fps</div>
+                </button>
+                <button class="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-left">
+                  <div class="text-xs font-bold text-white/80">WebM (VP9)</div>
+                  <div class="text-[10px] text-white/50">Transparent Alpha</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Capsule Timeline -->
+        <div class="p-5 border-t border-white/10 bg-black/40 space-y-2.5">
+          <div class="flex items-center justify-between text-xs text-white/60 font-mono">
+            <span>00:00.0</span>
+            <span class="text-sky-300 font-semibold">Trim Range: 00:02.4 — 01:14.2</span>
+            <span>01:18.0</span>
+          </div>
+          <div class="h-10 rounded-full bg-white/5 border border-white/10 p-1 flex items-center relative">
+            <div class="h-full w-4/5 mx-auto rounded-full bg-gradient-to-r from-sky-500/30 via-indigo-500/30 to-sky-500/30 border-x-4 border-sky-300 flex items-center justify-between px-3">
+              <span class="text-[11px] font-semibold text-sky-200">Screen + Camera Multi-Track</span>
+              <span class="text-[10px] font-mono text-white/70">60 FPS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         SECTION 6: BATCH AI BACKGROUND REMOVER
+         ===================================================================== -->
+    <section class="space-y-4">
+      <div class="border-b border-white/10 pb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-sky-400">Widget 06 • Batch AI Alpha Studio</span>
+        <h2 class="text-xl font-bold text-white mt-0.5">Spatial Drag & Drop Background Remover</h2>
+      </div>
+
+      <div class="spatial-glass-dark rounded-3xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        <div class="lg:col-span-5 rounded-2xl border-2 border-dashed border-sky-300/30 bg-sky-400/5 p-8 text-center space-y-3 hover:border-sky-300/60 transition cursor-pointer">
+          <div class="w-12 h-12 rounded-full bg-sky-400/20 text-sky-300 mx-auto flex items-center justify-center">
+            <i data-lucide="cloud-upload" class="w-6 h-6"></i>
+          </div>
+          <div class="text-sm font-bold text-white">Drop Videos for Instant AI Cutout</div>
+          <p class="text-xs text-white/60">Outputs transparent WebM VP9 or Green Screen MP4 using local GPU ONNX</p>
+        </div>
+
+        <div class="lg:col-span-7 space-y-3">
+          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-emerald-400/20 text-emerald-300 flex items-center justify-center">
+                <i data-lucide="check" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white">keynote-camera-track.mp4</div>
+                <div class="text-[11px] text-emerald-300">Completed • Transparent WebM VP9</div>
+              </div>
+            </div>
+            <button class="px-3.5 py-1.5 rounded-full spatial-pill-btn text-xs font-semibold text-white">Save File</button>
+          </div>
+
+          <div class="p-4 rounded-2xl bg-white/5 border border-sky-400/30 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-white">product-walkthrough-cam.mp4</span>
+              <span class="font-mono text-sky-300">78% • 118 fps</span>
+            </div>
+            <div class="h-2 rounded-full bg-black/50 overflow-hidden">
+              <div class="h-full w-[78%] rounded-full bg-gradient-to-r from-sky-400 to-indigo-400"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

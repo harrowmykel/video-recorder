@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design 03 — Broadcast Graphite Pro (DaVinci / Teenage Engineering Style)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Space Mono', 'monospace'],
+          },
+          colors: {
+            graphite: {
+              950: '#0b0c0e',
+              900: '#121417',
+              800: '#1a1d22',
+              700: '#242830',
+              600: '#313640',
+            },
+            signal: {
+              orange: '#ff5500',
+              amber: '#ffb800',
+              tally: '#ff2a2a',
+              led: '#00e676',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0b0c0e;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 24px 24px;
+      color: #e4e6eb;
+    }
+    .machined-chassis {
+      background: linear-gradient(180deg, #1b1e24 0%, #121418 100%);
+      border: 1px solid #2d323c;
+      box-shadow:
+        0 14px 28px -6px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+    }
+    .tactile-key {
+      background: linear-gradient(180deg, #252932 0%, #1b1e25 100%);
+      border: 1px solid #353b47;
+      box-shadow:
+        0 2px 0 0 #0b0c0e,
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+      transition: all 0.1s ease;
+    }
+    .tactile-key:hover {
+      background: linear-gradient(180deg, #2c313c 0%, #20242c 100%);
+      border-color: #454d5c;
+    }
+    .tactile-key:active {
+      transform: translateY(1px);
+      box-shadow: 0 1px 0 0 #0b0c0e;
+    }
+    .recessed-screen {
+      background: #090a0c;
+      border: 1px solid #22262e;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.85);
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-[#ff5500]/30 selection:text-[#ff5500] pb-24">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-50 border-b border-[#242830] bg-[#0b0c0e]/95 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <a href="index.html" class="px-3 py-1 rounded tactile-key text-xs font-mono text-zinc-300 hover:text-white flex items-center gap-1.5">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> INDEX
+        </a>
+        <div class="h-4 w-px bg-[#242830]"></div>
+        <span class="px-2 py-0.5 rounded-sm text-[10px] font-mono font-bold uppercase tracking-widest bg-[#ff5500]/20 text-[#ff5500] border border-[#ff5500]/40">
+          CH-03 // PRO
+        </span>
+        <h1 class="text-sm font-mono font-semibold text-zinc-100 tracking-tight">Broadcast Graphite Studio — DaVinci Resolve & Teenage Engineering Tactile UI</h1>
+      </div>
+      <div class="flex items-center gap-1.5 text-xs font-mono text-zinc-400">
+        <a href="01-obsidian-raycast.html" class="px-2.5 py-1 rounded hover:bg-zinc-800">01.OBSIDIAN</a>
+        <a href="02-macos-frosted-spatial.html" class="px-2.5 py-1 rounded hover:bg-zinc-800">02.SPATIAL</a>
+        <a href="03-graphite-davinci-pro.html" class="px-2.5 py-1 rounded bg-[#ff5500] text-black font-bold">03.GRAPHITE</a>
+        <a href="04-nordic-minimal-light-dark.html" class="px-2.5 py-1 rounded hover:bg-zinc-800">04.NORDIC</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 pt-10 space-y-16">
+
+    <!-- =====================================================================
+         SECTION 1: FLOATING ACTION PILL / TOOLBAR OVERLAY (ALL 3 STATES)
+         ===================================================================== -->
+    <section class="space-y-4">
+      <div class="flex items-end justify-between border-b border-[#242830] pb-3">
+        <div>
+          <span class="text-[11px] font-mono uppercase tracking-widest text-[#ff5500]">MODULE 01 // MASTER TRANSPORT BAR</span>
+          <h2 class="text-xl font-bold text-white mt-0.5">Tactile Broadcast Controller (Idle, Tally Active & Mini Timecode)</h2>
+        </div>
+        <p class="text-xs font-mono text-zinc-400">Machined aluminum bevels • Recessed OLED timecode & dB meter • Physical push-keys</p>
+      </div>
+
+      <div class="rounded-xl border border-[#242830] bg-[#101216] p-10 flex flex-col items-center justify-center gap-9">
+
+        <!-- 1A. IDLE / READY STATE -->
+        <div class="flex flex-col items-center gap-2 w-full">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-zinc-500">STATE_01 // STANDBY_READY</span>
+          <div class="machined-chassis h-14 px-2.5 rounded-lg flex items-center gap-2">
+            <!-- Knurled Handle -->
+            <div class="px-1.5 py-2 flex flex-col gap-0.5 cursor-grab opacity-50 hover:opacity-100">
+              <div class="w-1 h-1 rounded-full bg-zinc-400"></div>
+              <div class="w-1 h-1 rounded-full bg-zinc-400"></div>
+              <div class="w-1 h-1 rounded-full bg-zinc-400"></div>
+              <div class="w-1 h-1 rounded-full bg-zinc-400"></div>
+            </div>
+
+            <!-- Input Source Keys -->
+            <div class="flex items-center gap-1 bg-[#090a0c] p-1 rounded border border-[#22262e]">
+              <button class="h-8 px-3 rounded-sm tactile-key border-[#ff5500]/60 text-white text-xs font-mono font-bold flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#ff5500]"></span>
+                <span>DISP_01</span>
+              </button>
+              <button class="h-8 px-2.5 rounded-sm text-zinc-400 hover:text-zinc-200 text-xs font-mono flex items-center gap-1">
+                <span>WIN</span>
+              </button>
+              <button class="h-8 px-2.5 rounded-sm text-zinc-400 hover:text-zinc-200 text-xs font-mono flex items-center gap-1">
+                <span>CROP</span>
+              </button>
+            </div>
+
+            <!-- Recessed OLED Telemetry Readout (dB Meter + Format) -->
+            <div class="recessed-screen h-9 px-3 rounded flex items-center gap-3">
+              <div class="flex flex-col">
+                <span class="text-[9px] font-mono text-zinc-500 leading-none">MIC_CH1</span>
+                <div class="flex items-center gap-0.5 mt-1">
+                  <span class="w-1.5 h-2 bg-[#00e676]"></span>
+                  <span class="w-1.5 h-2 bg-[#00e676]"></span>
+                  <span class="w-1.5 h-2 bg-[#00e676]"></span>
+                  <span class="w-1.5 h-2 bg-[#00e676]"></span>
+                  <span class="w-1.5 h-2 bg-[#ffb800]"></span>
+                  <span class="w-1.5 h-2 bg-zinc-800"></span>
+                  <span class="w-1.5 h-2 bg-zinc-800"></span>
+                </div>
+              </div>
+              <div class="h-5 w-px bg-zinc-800"></div>
+              <div class="font-mono text-[10px] leading-tight">
+                <div class="text-[#00e676] font-bold">60.0 FPS</div>
+                <div class="text-zinc-500">NVENC_HEVC</div>
+              </div>
+            </div>
+
+            <!-- Hardware Toggle Keys -->
+            <div class="flex items-center gap-1.5">
+              <button class="h-9 px-2.5 rounded tactile-key text-xs font-mono text-zinc-200 flex items-center gap-1.5" title="Camera Input">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#00e676]"></span>
+                <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                <span>CAM</span>
+              </button>
+              <button class="h-9 px-2.5 rounded tactile-key text-xs font-mono text-zinc-200 flex items-center gap-1.5" title="Mic Input">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#00e676]"></span>
+                <i data-lucide="mic" class="w-3.5 h-3.5"></i>
+                <span>MIC</span>
+              </button>
+              <button class="h-9 px-2.5 rounded tactile-key text-xs font-mono text-[#ffb800] flex items-center gap-1.5" title="AI Matting">
+                <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
+                <span>ONNX</span>
+              </button>
+              <button class="h-9 w-9 rounded tactile-key text-zinc-300 flex items-center justify-center" title="Draw Overlay">
+                <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+
+            <!-- Primary Tally REC Key -->
+            <button class="h-9 px-4 rounded bg-[#ff2a2a] hover:bg-[#ff4040] text-white font-mono font-bold text-xs tracking-wider flex items-center gap-2 shadow-[0_2px_0_0_#7f1d1d] active:translate-y-px">
+              <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
+              <span>REC</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 1B. ACTIVE RECORDING STATE -->
+        <div class="flex flex-col items-center gap-2 w-full">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-[#ff2a2a]">STATE_02 // ON_AIR_TALLY_LOCK</span>
+          <div class="machined-chassis h-14 px-3 rounded-lg flex items-center gap-2.5 border-[#ff2a2a]/60">
+            <!-- Recessed Timecode Display -->
+            <div class="recessed-screen h-9 px-3.5 rounded flex items-center gap-2.5 border-[#ff2a2a]/40">
+              <span class="w-2 h-2 rounded-full bg-[#ff2a2a] animate-ping"></span>
+              <span class="font-mono text-xs font-bold text-[#ff2a2a]">TC</span>
+              <span class="font-mono text-sm font-bold text-white tabular-nums tracking-widest">00:04:19:12</span>
+            </div>
+
+            <button class="h-9 px-3 rounded tactile-key text-xs font-mono text-[#ffb800] flex items-center gap-1.5">
+              <i data-lucide="pause" class="w-3.5 h-3.5"></i>
+              <span>HOLD</span>
+            </button>
+            <button class="h-9 px-3 rounded tactile-key text-xs font-mono text-zinc-300 flex items-center gap-1.5">
+              <i data-lucide="flag" class="w-3.5 h-3.5 text-[#ff5500]"></i>
+              <span>MARK</span>
+            </button>
+            <button class="h-9 px-3.5 rounded bg-zinc-100 hover:bg-white text-black font-mono font-bold text-xs flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 bg-[#ff2a2a]"></span>
+              <span>CUT / STOP</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 1C. COLLAPSED MINI-PILL -->
+        <div class="flex flex-col items-center gap-2">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-zinc-500">STATE_03 // COMPACT_TALLY</span>
+          <div class="machined-chassis h-8 px-3 rounded flex items-center gap-2 border-[#ff2a2a]/50 cursor-pointer">
+            <span class="w-2 h-2 bg-[#ff2a2a]"></span>
+            <span class="font-mono text-xs font-bold text-white tabular-nums">00:04:19</span>
+            <span class="text-[10px] font-mono text-[#00e676]">-6dB</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         SECTION 2 & 3: CAMERA OVERLAY BUBBLE + 3-2-1 COUNTDOWN HUD
+         ===================================================================== -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+      <!-- WIDGET 2: FLOATING CAMERA BUBBLE -->
+      <section class="lg:col-span-7 space-y-4">
+        <div class="border-b border-[#242830] pb-3">
+          <span class="text-[11px] font-mono uppercase tracking-widest text-[#ff5500]">MODULE 02 // CINE-LENS MONITOR POD</span>
+          <h2 class="text-xl font-bold text-white mt-0.5">Broadcast Camera Monitor & Safe-Zone Dock</h2>
+          <p class="text-xs font-mono text-zinc-400 mt-0.5">Cine-lens ring bezel with telemetry badge and safe bottom control strip.</p>
+        </div>
+
+        <div class="machined-chassis rounded-xl p-8 flex flex-col sm:flex-row items-center justify-around gap-8 min-h-[340px]">
+
+          <!-- Monitor Pod 1: Live Tally Ring -->
+          <div class="flex flex-col items-center gap-3">
+            <div class="relative w-48 h-48 rounded-full p-1.5 bg-[#1a1d22] border-2 border-[#ff5500] shadow-xl">
+              <div class="w-full h-full rounded-full overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"
+                     alt="Presenter"
+                     class="w-full h-full object-cover contrast-105" />
+                <!-- Top Safe Telemetry Pill -->
+                <div class="absolute top-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/80 border border-white/15 font-mono text-[9px] text-[#00e676] uppercase">
+                  CAM_A • 1080P60
+                </div>
+              </div>
+            </div>
+            <span class="text-xs font-mono text-zinc-400">ACTIVE_TALLY_RING</span>
+          </div>
+
+          <!-- Monitor Pod 2: Hover Control Strip inside Safe Chord -->
+          <div class="flex flex-col items-center gap-3">
+            <div class="relative w-56 h-56 rounded-full p-1.5 bg-[#1a1d22] border-2 border-zinc-600 shadow-xl">
+              <div class="w-full h-full rounded-full overflow-hidden relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80"
+                     alt="Presenter"
+                     class="w-full h-full object-cover brightness-90" />
+
+                <!-- Safe Bottom Technical Control Dock -->
+                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1 rounded bg-[#0b0c0e]/95 border border-zinc-700 shadow-lg font-mono">
+                  <button class="px-1.5 py-0.5 rounded-sm bg-[#ff5500] text-black text-[10px] font-bold">1:1</button>
+                  <button class="px-1.5 py-0.5 rounded-sm text-zinc-400 hover:text-white text-[10px]">4:3</button>
+                  <div class="w-px h-3 bg-zinc-700 mx-0.5"></div>
+                  <button class="px-1.5 py-0.5 rounded-sm text-zinc-300 hover:text-white text-[10px]">S</button>
+                  <button class="px-1.5 py-0.5 rounded-sm bg-zinc-800 text-white text-[10px] font-bold">M</button>
+                  <button class="px-1.5 py-0.5 rounded-sm text-zinc-300 hover:text-white text-[10px]">L</button>
+                  <div class="w-px h-3 bg-zinc-700 mx-0.5"></div>
+                  <button class="px-1.5 py-0.5 rounded-sm text-[#00e676] text-[10px] font-bold" title="AI Alpha Key">KEY</button>
+                </div>
+              </div>
+            </div>
+            <span class="text-xs font-mono text-[#ff5500]">SAFE_CHORD_DOCK // ZERO_CLIP</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- WIDGET 3: 3-2-1 COUNTDOWN HUD -->
+      <section class="lg:col-span-5 space-y-4">
+        <div class="border-b border-[#242830] pb-3">
+          <span class="text-[11px] font-mono uppercase tracking-widest text-[#ff5500]">MODULE 03 // SMPTE LEADER HUD</span>
+          <h2 class="text-xl font-bold text-white mt-0.5">Broadcast SMPTE Pre-Roll</h2>
+          <p class="text-xs font-mono text-zinc-400 mt-0.5">Precision crosshair leader with frame-accurate countdown.</p>
+        </div>
+
+        <div class="machined-chassis rounded-xl p-8 flex flex-col items-center justify-center min-h-[340px]">
+          <div class="relative w-44 h-44 rounded-lg recessed-screen flex flex-col items-center justify-center border border-zinc-700">
+            <!-- Crosshair lines -->
+            <div class="absolute inset-x-0 top-1/2 h-px bg-zinc-800"></div>
+            <div class="absolute inset-y-0 left-1/2 w-px bg-zinc-800"></div>
+            <svg class="absolute inset-2 w-40 h-40 -rotate-90" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#22262e" stroke-width="4" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#ff5500" stroke-width="4"
+                      stroke-dasharray="326.7" stroke-dashoffset="108" />
+            </svg>
+            <span class="relative z-10 font-mono text-6xl font-bold text-white tabular-nums">03</span>
+            <span class="relative z-10 font-mono text-[10px] uppercase tracking-widest text-[#ff5500] mt-1">PRE-ROLLSYNC</span>
+          </div>
+
+          <div class="mt-4 font-mono text-xs text-zinc-400">
+            PRESS <kbd class="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200">ESC</kbd> TO ABORT TAKE
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- =====================================================================
+         SECTION 4: SCREEN ANNOTATION PALETTE & CANVAS
+         ===================================================================== -->
+    <section class="space-y-4">
+      <div class="border-b border-[#242830] pb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[#ff5500]">MODULE 04 // TELESTRATOR OVERLAY</span>
+        <h2 class="text-xl font-bold text-white mt-0.5">Broadcast Telestrator & Tactical Callout Bar</h2>
+      </div>
+
+      <div class="machined-chassis rounded-xl p-6 space-y-6">
+        <!-- Telestrator Hardware Strip -->
+        <div class="mx-auto w-fit recessed-screen p-1.5 rounded-lg flex items-center gap-1.5 border border-zinc-700">
+          <button class="h-8 px-2.5 rounded tactile-key text-xs font-mono text-zinc-300 flex items-center gap-1">
+            <i data-lucide="mouse-pointer" class="w-3.5 h-3.5"></i><span>PTR</span>
+          </button>
+          <button class="h-8 px-2.5 rounded bg-[#ff5500] text-black text-xs font-mono font-bold flex items-center gap-1">
+            <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i><span>DRAW</span>
+          </button>
+          <button class="h-8 px-2.5 rounded tactile-key text-xs font-mono text-zinc-300 flex items-center gap-1">
+            <i data-lucide="move-up-right" class="w-3.5 h-3.5"></i><span>VEC</span>
+          </button>
+          <button class="h-8 px-2.5 rounded tactile-key text-xs font-mono text-zinc-300 flex items-center gap-1">
+            <i data-lucide="square" class="w-3.5 h-3.5"></i><span>BOX</span>
+          </button>
+          <button class="h-8 px-2.5 rounded tactile-key text-xs font-mono text-[#ffb800] font-bold">
+            [01]
+          </button>
+
+          <div class="h-5 w-px bg-zinc-800 mx-1"></div>
+
+          <!-- Swatches -->
+          <div class="flex items-center gap-1.5 px-1">
+            <button class="w-4 h-4 rounded-sm bg-[#ff5500] ring-2 ring-white"></button>
+            <button class="w-4 h-4 rounded-sm bg-[#00e676]"></button>
+            <button class="w-4 h-4 rounded-sm bg-[#ffb800]"></button>
+            <button class="w-4 h-4 rounded-sm bg-[#38bdf8]"></button>
+          </div>
+
+          <div class="h-5 w-px bg-zinc-800 mx-1"></div>
+
+          <button class="h-8 px-2.5 rounded tactile-key text-[11px] font-mono text-[#00e676]">TTL:3.0s</button>
+          <button class="h-8 px-2.5 rounded tactile-key text-[11px] font-mono text-zinc-300">CLR</button>
+        </div>
+
+        <!-- Annotated Canvas Preview -->
+        <div class="recessed-screen rounded-lg p-6 relative max-w-2xl mx-auto border border-zinc-800">
+          <div class="flex items-center justify-between font-mono text-xs">
+            <span class="text-zinc-400">PIPEWIRE_NODE // 0x4F2A</span>
+            <span class="text-[#00e676]">FRAME_TIME: 1.4ms</span>
+          </div>
+          <div class="mt-3 p-3 rounded border-2 border-[#ff5500] bg-[#ff5500]/5 flex items-center justify-between">
+            <span class="font-mono text-xs font-bold text-white">ZERO-COPY GPU TEXTURE PIPELINE</span>
+            <span class="px-2 py-0.5 bg-[#ff5500] text-black font-mono text-[10px] font-bold">MARKER #01</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         SECTION 5: STUDIO REVIEW, TIMELINE & EXPORT EDITOR
+         ===================================================================== -->
+    <section class="space-y-4">
+      <div class="border-b border-[#242830] pb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[#ff5500]">MODULE 05 // NON-LINEAR MASTERING DECK</span>
+        <h2 class="text-xl font-bold text-white mt-0.5">DaVinci-Inspired Dual-Track Mastering Suite</h2>
+      </div>
+
+      <div class="machined-chassis rounded-xl overflow-hidden">
+        <!-- Top Deck Bar -->
+        <div class="h-12 px-4 border-b border-[#242830] bg-[#0e1014] flex items-center justify-between font-mono text-xs">
+          <div class="flex items-center gap-3">
+            <span class="text-[#ff5500] font-bold">DECK // EDIT_MASTER</span>
+            <span class="text-zinc-500">|</span>
+            <span class="text-zinc-300">TAKE_042_FINAL.MKV</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="h-8 px-3 rounded tactile-key text-zinc-300">RENDER QUEUE</button>
+            <button class="h-8 px-4 rounded bg-[#ff5500] text-black font-bold">DELIVER MASTER</button>
+          </div>
+        </div>
+
+        <!-- Program Monitor + Technical Inspector -->
+        <div class="grid grid-cols-1 lg:grid-cols-12">
+          <div class="lg:col-span-8 p-5 bg-[#090a0c] flex flex-col justify-between">
+            <div class="flex items-center justify-between font-mono text-[11px] text-zinc-400 mb-2">
+              <span>PGM_MONITOR // 3840x2160 @ 60.00</span>
+              <span class="text-[#00e676]">TC 00:00:18:04</span>
+            </div>
+            <div class="aspect-video rounded border border-zinc-800 bg-[#12151c] relative p-6 flex flex-col justify-between">
+              <div class="font-mono text-xs text-zinc-500">V1: SCREEN_CAPTURE_RAW.MP4</div>
+              <div class="w-24 h-24 rounded-full overflow-hidden border-2 border-[#ff5500] self-end">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80" class="w-full h-full object-cover" alt="Cam" />
+              </div>
+            </div>
+          </div>
+
+          <div class="lg:col-span-4 p-5 border-l border-[#242830] space-y-4 font-mono">
+            <div class="text-xs font-bold text-[#ff5500] uppercase">Inspector // Track Params</div>
+            <div class="recessed-screen p-3 rounded space-y-2 text-xs">
+              <div class="flex justify-between"><span class="text-zinc-400">CODEC</span><span class="text-white">HEVC 10-BIT</span></div>
+              <div class="flex justify-between"><span class="text-zinc-400">MATTE ENGINE</span><span class="text-[#00e676]">MODNET_FP16</span></div>
+              <div class="flex justify-between"><span class="text-zinc-400">AUDIO LUFS</span><span class="text-[#ffb800]">-14.0 LUFS</span></div>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-[11px] text-zinc-400">COMPOSITE PIP POSITION</label>
+              <div class="grid grid-cols-2 gap-1.5 text-xs">
+                <button class="h-8 rounded tactile-key text-zinc-400">TOP_LEFT</button>
+                <button class="h-8 rounded tactile-key text-zinc-400">TOP_RIGHT</button>
+                <button class="h-8 rounded tactile-key text-zinc-400">BTM_LEFT</button>
+                <button class="h-8 rounded tactile-key text-[#ff5500] border-[#ff5500]/50 font-bold">BTM_RIGHT</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-Track NLE Timeline -->
+        <div class="p-4 border-t border-[#242830] bg-[#0b0c0e] font-mono text-xs space-y-1.5">
+          <div class="h-7 rounded bg-[#161920] border border-zinc-800 px-3 flex items-center justify-between">
+            <span class="text-sky-400 font-bold">V2 // CAM_ALPHA.WEBM</span>
+            <span class="text-[10px] text-zinc-500">ONNX MATTED</span>
+          </div>
+          <div class="h-7 rounded bg-[#161920] border border-zinc-800 px-3 flex items-center justify-between">
+            <span class="text-[#ff5500] font-bold">V1 // DESKTOP_PIPEWIRE.MP4</span>
+            <span class="text-[10px] text-zinc-500">3840x2160</span>
+          </div>
+          <div class="h-7 rounded bg-[#161920] border border-zinc-800 px-3 flex items-center justify-between">
+            <span class="text-[#00e676] font-bold">A1 // PCM_48KHZ_STEREO.WAV</span>
+            <span class="text-[10px] text-zinc-500">PEAK -1.2dB</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         SECTION 6: BATCH AI BACKGROUND REMOVER
+         ===================================================================== -->
+    <section class="space-y-4">
+      <div class="border-b border-[#242830] pb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[#ff5500]">MODULE 06 // BATCH ONNX MATTE NODE</span>
+        <h2 class="text-xl font-bold text-white mt-0.5">High-Throughput Alpha Channel Batch Node</h2>
+      </div>
+
+      <div class="machined-chassis rounded-xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 font-mono">
+        <div class="lg:col-span-5 recessed-screen rounded-lg border border-dashed border-[#ff5500]/50 p-6 flex flex-col items-center justify-center text-center gap-2">
+          <i data-lucide="HardDriveDownload" class="w-7 h-7 text-[#ff5500]"></i>
+          <div class="text-xs font-bold text-white">INGEST RAW VIDEO SPOOLS</div>
+          <div class="text-[11px] text-zinc-500">AUTO-KEYS ALPHA CHANNEL TO VP9 WEBM</div>
+        </div>
+        <div class="lg:col-span-7 space-y-2.5">
+          <div class="recessed-screen p-3 rounded flex items-center justify-between text-xs">
+            <div>
+              <div class="text-white font-bold">JOB_01 // INTERVIEW_CAM_A.MOV</div>
+              <div class="text-[10px] text-[#00e676]">STATUS: DONE (142.4 FPS AVG)</div>
+            </div>
+            <button class="px-3 py-1 rounded tactile-key text-[11px] text-white">EXPORT</button>
+          </div>
+          <div class="recessed-screen p-3 rounded space-y-1.5 text-xs border border-[#ff5500]/40">
+            <div class="flex justify-between">
+              <span class="text-white font-bold">JOB_02 // B_ROLL_SPEAKER.MP4</span>
+              <span class="text-[#ff5500]">FRAME 1,420 / 1,800 (79%)</span>
+            </div>
+            <div class="h-1.5 bg-zinc-900 rounded overflow-hidden">
+              <div class="h-full w-[79%] bg-[#ff5500]"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>
