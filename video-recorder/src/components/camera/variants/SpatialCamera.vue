@@ -4,7 +4,8 @@ import {
   FlipHorizontal,
   Circle,
   Square,
-  User
+  User,
+  Scaling
 } from 'lucide-vue-next';
 import { CameraShape, CameraSize, BgRemovalMode } from '../../../types/studio';
 
@@ -14,6 +15,8 @@ const props = defineProps<{
   bgMode: BgRemovalMode;
   shape: CameraShape;
   size: CameraSize;
+  customDiameter?: number | null;
+  isResizing?: boolean;
   isRecording: boolean;
   isHovered: boolean;
   shapeClass: string;
@@ -27,6 +30,8 @@ const emit = defineEmits<{
   (e: 'toggleBgMode'): void;
   (e: 'hide'): void;
   (e: 'dragMouseDown', event: MouseEvent): void;
+  (e: 'startResize', event: MouseEvent): void;
+  (e: 'wheelResize', event: WheelEvent): void;
 }>();
 </script>
 
@@ -35,6 +40,7 @@ const emit = defineEmits<{
     <!-- Camera Frame (Circle / Squircle / Rect) with Speaking Glow Halo -->
     <div
       @mousedown="emit('dragMouseDown', $event)"
+      @wheel.prevent="emit('wheelResize', $event)"
       class="relative overflow-hidden transition-all duration-300 bg-studio-surface cursor-grab active:cursor-grabbing"
       :class="props.shapeClass"
       :style="props.haloStyle"
@@ -61,6 +67,36 @@ const emit = defineEmits<{
         <Sparkles class="w-3 h-3" />
         <span>Studio Blur</span>
       </div>
+
+      <!-- Live Dynamic Size Readout during resize -->
+      <div
+        v-if="props.isResizing"
+        class="absolute inset-0 bg-slate-950/50 backdrop-blur-sm z-20 flex flex-col items-center justify-center pointer-events-none"
+      >
+        <span class="px-2.5 py-1 rounded-full spatial-glass-dark border border-sky-400/60 text-xs font-mono font-bold text-sky-300 shadow-2xl">
+          {{ props.customDiameter }}px
+        </span>
+      </div>
+
+      <!-- Interactive Corner Drag Resize Handle -->
+      <transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0 scale-75"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-100 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-75"
+      >
+        <div
+          v-if="props.isHovered"
+          data-resize-handle="true"
+          @mousedown.stop="emit('startResize', $event)"
+          class="absolute bottom-2.5 right-2.5 w-6 h-6 rounded-full spatial-glass-dark hover:bg-sky-500/80 border border-white/25 hover:border-sky-300 text-white flex items-center justify-center cursor-nwse-resize shadow-lg z-20 backdrop-blur-md transition-all active:scale-95 group/handle"
+          title="Drag or Scroll to Resize"
+        >
+          <Scaling class="w-3.5 h-3.5 text-white/80 group-hover/handle:text-white transition-transform duration-200" />
+        </div>
+      </transition>
     </div>
 
     <!-- Safe-Zone Floating Spatial Dock (Beneath Circle, Never Clipped) -->
@@ -88,19 +124,22 @@ const emit = defineEmits<{
 
           <button
             @click="emit('setSize', 'S')"
-            :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'S' ? 'bg-sky-400 text-slate-950 shadow' : 'spatial-pill-btn text-white/70']"
+            :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'S' && !props.customDiameter ? 'bg-sky-400 text-slate-950 shadow' : 'spatial-pill-btn text-white/70']"
+            title="Small Preset (160px)"
           >
             S
           </button>
           <button
             @click="emit('setSize', 'M')"
-            :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'M' ? 'bg-sky-400 text-slate-950 shadow' : 'spatial-pill-btn text-white/70']"
+            :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'M' && !props.customDiameter ? 'bg-sky-400 text-slate-950 shadow' : 'spatial-pill-btn text-white/70']"
+            title="Medium Preset (240px)"
           >
             M
           </button>
           <button
             @click="emit('setSize', 'L')"
-            :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'L' ? 'bg-sky-400 text-slate-950 shadow' : 'spatial-pill-btn text-white/70']"
+            :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'L' && !props.customDiameter ? 'bg-sky-400 text-slate-950 shadow' : 'spatial-pill-btn text-white/70']"
+            title="Large Preset (340px)"
           >
             L
           </button>

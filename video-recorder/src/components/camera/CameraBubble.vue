@@ -39,6 +39,52 @@ const videoRef = useTemplateRef<HTMLVideoElement>('videoRef');
 
 let mediaStream: MediaStream | null = null;
 
+const customDiameter = shallowRef<number | null>(null);
+const isResizing = shallowRef(false);
+
+let resizeStartScreenX = 0;
+let resizeStartScreenY = 0;
+let resizeStartDiameter = 240;
+
+function onResizeMouseDown(e: MouseEvent) {
+  e.preventDefault();
+  e.stopPropagation();
+  isResizing.value = true;
+  resizeStartScreenX = e.screenX;
+  resizeStartScreenY = e.screenY;
+  resizeStartDiameter = dimensions.value.width;
+
+  window.addEventListener('mousemove', onResizeMouseMove);
+  window.addEventListener('mouseup', onResizeMouseUp);
+}
+
+function onResizeMouseMove(e: MouseEvent) {
+  if (!isResizing.value) return;
+  const deltaX = e.screenX - resizeStartScreenX;
+  const deltaY = e.screenY - resizeStartScreenY;
+  const delta = (deltaX + deltaY) / 2;
+  const newDiameter = Math.round(resizeStartDiameter + delta * 2);
+  customDiameter.value = Math.min(640, Math.max(120, newDiameter));
+}
+
+function onResizeMouseUp() {
+  if (!isResizing.value) return;
+  isResizing.value = false;
+  window.removeEventListener('mousemove', onResizeMouseMove);
+  window.removeEventListener('mouseup', onResizeMouseUp);
+}
+
+function onWheelResize(e: WheelEvent) {
+  const current = customDiameter.value ?? dimensions.value.width;
+  const step = e.deltaY < 0 ? 16 : -16;
+  customDiameter.value = Math.min(640, Math.max(120, current + step));
+}
+
+function handleSetSize(newSize: CameraSize) {
+  customDiameter.value = null;
+  size.value = newSize;
+}
+
 // Native OS window pointer dragging
 let isDraggingWindow = false;
 let lastScreenX = 0;
@@ -46,7 +92,7 @@ let lastScreenY = 0;
 
 function onDragMouseDown(e: MouseEvent) {
   const target = e.target as HTMLElement | null;
-  if (target?.closest('button, input, select, a')) return;
+  if (target?.closest('button, input, select, a, [data-resize-handle]')) return;
   isDraggingWindow = true;
   lastScreenX = e.screenX;
   lastScreenY = e.screenY;
@@ -93,10 +139,17 @@ onUnmounted(() => {
     mediaStream.getTracks().forEach((t) => t.stop());
   }
   onDragMouseUp();
+  onResizeMouseUp();
 });
 
 // Size dimensions
 const dimensions = computed(() => {
+  if (customDiameter.value !== null) {
+    return {
+      width: customDiameter.value,
+      height: shape.value === 'rect16_9' ? Math.round(customDiameter.value * 9 / 16) : customDiameter.value,
+    };
+  }
   const map: Record<CameraSize, { width: number; height: number }> = {
     S: { width: 160, height: shape.value === 'rect16_9' ? 90 : 160 },
     M: { width: 240, height: shape.value === 'rect16_9' ? 135 : 240 },
@@ -197,16 +250,20 @@ const activeCameraVariant = computed(() => {
       :bg-mode="bgMode"
       :shape="shape"
       :size="size"
+      :custom-diameter="customDiameter"
+      :is-resizing="isResizing"
       :is-recording="isRecording"
       :is-hovered="isHovered"
       :shape-class="shapeClass"
       :halo-style="haloStyle"
       @set-shape="shape = $event"
-      @set-size="size = $event"
+      @set-size="handleSetSize"
       @toggle-mirror="isMirrored = !isMirrored"
       @toggle-bg-mode="toggleBgMode"
       @hide="emit('hide')"
       @drag-mouse-down="onDragMouseDown"
+      @start-resize="onResizeMouseDown"
+      @wheel-resize="onWheelResize"
     >
       <template #video>
         <video

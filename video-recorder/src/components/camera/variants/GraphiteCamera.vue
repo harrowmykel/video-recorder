@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
-  User
+  User,
+  Scaling
 } from 'lucide-vue-next';
 import { CameraShape, CameraSize, BgRemovalMode } from '../../../types/studio';
 
@@ -10,6 +11,8 @@ const props = defineProps<{
   bgMode: BgRemovalMode;
   shape: CameraShape;
   size: CameraSize;
+  customDiameter?: number | null;
+  isResizing?: boolean;
   isRecording: boolean;
   isHovered: boolean;
   shapeClass: string;
@@ -23,6 +26,8 @@ const emit = defineEmits<{
   (e: 'toggleBgMode'): void;
   (e: 'hide'): void;
   (e: 'dragMouseDown', event: MouseEvent): void;
+  (e: 'startResize', event: MouseEvent): void;
+  (e: 'wheelResize', event: WheelEvent): void;
 }>();
 </script>
 
@@ -31,6 +36,7 @@ const emit = defineEmits<{
     <!-- Camera Frame (Circle / Squircle / Rect) with Speaking Glow Halo -->
     <div
       @mousedown="emit('dragMouseDown', $event)"
+      @wheel.prevent="emit('wheelResize', $event)"
       class="relative overflow-hidden transition-all duration-300 bg-studio-surface cursor-grab active:cursor-grabbing"
       :class="props.shapeClass"
       :style="props.haloStyle"
@@ -53,6 +59,37 @@ const emit = defineEmits<{
       <div class="absolute top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/90 border border-zinc-700 text-[9px] text-[#00e676] z-10 uppercase tracking-wider">
         CAM_01 • {{ props.isRecording ? 'REC_LOCK' : 'STBY' }}
       </div>
+
+      <!-- Live Dynamic Size Readout during resize -->
+      <div
+        v-if="props.isResizing"
+        class="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex flex-col items-center justify-center pointer-events-none"
+      >
+        <span class="px-2 py-0.5 rounded bg-[#0b0c0e] border border-[#ff5500] text-[10px] font-mono font-bold text-[#ff5500] uppercase tracking-wider shadow-2xl">
+          SCALE // {{ props.customDiameter }}PX
+        </span>
+      </div>
+
+      <!-- Interactive Corner Drag Resize Handle -->
+      <transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0 scale-75"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-100 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-75"
+      >
+        <div
+          v-if="props.isHovered"
+          data-resize-handle="true"
+          @mousedown.stop="emit('startResize', $event)"
+          class="absolute bottom-2 right-2 px-1.5 py-1 rounded bg-[#0b0c0e]/95 border border-zinc-700 hover:border-[#ff5500] text-zinc-300 hover:text-[#ff5500] flex items-center gap-1 cursor-nwse-resize shadow-lg z-20 transition-all active:scale-95 group/handle"
+          title="Drag or Scroll to Resize"
+        >
+          <Scaling class="w-3 h-3" />
+          <span class="text-[8px] font-bold tracking-tighter">RSZ</span>
+        </div>
+      </transition>
     </div>
 
     <!-- Bottom Technical Control Strip (Beneath Circle, Never Clipped) -->
@@ -80,19 +117,22 @@ const emit = defineEmits<{
 
           <button
             @click="emit('setSize', 'S')"
-            :class="['px-1.5 py-0.5 rounded-sm text-[10px] font-bold', props.size === 'S' ? 'bg-[#ff5500] text-black' : 'tactile-key text-zinc-300']"
+            :class="['px-1.5 py-0.5 rounded-sm text-[10px] font-bold transition', props.size === 'S' && !props.customDiameter ? 'bg-[#ff5500] text-black' : 'tactile-key text-zinc-300']"
+            title="S Preset (160px)"
           >
             S
           </button>
           <button
             @click="emit('setSize', 'M')"
-            :class="['px-1.5 py-0.5 rounded-sm text-[10px] font-bold', props.size === 'M' ? 'bg-[#ff5500] text-black' : 'tactile-key text-zinc-300']"
+            :class="['px-1.5 py-0.5 rounded-sm text-[10px] font-bold transition', props.size === 'M' && !props.customDiameter ? 'bg-[#ff5500] text-black' : 'tactile-key text-zinc-300']"
+            title="M Preset (240px)"
           >
             M
           </button>
           <button
             @click="emit('setSize', 'L')"
-            :class="['px-1.5 py-0.5 rounded-sm text-[10px] font-bold', props.size === 'L' ? 'bg-[#ff5500] text-black' : 'tactile-key text-zinc-300']"
+            :class="['px-1.5 py-0.5 rounded-sm text-[10px] font-bold transition', props.size === 'L' && !props.customDiameter ? 'bg-[#ff5500] text-black' : 'tactile-key text-zinc-300']"
+            title="L Preset (340px)"
           >
             L
           </button>
