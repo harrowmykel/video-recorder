@@ -4,6 +4,7 @@ import {
   AppWindow,
   Crop,
   Video,
+  VideoOff,
   Mic,
   MicOff,
   Volume2,
@@ -76,6 +77,14 @@ const emit = defineEmits<{
       <span class="font-mono text-[11px] font-semibold text-white/85">Spatial</span>
     </template>
     <button
+      v-if="props.isCameraHidden"
+      @click.stop="emit('toggleCamera')"
+      class="w-6 h-6 rounded-full bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 flex items-center justify-center text-sky-300 hover:text-white transition"
+      title="Show Camera Bubble"
+    >
+      <VideoOff class="w-3 h-3" />
+    </button>
+    <button
       @click.stop="emit('toggleCollapse')"
       class="w-6 h-6 rounded-full hover:bg-white/15 flex items-center justify-center text-white/70 hover:text-white transition"
       title="Expand Toolbar"
@@ -108,6 +117,20 @@ const emit = defineEmits<{
     >
       <component :is="props.recordingState === 'recording' ? Pause : Play" class="w-3.5 h-3.5 text-amber-300" />
       <span>{{ props.recordingState === 'recording' ? 'Pause' : 'Resume' }}</span>
+    </button>
+
+    <button
+      @click="emit('toggleCamera')"
+      :class="[
+        'h-9 px-3 rounded-full text-xs font-medium flex items-center gap-1.5 transition',
+        props.isCameraHidden
+          ? 'bg-sky-400/25 border border-sky-300/40 text-sky-200'
+          : 'spatial-pill-btn text-white/80'
+      ]"
+      :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+    >
+      <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5 text-sky-300" />
+      <span>{{ props.isCameraHidden ? 'Show Cam' : 'Cam' }}</span>
     </button>
 
     <button
@@ -196,23 +219,30 @@ const emit = defineEmits<{
         'flex items-center rounded-full p-0.5 pr-1.5 gap-1 transition',
         !props.isCameraHidden
           ? 'bg-sky-500/20 border border-sky-400/30'
-          : 'bg-white/5 border border-white/10 opacity-60'
+          : 'bg-sky-500/10 border border-sky-400/25'
       ]"
     >
       <button
         @click="emit('toggleCamera')"
-        class="w-8 h-8 rounded-full bg-sky-400 text-slate-950 flex items-center justify-center shadow"
-        title="Toggle Camera"
+        :class="[
+          'w-8 h-8 rounded-full flex items-center justify-center shadow transition',
+          !props.isCameraHidden ? 'bg-sky-400 text-slate-950' : 'bg-white/10 text-sky-300 hover:bg-white/20'
+        ]"
+        :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
       >
-        <Video class="w-3.5 h-3.5" />
+        <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5" />
       </button>
       <button
-        @click="emit('openCameraMenu')"
+        @click="props.isCameraHidden ? emit('toggleCamera') : emit('openCameraMenu')"
         class="px-1 text-sky-100 hover:text-white flex items-center gap-0.5 text-[11px] font-semibold"
-        title="Choose Camera & Background"
+        :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Choose Camera & Background'"
       >
-        <span>Cam</span>
-        <ChevronUp class="w-3 h-3" />
+        <span>{{ props.isCameraHidden ? 'Show Cam' : 'Cam' }}</span>
+        <ChevronUp
+          @click.stop="emit('openCameraMenu')"
+          class="w-3 h-3"
+          title="Choose Camera & Background"
+        />
       </button>
     </div>
 

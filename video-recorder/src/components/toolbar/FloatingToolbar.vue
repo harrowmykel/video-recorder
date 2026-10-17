@@ -23,6 +23,8 @@ import {
   AppWindow,
   Crop,
   RefreshCw,
+  Eye,
+  EyeOff,
   X
 } from 'lucide-vue-next';
 
@@ -135,16 +137,16 @@ function onDragMouseUp() {
 
 // Dynamically size Electron toolbar window so popovers & modals are never clipped
 watch(
-  [isToolbarCollapsed, activePopover, isSettingsOpen],
-  ([collapsed, popover, settingsOpen]) => {
+  [isToolbarCollapsed, activePopover, isSettingsOpen, () => props.isCameraHidden],
+  ([collapsed, popover, settingsOpen, cameraHidden]) => {
     if (settingsOpen) {
       resizeOverlayWindow('toolbar', 760, 560);
     } else if (popover !== null) {
-      resizeOverlayWindow('toolbar', 740, 390);
+      resizeOverlayWindow('toolbar', 760, 390);
     } else if (collapsed) {
-      resizeOverlayWindow('toolbar', 190, 58);
+      resizeOverlayWindow('toolbar', cameraHidden ? 230 : 190, 58);
     } else {
-      resizeOverlayWindow('toolbar', 740, 88);
+      resizeOverlayWindow('toolbar', 760, 88);
     }
   },
   { immediate: true }
@@ -321,12 +323,27 @@ const activeToolbarVariant = computed(() => {
           <Video class="w-4 h-4 text-indigo-400" />
           <span>Camera & Real-Time Background</span>
         </div>
-        <button
-          @click="activePopover = null"
-          class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
-        >
-          <X class="w-3.5 h-3.5" />
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button
+            @click="emit('toggleCamera')"
+            :class="[
+              'px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition',
+              props.isCameraHidden
+                ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-300'
+                : 'bg-white/5 hover:bg-white/10 border-white/15 text-white/75 hover:text-white'
+            ]"
+            :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+          >
+            <component :is="props.isCameraHidden ? Eye : EyeOff" class="w-3 h-3" />
+            <span>{{ props.isCameraHidden ? 'Show Bubble' : 'Hide Bubble' }}</span>
+          </button>
+          <button
+            @click="activePopover = null"
+            class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
+          >
+            <X class="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       <!-- Camera Hardware Selector -->
@@ -336,7 +353,7 @@ const activeToolbarVariant = computed(() => {
           <button
             v-for="cam in cameras"
             :key="cam.deviceId"
-            @click="selectedCameraId = cam.deviceId"
+            @click="selectedCameraId = cam.deviceId; if (props.isCameraHidden) emit('toggleCamera');"
             :class="[
               'w-full px-3 py-1.5 rounded-xl text-left text-xs flex items-center justify-between transition border',
               selectedCameraId === cam.deviceId

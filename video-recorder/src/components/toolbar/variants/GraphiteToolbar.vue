@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   Video,
+  VideoOff,
   Mic,
   Volume2,
   VolumeX,
@@ -70,6 +71,14 @@ const emit = defineEmits<{
       <span class="text-[10px] text-[#00e676]">STBY</span>
     </template>
     <button
+      v-if="props.isCameraHidden"
+      @click.stop="emit('toggleCamera')"
+      class="w-6 h-6 rounded tactile-key border-[#ff5500]/60 text-[#ff5500] hover:text-white flex items-center justify-center"
+      title="Show Camera Bubble"
+    >
+      <VideoOff class="w-3 h-3" />
+    </button>
+    <button
       @click.stop="emit('toggleCollapse')"
       class="w-6 h-6 rounded tactile-key text-zinc-300 hover:text-white flex items-center justify-center"
       title="Expand Toolbar"
@@ -102,6 +111,18 @@ const emit = defineEmits<{
     >
       <component :is="props.recordingState === 'recording' ? Pause : Play" class="w-3.5 h-3.5" />
       <span>{{ props.recordingState === 'recording' ? 'HOLD' : 'RUN' }}</span>
+    </button>
+
+    <button
+      @click="emit('toggleCamera')"
+      :class="[
+        'h-9 px-2.5 rounded tactile-key text-xs font-mono flex items-center gap-1.5 transition',
+        props.isCameraHidden ? 'border-[#ff5500] text-[#ff5500]' : 'text-zinc-300'
+      ]"
+      :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+    >
+      <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5" />
+      <span>{{ props.isCameraHidden ? 'SHOW CAM' : 'CAM' }}</span>
     </button>
 
     <button
@@ -189,13 +210,17 @@ const emit = defineEmits<{
       <button
         @click="emit('toggleCamera')"
         :class="[
-          'h-9 px-2 text-xs text-zinc-200 flex items-center gap-1',
-          !props.isCameraHidden ? '' : 'opacity-50 line-through'
+          'h-9 px-2 text-xs flex items-center gap-1 transition',
+          !props.isCameraHidden ? 'text-zinc-200' : 'text-[#ff5500]'
         ]"
+        :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
       >
-        <span class="w-1.5 h-1.5 rounded-full bg-[#00e676]"></span>
-        <Video class="w-3.5 h-3.5" />
-        <span>CAM</span>
+        <span
+          class="w-1.5 h-1.5 rounded-full"
+          :class="!props.isCameraHidden ? 'bg-[#00e676]' : 'bg-[#ff5500]'"
+        ></span>
+        <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5" />
+        <span>{{ props.isCameraHidden ? 'SHOW CAM' : 'CAM' }}</span>
       </button>
       <button
         @click="emit('openCameraMenu')"

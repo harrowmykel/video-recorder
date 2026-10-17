@@ -4,6 +4,7 @@ import {
   AppWindow,
   Crop,
   Video,
+  VideoOff,
   Mic,
   MicOff,
   Volume2,
@@ -77,6 +78,14 @@ const emit = defineEmits<{
       <span class="font-mono text-[11px] font-semibold text-white/80">Mini Bar</span>
     </template>
     <button
+      v-if="props.isCameraHidden"
+      @click.stop="emit('toggleCamera')"
+      class="w-6 h-6 rounded-full bg-indigo-500/20 hover:bg-indigo-500/35 border border-indigo-400/40 flex items-center justify-center text-indigo-300 hover:text-white transition"
+      title="Show Camera Bubble"
+    >
+      <VideoOff class="w-3.5 h-3.5" />
+    </button>
+    <button
       @click.stop="emit('toggleCollapse')"
       class="w-6 h-6 rounded-full hover:bg-white/15 flex items-center justify-center text-white/70 hover:text-white transition"
       title="Expand Toolbar"
@@ -111,6 +120,21 @@ const emit = defineEmits<{
     >
       <component :is="props.recordingState === 'recording' ? Pause : Play" class="w-3.5 h-3.5 text-amber-400" />
       <span>{{ props.recordingState === 'recording' ? 'Pause' : 'Resume' }}</span>
+    </button>
+
+    <!-- Camera Bubble Show / Hide Toggle -->
+    <button
+      @click="emit('toggleCamera')"
+      :class="[
+        'h-9 px-3 rounded-xl text-xs font-medium flex items-center gap-1.5 transition',
+        props.isCameraHidden
+          ? 'bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/40 text-indigo-200'
+          : 'obsidian-btn text-white/80'
+      ]"
+      :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
+    >
+      <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5 text-indigo-400" />
+      <span>{{ props.isCameraHidden ? 'Show Cam' : 'Cam' }}</span>
     </button>
 
     <!-- Annotation Toggle -->
@@ -206,12 +230,14 @@ const emit = defineEmits<{
         @click="emit('toggleCamera')"
         :class="[
           'h-9 px-2.5 text-xs font-medium flex items-center gap-1.5 transition',
-          !props.isCameraHidden ? 'text-white hover:bg-white/10' : 'text-white/40 line-through hover:bg-white/5'
+          !props.isCameraHidden
+            ? 'text-white hover:bg-white/10'
+            : 'text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25'
         ]"
-        title="Toggle Camera Bubble"
+        :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
       >
-        <Video class="w-3.5 h-3.5 text-indigo-400" />
-        <span>Cam</span>
+        <component :is="props.isCameraHidden ? VideoOff : Video" class="w-3.5 h-3.5 text-indigo-400" />
+        <span>{{ props.isCameraHidden ? 'Show Cam' : 'Cam' }}</span>
       </button>
       <button
         @click="emit('openCameraMenu')"
