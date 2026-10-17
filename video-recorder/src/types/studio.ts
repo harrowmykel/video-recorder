@@ -3,8 +3,51 @@ export type RecordingState = 'idle' | 'countdown' | 'recording' | 'paused' | 're
 export type CameraShape = 'circle' | 'squircle' | 'rect16_9';
 export type CameraSize = 'S' | 'M' | 'L' | 'fullscreen';
 
-export type BgRemovalMode = 'off' | 'blur' | 'transparent' | 'color' | 'gradient';
+export type BgRemovalMode = 'off' | 'blur' | 'transparent' | 'image' | 'gradient';
 export type BgModelType = 'mediapipe_fast' | 'rvm_video' | 'birefnet_hq' | 'rmbg_1_4';
+
+export type CaptureSourceMode = 'display' | 'window' | 'area';
+
+export interface CaptureAreaRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface DisplaySourceInfo {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isPrimary?: boolean;
+}
+
+export interface WindowSourceInfo {
+  id: string;
+  title: string;
+  appName?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface StartRecordingOptions {
+  source_mode?: CaptureSourceMode;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  window_id?: string;
+  fps?: number;
+  mic_muted?: boolean;
+  sys_audio_muted?: boolean;
+  camera_device?: string;
+  mic_device?: string;
+}
 
 export interface TelemetryPoint {
   timestamp_us: number;
@@ -44,6 +87,10 @@ export interface RecordingSession {
   sysAudioPath: string;
   telemetryPath: string;
   metadataPath: string;
+  screenUrl?: string;
+  cameraUrl?: string;
+  micUrl?: string;
+  sysAudioUrl?: string;
   cameraTelemetry?: CameraTelemetryPoint[];
 }
 
@@ -70,4 +117,12 @@ export interface AnnotationItem {
   points: { x: number; y: number }[];
   text?: string;
   createdAt: number;
+}
+
+export interface BgPresetItem {
+  id: string;
+  name: string;
+  type: 'image' | 'gradient';
+  value: string;
+  thumbnail: string;
 }

@@ -22,7 +22,9 @@ impl CameraRecorder {
 
         #[cfg(target_os = "linux")]
         {
-            let dev = device_name.unwrap_or("/dev/video0");
+            let dev = device_name
+                .filter(|d| d.starts_with("/dev/video"))
+                .unwrap_or("/dev/video0");
             cmd.args([
                 "-f", "v4l2",
                 "-framerate", "30",
@@ -68,18 +70,54 @@ impl CameraRecorder {
         Ok(())
     }
 
+    pub fn pause(&mut self) {
+        #[cfg(unix)]
+        if let Some(child) = &self.process {
+            let _ = Command::new("kill").args(["-STOP", &child.id().to_string()]).status();
+        }
+    }
+
+    pub fn resume(&mut self) {
+        #[cfg(unix)]
+        if let Some(child) = &self.process {
+            let _ = Command::new("kill").args(["-CONT", &child.id().to_string()]).status();
+        }
+    }
+
     pub fn stop(&mut self) -> Result<PathBuf> {
+        self.resume();
         if let Some(mut child) = self.process.take() {
             if let Some(mut stdin) = child.stdin.take() {
                 let _ = stdin.write_all(b"q\n");
                 let _ = stdin.flush();
             }
-            let _ = child.wait();
+            #[cfg(unix)]
+            {
+                let _ = Command::new("kill")
+                    .args(["-INT", &child.id().to_string()])
+                    .status();
+            }
+            let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1200);
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_)) => break,
+                    Ok(None) => {
+                        if std::time::Instant::now() >= deadline {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(40));
+                    }
+                    Err(_) => break,
+                }
+            }
         }
         Ok(self.output_path.clone())
     }
 
     pub fn discard(&mut self) -> Result<()> {
+        self.resume();
         if let Some(mut child) = self.process.take() {
             let _ = child.kill();
             let _ = child.wait();
@@ -88,5 +126,15 @@ impl CameraRecorder {
             let _ = std::fs::remove_file(&self.output_path);
         }
         Ok(())
+    }
+}
+
+impl Drop for CameraRecorder {
+    fn drop(&mut self) {
+        self.resume();
+        if let Some(mut child) = self.process.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
 }

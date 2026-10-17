@@ -6,7 +6,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use warp::Filter;
 use serde::{Deserialize, Serialize};
-use session::SessionManager;
+use session::{
+    SessionManager, StartRecordingRequest,
+    default_recordings_base_dir, list_recorded_sessions,
+};
+use capture::{enumerate_displays, enumerate_windows};
 use ai::{process_video_background, OutputFormat};
 
 #[derive(Deserialize)]
@@ -24,38 +28,81 @@ struct ToggleZoomRequest {
 struct StatusResponse {
     status: String,
     is_recording: bool,
+    is_paused: bool,
+    current_session_id: Option<String>,
 }
 
 #[tokio::main]
 async fn main() {
     let session_manager = Arc::new(Mutex::new(SessionManager::default()));
+    let recordings_dir = default_recordings_base_dir();
 
     // 1. Health / Status route
     let sm_clone = session_manager.clone();
     let status_route = warp::path("status")
         .and(warp::get())
         .map(move || {
-            let is_rec = sm_clone.lock().unwrap().is_recording();
+            let mgr = sm_clone.lock().unwrap();
             warp::reply::json(&StatusResponse {
                 status: "ready".to_string(),
-                is_recording: is_rec,
+                is_recording: mgr.is_recording(),
+                is_paused: mgr.is_paused(),
+                current_session_id: mgr.current_session_id(),
             })
         });
 
-    // 2. Start recording route
+    // 2. Enumerate displays & windows route
+    let sources_route = warp::path("sources")
+        .and(warp::get())
+        .map(|| {
+            let displays = enumerate_displays();
+            let windows = enumerate_windows();
+            warp::reply::json(&serde_json::json!({
+                "displays": displays,
+                "windows": windows,
+            }))
+        });
+
+    // 3. Start recording route (accepts optional JSON body or empty body)
     let sm_clone = session_manager.clone();
+    let rec_dir_start = recordings_dir.clone();
     let start_route = warp::path("start")
         .and(warp::post())
-        .map(move || {
+        .and(warp::body::bytes())
+        .map(move |body_bytes: warp::hyper::body::Bytes| {
+            let req: StartRecordingRequest = if body_bytes.is_empty() {
+                StartRecordingRequest::default()
+            } else {
+                serde_json::from_slice(&body_bytes).unwrap_or_default()
+            };
             let mut mgr = sm_clone.lock().unwrap();
-            let base_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("recordings");
-            match mgr.start(&base_dir) {
+            match mgr.start_with_options(&rec_dir_start, req) {
                 Ok(id) => warp::reply::json(&serde_json::json!({ "success": true, "session_id": id })),
                 Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
             }
         });
 
-    // 3. Stop recording route (spawned off-thread to avoid blocking async runtime)
+    // 4. Pause recording route
+    let sm_clone = session_manager.clone();
+    let pause_route = warp::path("pause")
+        .and(warp::post())
+        .map(move || {
+            let mut mgr = sm_clone.lock().unwrap();
+            mgr.pause();
+            warp::reply::json(&serde_json::json!({ "success": true, "is_paused": mgr.is_paused() }))
+        });
+
+    // 5. Resume recording route
+    let sm_clone = session_manager.clone();
+    let resume_route = warp::path("resume")
+        .and(warp::post())
+        .map(move || {
+            let mut mgr = sm_clone.lock().unwrap();
+            mgr.resume();
+            warp::reply::json(&serde_json::json!({ "success": true, "is_paused": mgr.is_paused() }))
+        });
+
+    // 6. Stop recording route (spawned off-thread to avoid blocking async runtime)
     let sm_clone = session_manager.clone();
     let stop_route = warp::path("stop")
         .and(warp::post())
@@ -75,7 +122,47 @@ async fn main() {
             }
         });
 
-    // 4. Discard recording route (Loom instant trash)
+    // 7. Upload composited camera track from browser/Electron MediaRecorder
+    let sm_clone = session_manager.clone();
+    let upload_camera_route = warp::path("upload_camera_track")
+        .and(warp::post())
+        .and(warp::body::bytes())
+        .and_then(move |bytes: warp::hyper::body::Bytes| {
+            let sm = sm_clone.clone();
+            async move {
+                let res = tokio::task::spawn_blocking(move || {
+                    let mgr = sm.lock().unwrap();
+                    mgr.save_uploaded_camera_track(&bytes)
+                }).await.map_err(|_| warp::reject::reject())?;
+
+                let reply = match res {
+                    Ok(path) => warp::reply::json(&serde_json::json!({
+                        "success": true,
+                        "camera_path": path.to_string_lossy()
+                    })),
+                    Err(e) => warp::reply::json(&serde_json::json!({
+                        "success": false,
+                        "error": e.to_string()
+                    })),
+                };
+                Ok::<_, warp::Rejection>(reply)
+            }
+        });
+
+    // 8. List recorded sessions
+    let rec_dir_list = recordings_dir.clone();
+    let sessions_route = warp::path("sessions")
+        .and(warp::get())
+        .map(move || {
+            let sessions = list_recorded_sessions(&rec_dir_list);
+            warp::reply::json(&serde_json::json!({ "sessions": sessions }))
+        });
+
+    // 9. Serve recorded session media files (/media/<session_id>/<file>)
+    let media_route = warp::path("media")
+        .and(warp::fs::dir(recordings_dir.clone()));
+
+    // 10. Discard recording route (Loom instant trash)
     let sm_clone = session_manager.clone();
     let discard_route = warp::path("discard")
         .and(warp::post())
@@ -85,7 +172,7 @@ async fn main() {
             warp::reply::json(&serde_json::json!({ "success": true, "discarded": true }))
         });
 
-    // 5. Toggle live cursor zoom
+    // 11. Toggle live cursor zoom
     let sm_clone = session_manager.clone();
     let toggle_zoom_route = warp::path("toggle_zoom")
         .and(warp::post())
@@ -96,7 +183,7 @@ async fn main() {
             warp::reply::json(&serde_json::json!({ "success": true, "active": req.active }))
         });
 
-    // 6. Extract background transparent video route (spawned off-thread)
+    // 12. Extract background transparent video route (spawned off-thread)
     let extract_route = warp::path("extract_bg")
         .and(warp::post())
         .and(warp::body::json())
@@ -119,7 +206,7 @@ async fn main() {
             Ok::<_, warp::Rejection>(reply)
         });
 
-    // 7. AI Model catalog route
+    // 13. AI Model catalog route
     let models_route = warp::path("models")
         .and(warp::get())
         .map(|| {
@@ -137,13 +224,22 @@ async fn main() {
         .allow_headers(vec!["Content-Type"]);
 
     let routes = status_route
+        .or(sources_route)
         .or(start_route)
+        .or(pause_route)
+        .or(resume_route)
         .or(stop_route)
+        .or(upload_camera_route)
+        .or(sessions_route)
+        .or(media_route)
         .or(discard_route)
         .or(toggle_zoom_route)
         .or(extract_route)
         .or(models_route)
         .with(cors);
+
+    // Also serve built dist/ SPA on port 1420 if Vite is not already running on 1420
+    spawn_static_web_app_if_needed();
 
     let start_port: u16 = std::env::var("DAEMON_PORT")
         .ok()
@@ -173,6 +269,26 @@ async fn main() {
     } else {
         eprintln!("[Rust Core Daemon] FATAL: Could not bind to any port in range {}..={}", start_port, start_port + 20);
         std::process::exit(1);
+    }
+}
+
+fn spawn_static_web_app_if_needed() {
+    let candidate_dist_dirs = [
+        std::env::current_dir().unwrap_or_default().join("dist"),
+        PathBuf::from("/home/micheal/git/video-recorder/video-recorder/dist"),
+    ];
+
+    let dist_dir = candidate_dist_dirs.into_iter().find(|d| d.join("index.html").exists());
+    if let Some(dist_path) = dist_dir {
+        let index_file = dist_path.join("index.html");
+        let static_files = warp::fs::dir(dist_path.clone());
+        let spa_fallback = warp::fs::file(index_file);
+        let web_routes = static_files.or(spa_fallback);
+
+        if let Ok((addr, fut)) = warp::serve(web_routes).try_bind_ephemeral(([127, 0, 0, 1], 1420)) {
+            println!("[Rust Core Daemon] Serving Studio Web App & Settings on http://{}", addr);
+            tokio::spawn(fut);
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 // Universal Bridge for Native Desktop Overlays (Electron / Tauri v2) and Local Rust Capture Daemon
 
+import type { DisplaySourceInfo, WindowSourceInfo, RecordingSession } from '../types/studio';
+
 export interface ElectronOverlayAPI {
   send: (channel: string, payload?: unknown) => void;
   invoke?: (channel: string, payload?: unknown) => Promise<any>;
@@ -21,7 +23,7 @@ export async function resolveDaemonUrl(): Promise<string> {
     return activeDaemonUrl;
   }
 
-  // Dynamic range probe: 4820 through 4835
+  // Dynamic range probe: 4820 through 4830
   const candidatePorts = [4820, 4821, 4822, 4823, 4824, 4825, 4826, 4827, 4828, 4829, 4830];
 
   for (const port of candidatePorts) {
@@ -47,14 +49,16 @@ export async function resolveDaemonUrl(): Promise<string> {
 }
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window ? new BroadcastChannel('studio_recorder_bus') : null;
+const channel =
+  typeof window !== 'undefined' && 'BroadcastChannel' in window
+    ? new BroadcastChannel('studio_recorder_bus')
+    : null;
 
 export function isNativeOverlayWindow(): boolean {
   return typeof window !== 'undefined' && (isTauri || Boolean(window.__ELECTRON_OVERLAY__));
 }
 
 export async function invokeCommand<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  // 1. If running inside native Tauri runtime
   if (isTauri) {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
@@ -65,7 +69,6 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
     }
   }
 
-  // 2. Communicate with local Rust capture daemon
   try {
     let endpoint = '';
     let method = 'POST';
@@ -74,6 +77,13 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
     switch (cmd) {
       case 'start_recording':
         endpoint = '/start';
+        body = args || {};
+        break;
+      case 'pause_recording':
+        endpoint = '/pause';
+        break;
+      case 'resume_recording':
+        endpoint = '/resume';
         break;
       case 'stop_recording':
         endpoint = '/stop';
@@ -93,6 +103,14 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
         endpoint = '/status';
         method = 'GET';
         break;
+      case 'get_sources':
+        endpoint = '/sources';
+        method = 'GET';
+        break;
+      case 'get_sessions':
+        endpoint = '/sessions';
+        method = 'GET';
+        break;
       default:
         endpoint = '';
     }
@@ -106,16 +124,135 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
       });
       if (resp.ok) {
         const json = await resp.json();
-        console.log(`[Rust Daemon Response] ${cmd}:`, json);
         return json as T;
       }
     }
   } catch (_err) {
-    // Daemon offline, gracefully fallback to preview simulation
     console.log(`[Rust Daemon] Offline, using interactive simulation for ${cmd}`);
   }
 
   return mockCommandResponse<T>(cmd, args);
+}
+
+export async function fetchCaptureSources(): Promise<{
+  displays: DisplaySourceInfo[];
+  windows: WindowSourceInfo[];
+}> {
+  try {
+    const res = await invokeCommand<{
+      displays?: Array<{
+        id: string;
+        name: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        is_primary?: boolean;
+      }>;
+      windows?: Array<{
+        id: string;
+        title: string;
+        app_name?: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }>;
+    }>('get_sources');
+
+    const displays: DisplaySourceInfo[] = (res?.displays || []).map((d) => ({
+      id: d.id,
+      name: d.name,
+      x: d.x,
+      y: d.y,
+      width: d.width,
+      height: d.height,
+      isPrimary: d.is_primary,
+    }));
+
+    const windows: WindowSourceInfo[] = (res?.windows || []).map((w) => ({
+      id: w.id,
+      title: w.title,
+      appName: w.app_name || 'Application',
+      x: w.x,
+      y: w.y,
+      width: w.width,
+      height: w.height,
+    }));
+
+    if (displays.length > 0 || windows.length > 0) {
+      return { displays, windows };
+    }
+  } catch {}
+
+  const w = typeof window !== 'undefined' && window.screen?.width ? window.screen.width : 1920;
+  const h = typeof window !== 'undefined' && window.screen?.height ? window.screen.height : 1080;
+
+  return {
+    displays: [
+      { id: 'primary', name: `Primary Display (${w}×${h})`, x: 0, y: 0, width: w, height: h, isPrimary: true },
+    ],
+    windows: [
+      { id: 'win_vscode', title: 'Visual Studio Code — video-recorder', appName: 'Code', x: 50, y: 32, width: 1600, height: 960 },
+      { id: 'win_browser', title: 'Browser — localhost:1420', appName: 'Browser', x: 80, y: 40, width: 1440, height: 900 },
+      { id: 'win_terminal', title: 'Terminal — bash', appName: 'Terminal', x: 200, y: 120, width: 960, height: 640 },
+    ],
+  };
+}
+
+export async function uploadRecordedCameraTrack(blob: Blob): Promise<string | null> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/upload_camera_track`, {
+      method: 'POST',
+      body: blob,
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      return json?.camera_path || null;
+    }
+  } catch (err) {
+    console.warn('[uploadRecordedCameraTrack] Failed to upload camera track:', err);
+  }
+  return null;
+}
+
+export async function buildRecordingSessionFromDaemonMeta(meta: any): Promise<RecordingSession> {
+  const daemonBase = await resolveDaemonUrl();
+  const id = meta?.id || `session_${Date.now()}`;
+  const ts = Date.now();
+  return {
+    id,
+    timestamp: meta?.created_at || new Date().toISOString(),
+    durationMs: meta?.duration_ms || 15000,
+    screenPath: meta?.screen_track || `/recordings/${id}/screen_clean.mp4`,
+    cameraRawPath: meta?.camera_raw_track || `/recordings/${id}/camera_raw.mp4`,
+    cameraAlphaPath: meta?.camera_raw_track
+      ? meta.camera_raw_track.replace('camera_raw.mp4', 'camera_alpha.webm')
+      : `/recordings/${id}/camera_alpha.webm`,
+    micAudioPath: meta?.mic_track || `/recordings/${id}/audio_mic.wav`,
+    sysAudioPath: meta?.sys_audio_track || `/recordings/${id}/audio_system.wav`,
+    telemetryPath: meta?.telemetry_file || `/recordings/${id}/telemetry.json`,
+    metadataPath: meta?.session_dir ? `${meta.session_dir}/session_metadata.json` : `/recordings/${id}/session_metadata.json`,
+    screenUrl: `${daemonBase}/media/${id}/screen_clean.mp4?t=${ts}`,
+    cameraUrl: `${daemonBase}/media/${id}/camera_raw.mp4?t=${ts}`,
+    micUrl: `${daemonBase}/media/${id}/audio_mic.wav?t=${ts}`,
+    sysAudioUrl: `${daemonBase}/media/${id}/audio_system.wav?t=${ts}`,
+  };
+}
+
+export async function fetchRecordedSessions(): Promise<RecordingSession[]> {
+  try {
+    const res = await invokeCommand<{ sessions?: any[] }>('get_sessions');
+    if (res?.sessions && Array.isArray(res.sessions)) {
+      const items: RecordingSession[] = [];
+      for (const m of res.sessions) {
+        items.push(await buildRecordingSessionFromDaemonMeta(m));
+      }
+      return items;
+    }
+  } catch {}
+  return [];
 }
 
 export function broadcastEvent(event: string, payload: unknown) {
@@ -191,6 +328,12 @@ export async function resizeOverlayWindow(windowLabel: string, width: number, he
   }
 }
 
+export function openDesktopSettingsWindow() {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('open_settings_window');
+  }
+}
+
 export function quitOverlayApp() {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
     window.__ELECTRON_OVERLAY__.send('quit_app');
@@ -217,13 +360,13 @@ export async function openExportDirectory(targetPath: string): Promise<{ success
       return { success: false, error: e.message };
     }
   }
-  return { success: false, error: 'Opening folder in file manager is only available in Desktop application.' };
+  return { success: false, error: 'Opening folder in system file manager is available in the Desktop overlay.' };
 }
 
 export async function getCameraTelemetry(): Promise<any[]> {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
     try {
-      return await window.__ELECTRON_OVERLAY__.invoke('get_camera_telemetry') || [];
+      return (await window.__ELECTRON_OVERLAY__.invoke('get_camera_telemetry')) || [];
     } catch {
       return [];
     }
@@ -241,7 +384,6 @@ export async function selectExportDirectory(defaultPath?: string): Promise<strin
     }
   }
 
-  // Fallback to HTML5 directory picker if available in modern browser
   if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
     try {
       const dirHandle = await (window as any).showDirectoryPicker();
@@ -263,37 +405,45 @@ export async function exportSessionPackage(
 ): Promise<{ success: boolean; targetDir?: string; error?: string }> {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
     try {
-      return await window.__ELECTRON_OVERLAY__.invoke('export_session_package', { targetDir, sessionMetadata, preset });
+      return await window.__ELECTRON_OVERLAY__.invoke('export_session_package', {
+        targetDir,
+        sessionMetadata,
+        preset,
+      });
     } catch (e: any) {
       return { success: false, error: e.message };
     }
   }
 
-  // Browser simulation
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  await new Promise((resolve) => setTimeout(resolve, 600));
   return { success: true, targetDir };
 }
 
 function mockCommandResponse<T>(cmd: string, _args?: Record<string, unknown>): Promise<T> {
   switch (cmd) {
     case 'start_recording':
-      return Promise.resolve({ session_id: `rec_${Date.now()}` } as unknown as T);
+      return Promise.resolve({ success: true, session_id: `session_${Date.now()}` } as unknown as T);
+    case 'pause_recording':
+      return Promise.resolve({ success: true, is_paused: true } as unknown as T);
+    case 'resume_recording':
+      return Promise.resolve({ success: true, is_paused: false } as unknown as T);
     case 'stop_recording':
       return Promise.resolve({
-        id: `rec_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        durationMs: 42000,
-        screenPath: '/videos/sample_screen.mp4',
-        cameraRawPath: '/videos/sample_camera_raw.mp4',
-        cameraAlphaPath: '/videos/sample_camera_alpha.webm',
-        micAudioPath: '/videos/audio_mic.wav',
-        sysAudioPath: '/videos/audio_sys.wav',
-        telemetryPath: '/videos/telemetry.json',
-        metadataPath: '/videos/meta.json',
+        success: true,
+        metadata: {
+          id: `session_${Date.now()}`,
+          created_at: new Date().toISOString(),
+          duration_ms: 15000,
+          screen_track: '/videos/sample_screen.mp4',
+          camera_raw_track: '/videos/sample_camera_raw.mp4',
+          mic_track: '/videos/audio_mic.wav',
+          sys_audio_track: '/videos/audio_sys.wav',
+          telemetry_file: '/videos/telemetry.json',
+        },
       } as unknown as T);
     case 'get_audio_levels':
       return Promise.resolve({
-        micRms: 0.35 + Math.random() * 0.2,
+        micRms: 0.35,
         micPeak: 0.65,
         sysRms: 0.15,
         sysPeak: 0.3,

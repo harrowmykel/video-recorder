@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, onUnmounted } from 'vue';
+import { ref, shallowRef, onUnmounted, useTemplateRef } from 'vue';
 import {
   UploadCloud,
   Sparkles,
@@ -11,7 +11,7 @@ import {
   Film
 } from 'lucide-vue-next';
 import { BatchMattingJob, BgModelType } from '../../types/studio';
-import { invokeCommand } from '../../lib/tauriBridge';
+import { invokeCommand, openExportDirectory } from '../../lib/tauriBridge';
 
 const jobs = ref<BatchMattingJob[]>([
   {
@@ -32,6 +32,7 @@ const isDragging = shallowRef(false);
 const selectedModel = shallowRef<BgModelType>('birefnet_hq');
 const defaultFormat = shallowRef<'prores_4444' | 'webm_alpha' | 'luma_matte'>('prores_4444');
 const activeIntervals = new Set<ReturnType<typeof setInterval>>();
+const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
 
 onUnmounted(() => {
   activeIntervals.forEach(clearInterval);
@@ -47,12 +48,7 @@ function handleDragLeave() {
   isDragging.value = false;
 }
 
-async function handleDrop(e: DragEvent) {
-  e.preventDefault();
-  isDragging.value = false;
-  if (!e.dataTransfer?.files) return;
-
-  const files = Array.from(e.dataTransfer.files);
+function enqueueFiles(files: File[]) {
   for (const file of files) {
     const filePath = (file as unknown as { path?: string }).path || `/recordings/${file.name}`;
     const newJob: BatchMattingJob = {
@@ -68,19 +64,35 @@ async function handleDrop(e: DragEvent) {
     };
     jobs.value.unshift(newJob);
 
-    // Call native background extractor via daemon / IPC
     invokeCommand<{ success: boolean; output_path: string }>('extract_transparent_background', {
       file_path: filePath,
       format: defaultFormat.value,
-    }).then((res) => {
-      if (res && res.output_path) {
-        newJob.outputPath = res.output_path;
-      }
-    }).catch((err) => {
-      console.log('Daemon extraction unavailable, falling back to preview simulation:', err);
-    });
+      model: selectedModel.value,
+    })
+      .then((res) => {
+        if (res && res.output_path) {
+          newJob.outputPath = res.output_path;
+        }
+      })
+      .catch((err) => {
+        console.log('Daemon extraction fallback simulation:', err);
+      });
 
     simulateProcessing(newJob.id);
+  }
+}
+
+async function handleDrop(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = false;
+  if (!e.dataTransfer?.files) return;
+  enqueueFiles(Array.from(e.dataTransfer.files));
+}
+
+function handleFileInputChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  if (input.files && input.files.length > 0) {
+    enqueueFiles(Array.from(input.files));
   }
 }
 
@@ -124,8 +136,14 @@ function removeJob(id: string) {
   jobs.value = jobs.value.filter((j) => j.id !== id);
 }
 
-function showAlert(msg: string) {
-  window.alert(msg);
+async function revealOutput(job: BatchMattingJob) {
+  const path = job.outputPath || job.filePath;
+  const dir = path.replace(/\/[^/]+$/, '') || '/recordings';
+  const res = await openExportDirectory(dir);
+  if (!res.success) {
+    navigator.clipboard?.writeText(path).catch(() => {});
+    window.alert(`Transparent video output path (copied to clipboard):\n${path}`);
+  }
 }
 </script>
 
@@ -173,8 +191,9 @@ function showAlert(msg: string) {
       </div>
     </div>
 
-    <!-- Drag & Drop Holographic Zone -->
+    <!-- Drag & Drop / Click to Upload Zone -->
     <div
+      @click="fileInputRef?.click()"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop"
@@ -185,11 +204,19 @@ function showAlert(msg: string) {
           : 'border-white/10 hover:border-white/25 bg-[#10121A]/80 hover:bg-[#141722]/80'
       ]"
     >
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept="video/*"
+        multiple
+        class="hidden"
+        @change="handleFileInputChange"
+      />
       <div class="w-16 h-16 rounded-2xl bg-indigo-500/15 border border-indigo-400/20 text-indigo-400 flex items-center justify-center mx-auto mb-4 shadow-[0_0_24px_rgba(99,102,241,0.2)] group-hover:scale-110 transition-transform">
         <UploadCloud class="w-8 h-8" />
       </div>
       <h4 class="text-base font-semibold text-white tracking-wide mb-1.5">
-        Drag & drop any video file to remove background
+        Click or drag & drop any video file to remove background
       </h4>
       <p class="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
         Supports MP4, MOV, MKV, and WebM. Automatically segments subjects locally and exports clean transparent video directly compatible with DaVinci Resolve, Premiere Pro, and Final Cut.
@@ -243,7 +270,6 @@ function showAlert(msg: string) {
         </div>
 
         <div class="flex items-center space-x-4">
-          <!-- Progress Bar -->
           <div v-if="job.status === 'processing'" class="w-36">
             <div class="flex justify-between text-[11px] font-mono text-gray-300 mb-1.5">
               <span>Extracting</span>
@@ -257,17 +283,15 @@ function showAlert(msg: string) {
             </div>
           </div>
 
-          <!-- Reveal Action -->
           <button
             v-if="job.status === 'completed'"
-            @click="showAlert(`Exported transparent video file:\n${job.outputPath}`)"
+            @click="revealOutput(job)"
             class="flex items-center space-x-2 px-4 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm"
           >
             <Download class="w-3.5 h-3.5" />
             <span>Reveal Transparent File</span>
           </button>
 
-          <!-- Remove -->
           <button
             @click="removeJob(job.id)"
             class="p-2 text-gray-500 hover:text-red-400 rounded-xl hover:bg-white/[0.06] transition-colors"

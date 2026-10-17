@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { shallowRef, computed } from 'vue';
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef } from 'vue';
 import {
   Play,
   Pause,
@@ -11,9 +11,12 @@ import {
   Monitor,
   Video,
   X,
-  Film
+  Film,
+  RefreshCw
 } from 'lucide-vue-next';
-import type { CameraTelemetryPoint } from '../../types/studio';
+import type { CameraTelemetryPoint, RecordingSession } from '../../types/studio';
+import { fetchRecordedSessions, openExportDirectory } from '../../lib/tauriBridge';
+import { useStudioState } from '../../composables/useStudioState';
 import DragDropBgRemover from './DragDropBgRemover.vue';
 import ExportDestinationModal from './ExportDestinationModal.vue';
 
@@ -25,14 +28,66 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+const { lastRecordedSession } = useStudioState();
+
 const isExportModalOpen = shallowRef(false);
-const currentSessionId = shallowRef('session_20261017_143245');
 const activeTab = shallowRef<'review' | 'batch_ai'>('review');
 const isPlaying = shallowRef(false);
-const currentTime = shallowRef(14.2);
-const duration = shallowRef(42.0);
+const currentTime = shallowRef(0);
+const duration = shallowRef(15.0);
+const trimStartPct = shallowRef(0);
+const trimEndPct = shallowRef(100);
 const isAutoZoomActive = shallowRef(true);
 const isCameraPiPVisible = shallowRef(true);
+const hasVideoLoaded = shallowRef(false);
+const hasCameraVideoLoaded = shallowRef(false);
+const statusNotice = shallowRef<string | null>(null);
+
+const sessions = ref<RecordingSession[]>([]);
+const selectedSessionId = shallowRef<string>('');
+
+const screenVideoRef = useTemplateRef<HTMLVideoElement>('screenVideoRef');
+const cameraVideoRef = useTemplateRef<HTMLVideoElement>('cameraVideoRef');
+const micAudioRef = useTemplateRef<HTMLAudioElement>('micAudioRef');
+const sysAudioRef = useTemplateRef<HTMLAudioElement>('sysAudioRef');
+const timelineRef = useTemplateRef<HTMLDivElement>('timelineRef');
+
+let fallbackPlayInterval: ReturnType<typeof setInterval> | null = null;
+
+const activeSession = computed<RecordingSession | null>(() => {
+  if (selectedSessionId.value) {
+    const found = sessions.value.find((s) => s.id === selectedSessionId.value);
+    if (found) return found;
+  }
+  if (lastRecordedSession.value) return lastRecordedSession.value;
+  return sessions.value[0] || null;
+});
+
+const currentSessionId = computed(() => activeSession.value?.id || 'session_latest');
+
+async function loadSessionsList() {
+  const list = await fetchRecordedSessions();
+  sessions.value = list;
+  if (lastRecordedSession.value) {
+    const exists = list.some((s) => s.id === lastRecordedSession.value?.id);
+    if (!exists) {
+      sessions.value.unshift(lastRecordedSession.value);
+    }
+    selectedSessionId.value = lastRecordedSession.value.id;
+  } else if (list.length > 0 && !selectedSessionId.value) {
+    selectedSessionId.value = list[0].id;
+  }
+}
+
+watch(activeSession, (sess) => {
+  hasVideoLoaded.value = false;
+  hasCameraVideoLoaded.value = false;
+  isPlaying.value = false;
+  currentTime.value = 0;
+  if (sess?.durationMs) {
+    duration.value = Math.max(1, Number((sess.durationMs / 1000).toFixed(1)));
+  }
+});
 
 const pipStyle = computed(() => {
   const telemetry = props.cameraTelemetry;
@@ -40,8 +95,8 @@ const pipStyle = computed(() => {
     return {
       bottom: '24px',
       right: '24px',
-      width: '208px',
-      height: '208px',
+      width: '192px',
+      height: '192px',
     };
   }
 
@@ -50,7 +105,7 @@ const pipStyle = computed(() => {
   const normY = typeof sample.normY === 'number' ? sample.normY : 0.72;
   const leftPct = Math.min(80, Math.max(3, normX * 100));
   const topPct = Math.min(75, Math.max(3, normY * 100));
-  const sizePx = sample.width ? Math.min(240, Math.max(120, Math.round(sample.width * 0.75))) : 208;
+  const sizePx = sample.width ? Math.min(240, Math.max(120, Math.round(sample.width * 0.75))) : 192;
 
   return {
     left: `${leftPct.toFixed(1)}%`,
@@ -62,16 +117,127 @@ const pipStyle = computed(() => {
 
 const sessionMetadata = computed(() => ({
   sessionId: currentSessionId.value,
+  screenPath: activeSession.value?.screenPath,
+  cameraRawPath: activeSession.value?.cameraRawPath,
+  cameraAlphaPath: activeSession.value?.cameraAlphaPath,
+  micAudioPath: activeSession.value?.micAudioPath,
+  sysAudioPath: activeSession.value?.sysAudioPath,
   cameraTelemetry: props.cameraTelemetry || [],
   durationMs: Math.round(duration.value * 1000),
 }));
 
 const progressPercent = computed(() => {
-  return (currentTime.value / duration.value) * 100;
+  if (duration.value <= 0) return 0;
+  return Math.min(100, Math.max(0, (currentTime.value / duration.value) * 100));
 });
 
+function onScreenLoadedMetadata() {
+  const v = screenVideoRef.value;
+  if (v && v.duration && isFinite(v.duration)) {
+    duration.value = v.duration;
+    hasVideoLoaded.value = true;
+  } else {
+    hasVideoLoaded.value = true;
+  }
+}
+
+function onTimeUpdate() {
+  const v = screenVideoRef.value;
+  if (!v) return;
+  currentTime.value = v.currentTime;
+  const endSec = (trimEndPct.value / 100) * duration.value;
+  if (v.currentTime >= endSec) {
+    pausePlayback();
+    seekTo((trimStartPct.value / 100) * duration.value);
+  }
+}
+
+function seekTo(seconds: number) {
+  const clamped = Math.max(0, Math.min(duration.value, seconds));
+  currentTime.value = clamped;
+  if (screenVideoRef.value && hasVideoLoaded.value) {
+    screenVideoRef.value.currentTime = clamped;
+  }
+  if (cameraVideoRef.value && hasCameraVideoLoaded.value) {
+    cameraVideoRef.value.currentTime = clamped;
+  }
+  if (micAudioRef.value) {
+    micAudioRef.value.currentTime = clamped;
+  }
+  if (sysAudioRef.value) {
+    sysAudioRef.value.currentTime = clamped;
+  }
+}
+
+function handleTimelineClick(e: MouseEvent) {
+  if (!timelineRef.value) return;
+  const rect = timelineRef.value.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  seekTo(pct * duration.value);
+}
+
 function togglePlay() {
-  isPlaying.value = !isPlaying.value;
+  if (isPlaying.value) {
+    pausePlayback();
+  } else {
+    startPlayback();
+  }
+}
+
+function startPlayback() {
+  isPlaying.value = true;
+  if (hasVideoLoaded.value && screenVideoRef.value) {
+    screenVideoRef.value.play().catch(() => {});
+    cameraVideoRef.value?.play().catch(() => {});
+    micAudioRef.value?.play().catch(() => {});
+    sysAudioRef.value?.play().catch(() => {});
+  } else {
+    if (fallbackPlayInterval) clearInterval(fallbackPlayInterval);
+    fallbackPlayInterval = setInterval(() => {
+      const endSec = (trimEndPct.value / 100) * duration.value;
+      if (currentTime.value + 0.1 >= endSec) {
+        currentTime.value = (trimStartPct.value / 100) * duration.value;
+        pausePlayback();
+      } else {
+        currentTime.value = Number((currentTime.value + 0.1).toFixed(1));
+      }
+    }, 100);
+  }
+}
+
+function pausePlayback() {
+  isPlaying.value = false;
+  if (fallbackPlayInterval) {
+    clearInterval(fallbackPlayInterval);
+    fallbackPlayInterval = null;
+  }
+  screenVideoRef.value?.pause();
+  cameraVideoRef.value?.pause();
+  micAudioRef.value?.pause();
+  sysAudioRef.value?.pause();
+}
+
+function handleTrimDeadAir() {
+  trimStartPct.value = 6;
+  trimEndPct.value = 94;
+  seekTo((trimStartPct.value / 100) * duration.value);
+  statusNotice.value = 'Trimmed 6% leading & trailing dead air';
+  setTimeout(() => {
+    statusNotice.value = null;
+  }, 3000);
+}
+
+async function handleOpenSessionAssets() {
+  const screenPath = activeSession.value?.screenPath || '';
+  const dir = screenPath ? screenPath.replace(/\/[^/]+$/, '') : '~/Videos/record_studio/sessions';
+  const res = await openExportDirectory(dir);
+  if (!res.success) {
+    navigator.clipboard?.writeText(dir).catch(() => {});
+    statusNotice.value = `Session folder path copied: ${dir}`;
+    setTimeout(() => {
+      statusNotice.value = null;
+    }, 4000);
+  }
 }
 
 function formatTime(secs: number) {
@@ -81,9 +247,13 @@ function formatTime(secs: number) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
 }
 
-function showAlert(msg: string) {
-  window.alert(msg);
-}
+onMounted(() => {
+  loadSessionsList();
+});
+
+onUnmounted(() => {
+  pausePlayback();
+});
 </script>
 
 <template>
@@ -102,7 +272,26 @@ function showAlert(msg: string) {
                 MULTI-TRACK READY
               </span>
             </div>
-            <p class="text-xs text-gray-400 font-mono mt-0.5">session_20261017_143245 • Clean Desktop + Isolated Camera</p>
+            <!-- Session Selector Dropdown -->
+            <div class="flex items-center gap-2 mt-1">
+              <select
+                v-if="sessions.length > 0"
+                v-model="selectedSessionId"
+                class="bg-black/60 border border-white/15 rounded-lg px-2 py-0.5 text-xs font-mono text-gray-200 outline-none"
+              >
+                <option v-for="s in sessions" :key="s.id" :value="s.id" class="bg-[#0e1017]">
+                  {{ s.id }}
+                </option>
+              </select>
+              <span v-else class="text-xs text-gray-400 font-mono">{{ currentSessionId }}</span>
+              <button
+                @click="loadSessionsList"
+                class="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white"
+                title="Refresh Recorded Sessions"
+              >
+                <RefreshCw class="w-3 h-3" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -140,54 +329,87 @@ function showAlert(msg: string) {
         <!-- Tab 1: Review & Cut View -->
         <div v-if="activeTab === 'review'" class="space-y-6">
           <!-- Synchronized Video Viewport -->
-          <div class="relative w-full aspect-video max-h-[52vh] rounded-2xl overflow-hidden bg-[#07080C] border border-white/10 shadow-2xl flex items-center justify-center group">
-            <!-- Simulated Clean Screen Track Background (Code Editor / Desktop Mock) -->
+          <div
+            @click="togglePlay"
+            class="relative w-full aspect-video max-h-[52vh] rounded-2xl overflow-hidden bg-[#07080C] border border-white/10 shadow-2xl flex items-center justify-center group cursor-pointer"
+          >
+            <!-- Real Screen Recording <video> Element -->
+            <video
+              v-if="activeSession?.screenUrl"
+              ref="screenVideoRef"
+              :src="activeSession.screenUrl"
+              playsinline
+              @loadedmetadata="onScreenLoadedMetadata"
+              @timeupdate="onTimeUpdate"
+              @ended="isPlaying = false"
+              class="w-full h-full object-contain transition-transform duration-700"
+              :class="[
+                hasVideoLoaded ? 'block' : 'hidden',
+                isAutoZoomActive ? 'scale-110 origin-[35%_40%]' : 'scale-100'
+              ]"
+            />
+
+            <!-- Synchronized Audio Stems -->
+            <audio v-if="activeSession?.micUrl" ref="micAudioRef" :src="activeSession.micUrl" />
+            <audio v-if="activeSession?.sysAudioUrl" ref="sysAudioRef" :src="activeSession.sysAudioUrl" />
+
+            <!-- Fallback Clean Screen Track Preview when no video file is loaded yet -->
             <div
+              v-if="!hasVideoLoaded"
               class="w-full h-full p-8 flex flex-col justify-between transition-all duration-700 bg-gradient-to-br from-[#12141D] to-[#0A0C14]"
               :class="isAutoZoomActive ? 'scale-110 origin-[30%_35%]' : 'scale-100'"
             >
-              <!-- Window Bar Mockup -->
               <div class="flex items-center justify-between pb-4 border-b border-white/5 opacity-60">
                 <div class="flex items-center space-x-2">
                   <div class="w-3 h-3 rounded-full bg-red-500/80" />
                   <div class="w-3 h-3 rounded-full bg-yellow-500/80" />
                   <div class="w-3 h-3 rounded-full bg-green-500/80" />
-                  <span class="text-xs font-mono text-gray-400 ml-2">CleanScreenRecording.mp4</span>
+                  <span class="text-xs font-mono text-gray-400 ml-2">{{ currentSessionId }}/screen_clean.mp4</span>
                 </div>
-                <span class="text-xs font-mono text-gray-500">60 FPS • ProRes 422</span>
+                <span class="text-xs font-mono text-gray-500">60 FPS • H.264 / ProRes</span>
               </div>
 
-              <!-- Center Graphic -->
               <div class="flex flex-col items-center justify-center my-auto">
                 <div class="w-20 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center mb-3 shadow-[0_0_32px_rgba(99,102,241,0.2)]">
                   <Monitor class="w-10 h-10 text-indigo-400" />
                 </div>
                 <h3 class="text-base font-semibold text-white tracking-wide">
-                  Clean Desktop Canvas (Excludes All Overlays)
+                  Clean Desktop Track ({{ currentSessionId }})
                 </h3>
                 <p class="text-xs text-gray-400 font-mono mt-1">
-                  1920 × 1080 @ 60 FPS • Complete freedom to reposition webcam in video editor
+                  Click Play below to preview synchronized screen, camera PiP, and audio tracks
                 </p>
               </div>
 
-              <!-- Bottom Status -->
               <div class="flex items-center justify-between text-xs font-mono text-gray-500 pt-3 border-t border-white/5">
                 <span>Display 1 • Primary</span>
-                <span>telemetry_cursor.json synchronized</span>
+                <span>telemetry.json synchronized</span>
               </div>
             </div>
 
-            <!-- Picture-in-Picture Decoupled Camera Track Preview (Dynamically Positioned from Recorded Telemetry) -->
+            <!-- Picture-in-Picture Decoupled Camera Track Preview -->
             <div
               v-if="isCameraPiPVisible"
               class="absolute aspect-square rounded-[36px] border-2 border-red-500/80 bg-[#161822] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col items-center justify-center text-white transition-all duration-300"
               :style="pipStyle"
             >
-              <div class="w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center mb-1.5 shadow-inner">
-                <Video class="w-6 h-6 text-indigo-300" />
-              </div>
-              <span class="text-[11px] font-semibold tracking-wide">Dynamic Facecam PIP</span>
-              <span class="text-[9px] text-emerald-400 font-mono mt-0.5">camera_alpha.webm</span>
+              <video
+                v-if="activeSession?.cameraUrl"
+                ref="cameraVideoRef"
+                :src="activeSession.cameraUrl"
+                muted
+                playsinline
+                @loadeddata="hasCameraVideoLoaded = true"
+                class="w-full h-full object-cover"
+                :class="hasCameraVideoLoaded ? 'block' : 'hidden'"
+              />
+              <template v-if="!hasCameraVideoLoaded">
+                <div class="w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center mb-1.5 shadow-inner">
+                  <Video class="w-6 h-6 text-indigo-300" />
+                </div>
+                <span class="text-[11px] font-semibold tracking-wide">Dynamic Facecam PIP</span>
+                <span class="text-[9px] text-emerald-400 font-mono mt-0.5">camera_alpha.webm</span>
+              </template>
             </div>
 
             <!-- Auto-Zoom Indicator Badge -->
@@ -207,6 +429,10 @@ function showAlert(msg: string) {
                 <span class="text-white font-semibold">{{ formatTime(currentTime) }}</span>
                 <span class="text-gray-500">/</span>
                 <span class="text-gray-400">{{ formatTime(duration) }}</span>
+              </div>
+
+              <div v-if="statusNotice" class="px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs">
+                {{ statusNotice }}
               </div>
 
               <!-- Viewport Toggles -->
@@ -231,8 +457,12 @@ function showAlert(msg: string) {
               </div>
             </div>
 
-            <!-- Waveform & Scrub Track -->
-            <div class="relative w-full h-10 bg-black/60 rounded-xl overflow-hidden flex items-center cursor-pointer px-1 border border-white/5 shadow-inner">
+            <!-- Interactive Waveform & Scrub Track -->
+            <div
+              ref="timelineRef"
+              @click="handleTimelineClick"
+              class="relative w-full h-10 bg-black/60 rounded-xl overflow-hidden flex items-center cursor-pointer px-1 border border-white/5 shadow-inner"
+            >
               <!-- Audio waveform visualization -->
               <div class="absolute inset-0 flex items-center justify-between px-3 opacity-35 pointer-events-none">
                 <div
@@ -250,12 +480,18 @@ function showAlert(msg: string) {
               />
 
               <!-- Trim In Handle -->
-              <div class="absolute left-6 top-0 bottom-0 w-2.5 bg-amber-400 rounded-l cursor-ew-resize flex items-center justify-center shadow-lg">
+              <div
+                class="absolute top-0 bottom-0 w-2.5 bg-amber-400 rounded-l cursor-ew-resize flex items-center justify-center shadow-lg"
+                :style="{ left: `${trimStartPct}%` }"
+              >
                 <div class="w-0.5 h-3 bg-black/70" />
               </div>
 
               <!-- Trim Out Handle -->
-              <div class="absolute right-8 top-0 bottom-0 w-2.5 bg-amber-400 rounded-r cursor-ew-resize flex items-center justify-center shadow-lg">
+              <div
+                class="absolute top-0 bottom-0 w-2.5 bg-amber-400 rounded-r cursor-ew-resize flex items-center justify-center shadow-lg"
+                :style="{ left: `calc(${trimEndPct}% - 10px)` }"
+              >
                 <div class="w-0.5 h-3 bg-black/70" />
               </div>
             </div>
@@ -272,7 +508,10 @@ function showAlert(msg: string) {
                   <span>{{ isPlaying ? 'Pause' : 'Play' }}</span>
                 </button>
 
-                <button class="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-medium text-gray-200 hover:text-white transition-all border border-white/5">
+                <button
+                  @click="handleTrimDeadAir"
+                  class="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-medium text-gray-200 hover:text-white transition-all border border-white/5"
+                >
                   <Scissors class="w-3.5 h-3.5 text-amber-400" />
                   <span>Trim Dead Air</span>
                 </button>
@@ -281,7 +520,7 @@ function showAlert(msg: string) {
               <!-- Export Actions -->
               <div class="flex items-center space-x-3">
                 <button
-                  @click="showAlert('Opening session assets folder:\n• screen_clean.mp4\n• camera_raw.mp4\n• audio_mic.wav\n• audio_system.wav\n• telemetry.json')"
+                  @click="handleOpenSessionAssets"
                   class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-gray-200 hover:text-white transition-all border border-white/10"
                 >
                   <FolderOpen class="w-4 h-4 text-indigo-400" />

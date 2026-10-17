@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from 'vue';
-import { CameraShape, CameraSize, BgRemovalMode } from '../../types/studio';
-import { moveOverlayWindow, resizeOverlayWindow } from '../../lib/tauriBridge';
+import type { CameraShape, CameraSize } from '../../types/studio';
+import { moveOverlayWindow, resizeOverlayWindow, uploadRecordedCameraTrack } from '../../lib/tauriBridge';
 import { useTheme } from '../../composables/useTheme';
+import { useStudioState } from '../../composables/useStudioState';
+import { useBackgroundSegmentation } from '../../composables/useBackgroundSegmentation';
 
 // Theme Variants
 import ObsidianCamera from './variants/ObsidianCamera.vue';
@@ -28,19 +30,123 @@ const emit = defineEmits<{
 }>();
 
 const { currentTheme, initTheme } = useTheme();
+const {
+  selectedCameraId,
+  cameraShape: shape,
+  cameraSize: size,
+  cameraCustomDiameter: customDiameter,
+  isCameraMirrored: isMirrored,
+  bgMode,
+  bgImageUrl,
+  bgGradient,
+  setCustomBgImageFromFile,
+  cycleBgMode,
+} = useStudioState();
 
-const shape = shallowRef<CameraShape>('circle');
-const size = shallowRef<CameraSize>('M');
-const isMirrored = shallowRef(true);
-const bgMode = shallowRef<BgRemovalMode>('off');
 const hasCameraStream = shallowRef(false);
 const isHovered = shallowRef(false);
+const isResizing = shallowRef(false);
 const videoRef = useTemplateRef<HTMLVideoElement>('videoRef');
+const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
+const bgFileInput = useTemplateRef<HTMLInputElement>('bgFileInput');
 
 let mediaStream: MediaStream | null = null;
+let mediaRecorder: MediaRecorder | null = null;
+let recordedChunks: Blob[] = [];
 
-const customDiameter = shallowRef<number | null>(null);
-const isResizing = shallowRef(false);
+const { startSegmentationLoop, stopSegmentationLoop } = useBackgroundSegmentation({
+  videoRef,
+  canvasRef,
+  bgMode,
+  bgImageUrl,
+  bgGradient,
+  isMirrored,
+  hasCameraStream,
+});
+
+async function startCameraStream(deviceId?: string) {
+  if (mediaStream) {
+    mediaStream.getTracks().forEach((t) => t.stop());
+    mediaStream = null;
+  }
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    hasCameraStream.value = false;
+    return;
+  }
+  try {
+    const videoConstraint =
+      deviceId && deviceId !== 'default' && !deviceId.startsWith('/dev/video')
+        ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        : { width: { ideal: 1280 }, height: { ideal: 720 } };
+
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: videoConstraint,
+      audio: false,
+    });
+    hasCameraStream.value = true;
+    await nextTick();
+    if (videoRef.value && mediaStream) {
+      videoRef.value.srcObject = mediaStream;
+      await videoRef.value.play().catch(() => {});
+    }
+  } catch (err) {
+    console.log('Webcam stream fallback active:', err);
+    hasCameraStream.value = false;
+  }
+}
+
+// Switch camera stream in real time when selectedCameraId changes
+watch(selectedCameraId, (newId) => {
+  startCameraStream(newId);
+});
+
+// Record composited canvas stream when recording starts, and upload on stop
+watch(
+  () => props.isRecording,
+  (rec) => {
+    if (rec) {
+      startCanvasRecording();
+    } else {
+      stopCanvasRecording();
+    }
+  }
+);
+
+function startCanvasRecording() {
+  if (!canvasRef.value || typeof MediaRecorder === 'undefined') return;
+  try {
+    recordedChunks = [];
+    const stream = canvasRef.value.captureStream(30);
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9'
+      : 'video/webm';
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) {
+        recordedChunks.push(ev.data);
+      }
+    };
+    mediaRecorder.onstop = async () => {
+      if (recordedChunks.length > 0) {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        await uploadRecordedCameraTrack(blob);
+      }
+      recordedChunks = [];
+    };
+    mediaRecorder.start(500);
+  } catch (err) {
+    console.warn('[CameraBubble] MediaRecorder start failed:', err);
+  }
+}
+
+function stopCanvasRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try {
+      mediaRecorder.stop();
+    } catch {}
+  }
+  mediaRecorder = null;
+}
 
 let resizeStartScreenX = 0;
 let resizeStartScreenY = 0;
@@ -85,6 +191,18 @@ function handleSetSize(newSize: CameraSize) {
   size.value = newSize;
 }
 
+function handleSetShape(newShape: CameraShape) {
+  shape.value = newShape;
+}
+
+async function handleCustomBgUpload(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file) {
+    await setCustomBgImageFromFile(file);
+  }
+}
+
 // Native OS window pointer dragging
 let isDraggingWindow = false;
 let lastScreenX = 0;
@@ -117,24 +235,13 @@ function onDragMouseUp() {
 
 onMounted(async () => {
   initTheme();
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 1280, height: 720 },
-      audio: false,
-    });
-    hasCameraStream.value = true;
-    await nextTick();
-    if (videoRef.value && mediaStream) {
-      videoRef.value.srcObject = mediaStream;
-      videoRef.value.play().catch((err) => console.warn('Webcam video play error:', err));
-    }
-  } catch (err) {
-    console.log('Webcam not active, using fallback avatar:', err);
-    hasCameraStream.value = false;
-  }
+  await startCameraStream(selectedCameraId.value);
+  startSegmentationLoop();
 });
 
 onUnmounted(() => {
+  stopSegmentationLoop();
+  stopCanvasRecording();
   if (mediaStream) {
     mediaStream.getTracks().forEach((t) => t.stop());
   }
@@ -142,12 +249,11 @@ onUnmounted(() => {
   onResizeMouseUp();
 });
 
-// Size dimensions
 const dimensions = computed(() => {
   if (customDiameter.value !== null) {
     return {
       width: customDiameter.value,
-      height: shape.value === 'rect16_9' ? Math.round(customDiameter.value * 9 / 16) : customDiameter.value,
+      height: shape.value === 'rect16_9' ? Math.round((customDiameter.value * 9) / 16) : customDiameter.value,
     };
   }
   const map: Record<CameraSize, { width: number; height: number }> = {
@@ -162,8 +268,7 @@ const dimensions = computed(() => {
 watch(
   dimensions,
   ({ width, height }) => {
-    // Accommodate speaking glow halo on top/sides and the floating toolbar beneath the circle
-    resizeOverlayWindow('camera', Math.max(width + 32, 240), height + 80);
+    resizeOverlayWindow('camera', Math.max(width + 36, 260), height + 84);
   },
   { immediate: true }
 );
@@ -181,7 +286,6 @@ const shapeClass = computed(() => {
   }
 });
 
-// Audio-reactive speaking halo ring
 const haloStyle = computed(() => {
   const intensity = Math.min(1, Math.max(0, props.audioVolume * 1.5));
   let haloColor = props.isRecording
@@ -210,17 +314,6 @@ const haloStyle = computed(() => {
   };
 });
 
-function toggleBgMode() {
-  if (bgMode.value === 'off') {
-    bgMode.value = 'transparent';
-  } else if (bgMode.value === 'transparent') {
-    bgMode.value = 'blur';
-  } else {
-    bgMode.value = 'off';
-  }
-}
-
-// Active camera variant component
 const activeCameraVariant = computed(() => {
   switch (currentTheme.value) {
     case 'spatial':
@@ -243,6 +336,14 @@ const activeCameraVariant = computed(() => {
     @mouseleave="isHovered = false"
     class="relative select-none flex flex-col items-center group"
   >
+    <input
+      ref="bgFileInput"
+      type="file"
+      accept="image/*"
+      class="hidden"
+      @change="handleCustomBgUpload"
+    />
+
     <component
       :is="activeCameraVariant"
       :has-camera-stream="hasCameraStream"
@@ -256,27 +357,31 @@ const activeCameraVariant = computed(() => {
       :is-hovered="isHovered"
       :shape-class="shapeClass"
       :halo-style="haloStyle"
-      @set-shape="shape = $event"
+      @set-shape="handleSetShape"
       @set-size="handleSetSize"
       @toggle-mirror="isMirrored = !isMirrored"
-      @toggle-bg-mode="toggleBgMode"
+      @toggle-bg-mode="cycleBgMode"
+      @upload-bg-image="bgFileInput?.click()"
       @hide="emit('hide')"
       @drag-mouse-down="onDragMouseDown"
       @start-resize="onResizeMouseDown"
       @wheel-resize="onWheelResize"
     >
       <template #video>
+        <!-- Hidden raw <video> source used by real-time canvas segmentation pipeline -->
         <video
-          v-if="hasCameraStream"
           ref="videoRef"
           autoplay
           muted
           playsinline
-          class="w-full h-full object-cover pointer-events-none transition-transform duration-300"
-          :class="[
-            isMirrored ? 'scale-x-[-1]' : '',
-            bgMode === 'blur' ? 'backdrop-blur-md' : ''
-          ]"
+          class="hidden"
+        />
+        <!-- Live Segmented & Background-Composited Output Canvas -->
+        <canvas
+          ref="canvasRef"
+          :width="dimensions.width * 2"
+          :height="dimensions.height * 2"
+          class="w-full h-full object-cover pointer-events-none"
         />
       </template>
     </component>

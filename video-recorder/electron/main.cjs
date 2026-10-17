@@ -40,7 +40,9 @@ let windows = {
   camera: null,
   countdown: null,
   annotations: null,
+  area: null,
   studio: null,
+  settings: null,
 };
 
 let isDockedToCamera = false;
@@ -79,6 +81,32 @@ function createWindow(label, options) {
   return win;
 }
 
+function openOrFocusSettingsWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const workArea = primaryDisplay.workArea;
+  if (windows.settings && !windows.settings.isDestroyed()) {
+    windows.settings.show();
+    windows.settings.focus();
+    return;
+  }
+  const settingsWidth = Math.min(1260, workArea.width - 48);
+  const settingsHeight = Math.min(860, workArea.height - 48);
+  windows.settings = createWindow('settings', {
+    title: 'Record Studio Settings & Workspace',
+    frame: true,
+    transparent: false,
+    hasShadow: true,
+    resizable: true,
+    width: settingsWidth,
+    height: settingsHeight,
+    x: Math.round(workArea.x + (workArea.width - settingsWidth) / 2),
+    y: Math.round(workArea.y + (workArea.height - settingsHeight) / 2),
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    show: true,
+  });
+}
+
 function snapToolbarToCamera() {
   if (!windows.toolbar || !windows.camera) return;
   const camBounds = windows.camera.getBounds();
@@ -94,7 +122,7 @@ function createOverlayWindows() {
   const fullBounds = primaryDisplay.bounds;
 
   // 1. Floating Toolbar Pill (Bottom-Center)
-  const tbWidth = 640;
+  const tbWidth = 760;
   const tbHeight = 84;
   windows.toolbar = createWindow('toolbar', {
     title: 'Recorder Controls',
@@ -145,7 +173,19 @@ function createOverlayWindows() {
     show: false,
   });
 
-  // 5. Studio Review & Export Window (Hidden until recording finishes or opened)
+  // 5. Fullscreen Interactive Area Selector Overlay (Hidden initially)
+  windows.area = createWindow('area', {
+    title: 'Select Capture Area',
+    x: fullBounds.x,
+    y: fullBounds.y,
+    width: fullBounds.width,
+    height: fullBounds.height,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+  });
+
+  // 6. Studio Review & Export Window (Hidden until recording finishes or opened)
   const studioWidth = Math.min(1240, workArea.width - 40);
   const studioHeight = Math.min(840, workArea.height - 40);
   windows.studio = createWindow('studio', {
@@ -235,9 +275,13 @@ ipcMain.on('resize_window', (_event, { windowLabel, width, height }) => {
   const bounds = win.getBounds();
   if (bounds.width === width && bounds.height === height) return;
 
-  // Keep window centered around its previous center point
+  // Keep window horizontally centered around its previous center point.
+  // For the toolbar, keep the bottom edge anchored so popovers grow upward.
   const newX = Math.round(bounds.x + (bounds.width - width) / 2);
-  const newY = Math.round(bounds.y + (bounds.height - height) / 2);
+  const newY =
+    windowLabel === 'toolbar'
+      ? Math.round(bounds.y + (bounds.height - height))
+      : Math.round(bounds.y + (bounds.height - height) / 2);
   win.setBounds({ x: newX, y: newY, width: Math.round(width), height: Math.round(height) });
 
   if (windowLabel === 'camera') {
@@ -252,6 +296,11 @@ ipcMain.on('resize_window', (_event, { windowLabel, width, height }) => {
 ipcMain.on('overlay_event', (senderEvent, data) => {
   if (!data || !data.event) return;
 
+  if (data.event === 'open_settings_window') {
+    openOrFocusSettingsWindow();
+    return;
+  }
+
   // Broadcast to all other windows
   Object.values(windows).forEach((win) => {
     if (win && !win.isDestroyed() && win.webContents !== senderEvent.sender) {
@@ -265,6 +314,7 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
       isCameraHidden,
       isDockedToCamera: docked,
       isAnnotationActive,
+      isAreaSelectorOpen,
     } = data.payload;
 
     // Track active recording for camera telemetry
@@ -326,7 +376,19 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
       }
     }
 
-    // 5. Studio Review & Export Modal visibility
+    // 5. Interactive Area Selector overlay visibility
+    if (typeof isAreaSelectorOpen === 'boolean' && windows.area && !windows.area.isDestroyed()) {
+      if (isAreaSelectorOpen) {
+        if (!windows.area.isVisible()) {
+          windows.area.show();
+          windows.area.focus();
+        }
+      } else if (windows.area.isVisible()) {
+        windows.area.hide();
+      }
+    }
+
+    // 6. Studio Review & Export Modal visibility
     if (windows.studio && !windows.studio.isDestroyed()) {
       if (recordingState === 'review') {
         if (!windows.studio.isVisible()) {
@@ -396,6 +458,30 @@ ipcMain.handle('get_default_videos_dir', () => {
 ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMetadata, preset = 'premiere_xml' }) => {
   try {
     fs.mkdirSync(targetDir, { recursive: true });
+
+    // Copy recorded media files from session outputDir if available and distinct from targetDir
+    const sourceDir = sessionMetadata && sessionMetadata.outputDir ? sessionMetadata.outputDir : null;
+    if (sourceDir && fs.existsSync(sourceDir) && path.resolve(sourceDir) !== path.resolve(targetDir)) {
+      const mediaFiles = [
+        'screen_clean.mp4',
+        'camera_raw.mp4',
+        'camera_alpha.webm',
+        'audio_mic.wav',
+        'audio_system.wav',
+        'metadata.json',
+      ];
+      for (const fileName of mediaFiles) {
+        const srcFile = path.join(sourceDir, fileName);
+        const destFile = path.join(targetDir, fileName);
+        if (fs.existsSync(srcFile)) {
+          try {
+            fs.copyFileSync(srcFile, destFile);
+          } catch (copyErr) {
+            console.warn(`[Export] Could not copy ${fileName}:`, copyErr);
+          }
+        }
+      }
+    }
 
     // Retrieve camera telemetry from metadata or recorded telemetry in main process
     const telemetry = (sessionMetadata && sessionMetadata.cameraTelemetry && sessionMetadata.cameraTelemetry.length)
@@ -651,10 +737,8 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
 });
 
 app.whenReady().then(() => {
-  // If packaged, ensure background capture daemon is running
-  if (!isDev) {
-    startDaemonIfAvailable();
-  }
+  // Ensure background capture daemon is running
+  startDaemonIfAvailable();
   // Short delay on Linux so X11/Wayland compositor initializes alpha visual cleanly
   setTimeout(() => {
     createOverlayWindows();

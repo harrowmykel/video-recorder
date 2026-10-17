@@ -4,10 +4,13 @@ import {
   FlipHorizontal,
   Circle,
   Square,
+  RectangleHorizontal,
   User,
-  Scaling
+  Scaling,
+  ImagePlus,
+  EyeOff
 } from 'lucide-vue-next';
-import { CameraShape, CameraSize, BgRemovalMode } from '../../../types/studio';
+import type { CameraShape, CameraSize, BgRemovalMode } from '../../../types/studio';
 
 const props = defineProps<{
   hasCameraStream: boolean;
@@ -28,16 +31,22 @@ const emit = defineEmits<{
   (e: 'setSize', size: CameraSize): void;
   (e: 'toggleMirror'): void;
   (e: 'toggleBgMode'): void;
+  (e: 'uploadBgImage'): void;
   (e: 'hide'): void;
   (e: 'dragMouseDown', event: MouseEvent): void;
   (e: 'startResize', event: MouseEvent): void;
   (e: 'wheelResize', event: WheelEvent): void;
 }>();
+
+function nextShape(): CameraShape {
+  if (props.shape === 'circle') return 'squircle';
+  if (props.shape === 'squircle') return 'rect16_9';
+  return 'circle';
+}
 </script>
 
 <template>
   <div class="relative flex flex-col items-center">
-    <!-- Camera Frame (Circle / Squircle / Rect) with Speaking Glow Halo -->
     <div
       @mousedown="emit('dragMouseDown', $event)"
       @wheel.prevent="emit('wheelResize', $event)"
@@ -49,7 +58,8 @@ const emit = defineEmits<{
 
       <div
         v-if="!props.hasCameraStream"
-        class="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white relative"
+        class="absolute inset-0 w-full h-full flex flex-col items-center justify-center text-white pointer-events-none"
+        :class="props.bgMode === 'off' ? 'bg-slate-900' : 'bg-transparent'"
       >
         <div class="relative w-16 h-16 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
           <User class="w-8 h-8 text-blue-400" />
@@ -60,7 +70,6 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <!-- Safe-Zone Floating Pill (Beneath Circle, Never Clipped) -->
     <transition
       enter-active-class="transition duration-150 ease-out"
       enter-from-class="opacity-0 translate-y-1 scale-95"
@@ -73,7 +82,6 @@ const emit = defineEmits<{
         v-if="props.isHovered"
         class="absolute top-full pt-2.5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto"
       >
-        <!-- Floating Live Size HUD during resize above toolbar -->
         <div
           v-if="props.isResizing"
           class="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-400/50 text-[10px] font-mono font-bold text-slate-800 dark:text-slate-200 shadow-2xl pointer-events-none whitespace-nowrap"
@@ -83,10 +91,12 @@ const emit = defineEmits<{
 
         <div class="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 dark:bg-slate-900/95 shadow-xl border border-slate-200 dark:border-slate-700 whitespace-nowrap">
           <button
-            @click="emit('setShape', props.shape === 'circle' ? 'squircle' : 'circle')"
+            @click="emit('setShape', nextShape())"
             class="w-6 h-6 rounded-full text-slate-700 dark:text-slate-200 flex items-center justify-center"
           >
-            <component :is="props.shape === 'circle' ? Circle : Square" class="w-3.5 h-3.5" />
+            <Circle v-if="props.shape === 'circle'" class="w-3.5 h-3.5" />
+            <Square v-else-if="props.shape === 'squircle'" class="w-3.5 h-3.5" />
+            <RectangleHorizontal v-else class="w-3.5 h-3.5" />
           </button>
 
           <div class="w-px h-3.5 bg-slate-200 dark:bg-slate-700 mx-0.5"></div>
@@ -94,26 +104,22 @@ const emit = defineEmits<{
           <button
             @click="emit('setSize', 'S')"
             :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'S' && !props.customDiameter ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400']"
-            title="Small Preset (160px)"
           >
             S
           </button>
           <button
             @click="emit('setSize', 'M')"
             :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'M' && !props.customDiameter ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400']"
-            title="Medium Preset (240px)"
           >
             M
           </button>
           <button
             @click="emit('setSize', 'L')"
             :class="['w-6 h-6 rounded-full text-[10px] font-bold transition', props.size === 'L' && !props.customDiameter ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'text-slate-600 dark:text-slate-400']"
-            title="Large Preset (340px)"
           >
             L
           </button>
 
-          <!-- Freeform Resize Drag Button in Toolbar -->
           <button
             data-resize-handle="true"
             @mousedown.stop="emit('startResize', $event)"
@@ -121,7 +127,6 @@ const emit = defineEmits<{
               'w-6 h-6 rounded-full flex items-center justify-center transition cursor-ew-resize',
               props.customDiameter || props.isResizing ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
             ]"
-            :title="props.customDiameter ? `Custom ${props.customDiameter}px (Drag or Scroll to Resize)` : 'Drag to Custom Resize'"
           >
             <Scaling class="w-3.5 h-3.5" />
           </button>
@@ -139,9 +144,25 @@ const emit = defineEmits<{
           <button
             @click="emit('toggleBgMode')"
             :class="['w-6 h-6 rounded-full flex items-center justify-center transition', props.bgMode !== 'off' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400']"
-            title="AI Blur"
+            title="Cycle Background Mode"
           >
             <Sparkles class="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            @click="emit('uploadBgImage')"
+            class="w-6 h-6 rounded-full text-slate-600 dark:text-slate-300 flex items-center justify-center"
+            title="Upload Background Image"
+          >
+            <ImagePlus class="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            @click="emit('hide')"
+            class="w-6 h-6 rounded-full text-slate-400 hover:text-rose-500 flex items-center justify-center"
+            title="Hide Camera"
+          >
+            <EyeOff class="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
