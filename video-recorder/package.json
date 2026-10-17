@@ -18,7 +18,8 @@
     "package:dist": "npm run build && npm run daemon:build && electron-builder"
   },
   "description": "Studio-grade screen and camera overlay recorder for Linux",
-  "author": "Micheal",
+  "homepage": "https://github.com/harrowmykel/video-recorder-studio",
+  "author": "Micheal <micheal@example.com>",
   "desktopName": "video-recorder-studio",
   "build": {
     "appId": "com.studiorecorder.app",
@@ -39,11 +40,17 @@
       }
     ],
     "linux": {
-      "target": ["AppImage", "tar.gz"],
+      "target": [
+        "deb",
+        "AppImage",
+        "tar.gz"
+      ],
       "category": "Video",
       "icon": "build/icon.png",
       "syncDesktopName": true,
-      "executableArgs": ["--no-sandbox"]
+      "executableArgs": [
+        "--no-sandbox"
+      ]
     }
   },
   "dependencies": {
