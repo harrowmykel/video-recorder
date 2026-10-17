@@ -27,7 +27,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'setShape', shape: CameraShape): void;
+  (e: 'setShape'): void;
   (e: 'setSize', size: CameraSize): void;
   (e: 'toggleMirror'): void;
   (e: 'toggleBgMode'): void;
@@ -37,12 +37,6 @@ const emit = defineEmits<{
   (e: 'startResize', event: MouseEvent): void;
   (e: 'wheelResize', event: WheelEvent): void;
 }>();
-
-function nextShape(): CameraShape {
-  if (props.shape === 'circle') return 'squircle';
-  if (props.shape === 'squircle') return 'rect16_9';
-  return 'circle';
-}
 </script>
 
 <template>
@@ -91,12 +85,12 @@ function nextShape(): CameraShape {
 
         <div class="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/95 dark:bg-slate-900/95 shadow-xl border border-slate-200 dark:border-slate-700 whitespace-nowrap">
           <button
-            @click="emit('setShape', nextShape())"
+            @click="emit('setShape')"
             class="w-6 h-6 rounded-full text-slate-700 dark:text-slate-200 flex items-center justify-center"
           >
-            <Circle v-if="props.shape === 'circle'" class="w-3.5 h-3.5" />
-            <Square v-else-if="props.shape === 'squircle'" class="w-3.5 h-3.5" />
-            <RectangleHorizontal v-else class="w-3.5 h-3.5" />
+            <Square v-if="props.shape === 'squircle'" class="w-3.5 h-3.5" />
+            <RectangleHorizontal v-else-if="props.shape === 'rect16_9'" class="w-3.5 h-3.5" />
+            <Circle v-else class="w-3.5 h-3.5" />
           </button>
 
           <div class="w-px h-3.5 bg-slate-200 dark:bg-slate-700 mx-0.5"></div>

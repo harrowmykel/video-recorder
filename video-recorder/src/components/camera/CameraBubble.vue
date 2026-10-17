@@ -191,8 +191,14 @@ function handleSetSize(newSize: CameraSize) {
   size.value = newSize;
 }
 
-function handleSetShape(newShape: CameraShape) {
-  shape.value = newShape;
+function nextShape(): CameraShape {
+  if (shape.value === 'circle') return 'squircle';
+  if (shape.value === 'squircle') return 'rect16_9';
+  return 'circle';
+}
+
+function handleSetShape() {
+  shape.value = nextShape();
 }
 
 async function handleCustomBgUpload(e: Event) {

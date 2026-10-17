@@ -22,7 +22,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'setShape', shape: CameraShape): void;
+  (e: 'setShape'): void;
   (e: 'setSize', size: CameraSize): void;
   (e: 'toggleMirror'): void;
   (e: 'toggleBgMode'): void;
@@ -32,12 +32,6 @@ const emit = defineEmits<{
   (e: 'startResize', event: MouseEvent): void;
   (e: 'wheelResize', event: WheelEvent): void;
 }>();
-
-function nextShape(): CameraShape {
-  if (props.shape === 'circle') return 'squircle';
-  if (props.shape === 'squircle') return 'rect16_9';
-  return 'circle';
-}
 </script>
 
 <template>
@@ -90,10 +84,12 @@ function nextShape(): CameraShape {
 
         <div class="flex items-center gap-1 px-2 py-1 rounded bg-[#0b0c0e]/95 border border-zinc-700 shadow-2xl whitespace-nowrap">
           <button
-            @click="emit('setShape', nextShape())"
+            @click="emit('setShape')"
             class="px-1.5 py-0.5 rounded-sm tactile-key text-[10px] text-zinc-300"
           >
-            {{ props.shape === 'circle' ? '1:1' : props.shape === 'squircle' ? 'SQ' : '16:9' }}
+            <span v-if="props.shape === 'squircle'">SQ</span>
+            <span v-else-if="props.shape === 'rect16_9'">16:9</span>
+            <span v-else>1:1</span>
           </button>
 
           <div class="w-px h-3 bg-zinc-700 mx-0.5"></div>
