@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, globalShortcut, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, globalShortcut, dialog, shell } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -186,12 +186,40 @@ function registerGlobalShortcuts() {
   });
 }
 
+let activeRecordingStartTime = 0;
+let isActivelyRecording = false;
+let recordedCameraTelemetry = [];
+
+function sampleCameraTelemetry() {
+  if (!isActivelyRecording || !windows.camera || windows.camera.isDestroyed()) return;
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const screenBounds = primaryDisplay.bounds;
+  const camBounds = windows.camera.getBounds();
+  const timeMs = Date.now() - activeRecordingStartTime;
+
+  recordedCameraTelemetry.push({
+    timeMs,
+    x: camBounds.x,
+    y: camBounds.y,
+    normX: Number((camBounds.x / (screenBounds.width || 1)).toFixed(4)),
+    normY: Number((camBounds.y / (screenBounds.height || 1)).toFixed(4)),
+    width: camBounds.width,
+    height: camBounds.height,
+    shape: 'circle',
+    hidden: !windows.camera.isVisible(),
+  });
+}
+
 ipcMain.on('move_window', (_event, { windowLabel, dx, dy }) => {
   const win = windows[windowLabel];
   if (!win || win.isDestroyed()) return;
 
   const [x, y] = win.getPosition();
   win.setPosition(Math.round(x + dx), Math.round(y + dy));
+
+  if (windowLabel === 'camera') {
+    sampleCameraTelemetry();
+  }
 
   // If satellite docking is active and the camera bubble moves, move the toolbar with it
   if (windowLabel === 'camera' && isDockedToCamera && windows.toolbar && !windows.toolbar.isDestroyed()) {
@@ -211,6 +239,10 @@ ipcMain.on('resize_window', (_event, { windowLabel, width, height }) => {
   const newX = Math.round(bounds.x + (bounds.width - width) / 2);
   const newY = Math.round(bounds.y + (bounds.height - height) / 2);
   win.setBounds({ x: newX, y: newY, width: Math.round(width), height: Math.round(height) });
+
+  if (windowLabel === 'camera') {
+    sampleCameraTelemetry();
+  }
 
   if (windowLabel === 'camera' && isDockedToCamera) {
     snapToolbarToCamera();
@@ -234,6 +266,17 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
       isDockedToCamera: docked,
       isAnnotationActive,
     } = data.payload;
+
+    // Track active recording for camera telemetry
+    if (recordingState === 'recording' && !isActivelyRecording) {
+      isActivelyRecording = true;
+      activeRecordingStartTime = Date.now();
+      recordedCameraTelemetry = [];
+      sampleCameraTelemetry();
+    } else if (recordingState && recordingState !== 'recording' && isActivelyRecording) {
+      isActivelyRecording = false;
+      sampleCameraTelemetry();
+    }
 
     // 1. Camera visibility
     if (typeof isCameraHidden === 'boolean' && windows.camera && !windows.camera.isDestroyed()) {
@@ -314,22 +357,83 @@ ipcMain.handle('select_directory', async (_event, defaultPath) => {
   return result.filePaths[0];
 });
 
-ipcMain.handle('get_default_videos_dir', () => {
+ipcMain.handle('open_path', async (_event, targetPath) => {
+  if (!targetPath) return { success: false, error: 'Target path required' };
   try {
-    return app.getPath('videos');
-  } catch {
-    return path.join(app.getPath('home'), 'Videos');
+    const errMsg = await shell.openPath(targetPath);
+    if (errMsg) {
+      return { success: false, error: errMsg };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMetadata }) => {
+ipcMain.handle('get_camera_telemetry', () => {
+  return recordedCameraTelemetry;
+});
+
+ipcMain.handle('get_default_videos_dir', () => {
+  try {
+    const baseVideos = app.getPath('videos');
+    const studioDir = path.join(baseVideos, 'record_studio');
+    if (!fs.existsSync(studioDir)) {
+      fs.mkdirSync(studioDir, { recursive: true });
+    }
+    return studioDir;
+  } catch {
+    const homeVideos = path.join(app.getPath('home'), 'Videos', 'record_studio');
+    try {
+      if (!fs.existsSync(homeVideos)) {
+        fs.mkdirSync(homeVideos, { recursive: true });
+      }
+    } catch {}
+    return homeVideos;
+  }
+});
+
+ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMetadata, preset = 'premiere_xml' }) => {
   try {
     fs.mkdirSync(targetDir, { recursive: true });
-    // If sessionMetadata has files, write summary or manifest
-    const manifestPath = path.join(targetDir, 'package_manifest.json');
-    fs.writeFileSync(manifestPath, JSON.stringify(sessionMetadata || { exportedAt: new Date().toISOString() }, null, 2));
 
-    // Also write an NLE timeline sync XML (FCPXML / Premiere XML stub)
+    // Retrieve camera telemetry from metadata or recorded telemetry in main process
+    const telemetry = (sessionMetadata && sessionMetadata.cameraTelemetry && sessionMetadata.cameraTelemetry.length)
+      ? sessionMetadata.cameraTelemetry
+      : recordedCameraTelemetry;
+
+    const initialPoint = telemetry[0] || {
+      normX: 0.82,
+      normY: 0.72,
+      width: 288,
+      height: 288,
+      shape: 'circle',
+      hidden: false
+    };
+
+    // 1. Write package_manifest.json
+    const manifestPath = path.join(targetDir, 'package_manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({
+      preset,
+      exportedAt: new Date().toISOString(),
+      session: sessionMetadata || {},
+      cameraInitialPosition: initialPoint,
+      telemetrySampleCount: telemetry.length,
+    }, null, 2));
+
+    // 2. Write telemetry_camera.json & telemetry.json
+    fs.writeFileSync(path.join(targetDir, 'telemetry_camera.json'), JSON.stringify(telemetry, null, 2));
+    fs.writeFileSync(path.join(targetDir, 'telemetry.json'), JSON.stringify({
+      cameraTrajectory: telemetry,
+      cursorTelemetry: [],
+      deviceDisplay: screen.getPrimaryDisplay().bounds,
+    }, null, 2));
+
+    // 3. Write Premiere / DaVinci XML Sync (XMEML with Basic Motion keyframes)
+    const premiereCenterX = Number(((initialPoint.normX || 0.8) - 0.5 + ((initialPoint.width || 288) / (1920 * 2))).toFixed(4));
+    const premiereCenterY = Number(((initialPoint.normY || 0.7) - 0.5 + ((initialPoint.height || 288) / (1080 * 2))).toFixed(4));
+    const premiereScale = Number((((initialPoint.width || 288) / 1920) * 100).toFixed(2));
+
     const xmlPath = path.join(targetDir, 'project_sync.xml');
     const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
@@ -340,11 +444,205 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
       <sequence id="sequence-1">
         <name>Synchronized Recording</name>
         <rate><timebase>60</timebase></rate>
+        <media>
+          <video>
+            <track>
+              <!-- Video Track 1: Clean Screen Recording -->
+              <clipitem id="clipitem-screen">
+                <name>screen_clean.mp4</name>
+                <duration>2520</duration>
+                <rate><timebase>60</timebase></rate>
+                <file id="file-screen">
+                  <name>screen_clean.mp4</name>
+                  <pathurl>file://screen_clean.mp4</pathurl>
+                </file>
+              </clipitem>
+            </track>
+            <track>
+              <!-- Video Track 2: Decoupled Camera Feed positioned with recorded telemetry -->
+              <clipitem id="clipitem-camera">
+                <name>camera_alpha.webm</name>
+                <duration>2520</duration>
+                <rate><timebase>60</timebase></rate>
+                <file id="file-camera">
+                  <name>camera_alpha.webm</name>
+                  <pathurl>file://camera_alpha.webm</pathurl>
+                </file>
+                <filter>
+                  <effect>
+                    <name>Basic Motion</name>
+                    <effectid>basic</effectid>
+                    <effectcategory>motion</effectcategory>
+                    <parameter>
+                      <parameterid>scale</parameterid>
+                      <name>Scale</name>
+                      <value>${premiereScale}</value>
+                    </parameter>
+                    <parameter>
+                      <parameterid>center</parameterid>
+                      <name>Center</name>
+                      <value>
+                        <horiz>${premiereCenterX}</horiz>
+                        <vert>${premiereCenterY}</vert>
+                      </value>
+                    </parameter>
+                  </effect>
+                </filter>
+              </clipitem>
+            </track>
+          </video>
+          <audio>
+            <!-- Audio Track 1: Microphone Stem -->
+            <track>
+              <clipitem id="clipitem-mic">
+                <name>audio_mic.wav</name>
+                <file id="file-mic"><pathurl>file://audio_mic.wav</pathurl></file>
+              </clipitem>
+            </track>
+            <!-- Audio Track 2: System Audio Stem -->
+            <track>
+              <clipitem id="clipitem-sys">
+                <name>audio_system.wav</name>
+                <file id="file-sys"><pathurl>file://audio_system.wav</pathurl></file>
+              </clipitem>
+            </track>
+          </audio>
+        </media>
       </sequence>
     </children>
   </project>
 </xmeml>`;
     fs.writeFileSync(xmlPath, xmlContent);
+
+    // 4. Write CapCut Draft Package: draft_content.json + draft_meta_info.json
+    const capcutX = Number((((initialPoint.normX || 0.8) - 0.5) * 2).toFixed(4));
+    const capcutY = Number((-( (initialPoint.normY || 0.7) - 0.5) * 2).toFixed(4));
+    const capcutScale = Number(((initialPoint.width || 288) / 1920).toFixed(4));
+
+    const capcutDraftContent = {
+      canvas_config: { height: 1080, ratio: 'original', width: 1920 },
+      color_space: 0,
+      duration: 42000000,
+      fps: 60.0,
+      materials: {
+        videos: [
+          {
+            id: 'mat_screen_0',
+            path: 'screen_clean.mp4',
+            type: 'video',
+            width: 1920,
+            height: 1080,
+            duration: 42000000
+          },
+          {
+            id: 'mat_camera_1',
+            path: 'camera_raw.mp4',
+            type: 'video',
+            width: 1280,
+            height: 720,
+            duration: 42000000
+          }
+        ],
+        audios: [
+          {
+            id: 'mat_mic_audio',
+            path: 'audio_mic.wav',
+            type: 'audio',
+            duration: 42000000
+          },
+          {
+            id: 'mat_sys_audio',
+            path: 'audio_system.wav',
+            type: 'audio',
+            duration: 42000000
+          }
+        ]
+      },
+      tracks: [
+        {
+          id: 'track_screen_main',
+          type: 'video',
+          segments: [
+            {
+              id: 'seg_screen',
+              material_id: 'mat_screen_0',
+              target_timerange: { duration: 42000000, start: 0 },
+              source_timerange: { duration: 42000000, start: 0 }
+            }
+          ]
+        },
+        {
+          id: 'track_camera_pip',
+          type: 'video',
+          segments: [
+            {
+              id: 'seg_camera',
+              material_id: 'mat_camera_1',
+              target_timerange: { duration: 42000000, start: 0 },
+              source_timerange: { duration: 42000000, start: 0 },
+              clip: {
+                transform: {
+                  x: capcutX,
+                  y: capcutY
+                },
+                scale: {
+                  x: capcutScale,
+                  y: capcutScale
+                }
+              }
+            }
+          ]
+        },
+        {
+          id: 'track_mic_audio',
+          type: 'audio',
+          segments: [
+            {
+              id: 'seg_mic',
+              material_id: 'mat_mic_audio',
+              target_timerange: { duration: 42000000, start: 0 },
+              source_timerange: { duration: 42000000, start: 0 }
+            }
+          ]
+        },
+        {
+          id: 'track_sys_audio',
+          type: 'audio',
+          segments: [
+            {
+              id: 'seg_sys',
+              material_id: 'mat_sys_audio',
+              target_timerange: { duration: 42000000, start: 0 },
+              source_timerange: { duration: 42000000, start: 0 }
+            }
+          ]
+        }
+      ]
+    };
+
+    const capcutDraftMeta = {
+      draft_id: sessionMetadata?.sessionId || `draft_${Date.now()}`,
+      draft_name: `ScreenStudio_${sessionMetadata?.sessionId || 'Session'}`,
+      draft_root_path: targetDir,
+      tm_draft_create: Date.now() * 1000,
+      tm_draft_modified: Date.now() * 1000,
+      draft_timeline_materials_size: 4
+    };
+
+    fs.writeFileSync(path.join(targetDir, 'draft_content.json'), JSON.stringify(capcutDraftContent, null, 2));
+    fs.writeFileSync(path.join(targetDir, 'draft_meta_info.json'), JSON.stringify(capcutDraftMeta, null, 2));
+
+    const capcutReadme = `CapCut Studio Project Instructions:
+1. To open in CapCut Desktop:
+   - You can copy this folder into your CapCut Drafts folder:
+     • Windows: %LOCALAPPDATA%\\CapCut\\User Data\\Projects\\com.lveditor.draft\\
+     • Mac: ~/Movies/CapCut/User Data/Projects/com.lveditor.draft/
+   - Or drag the media tracks (screen_clean.mp4, camera_raw.mp4, audio_mic.wav, audio_system.wav) directly into CapCut.
+2. The camera PiP overlay has been pre-configured with coordinates:
+   • X: ${capcutX}, Y: ${capcutY}, Scale: ${capcutScale} (derived from recorded telemetry).
+`;
+    fs.writeFileSync(path.join(targetDir, 'CAPCUT_README.txt'), capcutReadme);
+
     return { success: true, targetDir };
   } catch (err) {
     console.error('Failed to export package:', err);

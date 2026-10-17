@@ -7,8 +7,8 @@ import AnnotationCanvas from './components/annotations/AnnotationCanvas.vue';
 import StudioReviewModal from './components/studio/StudioReviewModal.vue';
 import ThemeSelectorModal from './components/settings/ThemeSelectorModal.vue';
 import { useTheme } from './composables/useTheme';
-import { RecordingState } from './types/studio';
-import { invokeCommand, broadcastEvent, subscribeToEvent } from './lib/tauriBridge';
+import { RecordingState, CameraTelemetryPoint } from './types/studio';
+import { invokeCommand, broadcastEvent, subscribeToEvent, getCameraTelemetry } from './lib/tauriBridge';
 import {
   Wifi,
   BatteryCharging,
@@ -29,6 +29,7 @@ const isDockedToCamera = shallowRef(false);
 const isAnnotationActive = shallowRef(false);
 const isLiveZoomActive = shallowRef(false);
 const audioVolume = shallowRef(0.4);
+const sessionCameraTelemetry = ref<CameraTelemetryPoint[]>([]);
 
 let isSyncingFromBus = false;
 
@@ -57,6 +58,19 @@ let unsubscribeShortcut: (() => void) | null = null;
 
 async function handleCountdownComplete() {
   recordingState.value = 'recording';
+  sessionCameraTelemetry.value = [
+    {
+      timeMs: 0,
+      x: window.innerWidth ? Math.round(window.innerWidth * 0.82) : 1500,
+      y: window.innerHeight ? Math.round(window.innerHeight * 0.72) : 720,
+      normX: 0.82,
+      normY: 0.72,
+      width: 240,
+      height: 240,
+      shape: 'circle',
+      hidden: isCameraHidden.value,
+    }
+  ];
   try {
     await invokeCommand('start_recording');
   } catch (err) {
@@ -94,6 +108,11 @@ function executeShortcutAction(action: string) {
       } else if (recordingState.value === 'recording' || recordingState.value === 'paused') {
         recordingState.value = 'review';
         invokeCommand('stop_recording').catch(() => {});
+        getCameraTelemetry().then((telemetry) => {
+          if (telemetry && telemetry.length > 0) {
+            sessionCameraTelemetry.value = telemetry;
+          }
+        });
       }
       break;
     case 'pause':
@@ -384,6 +403,7 @@ onUnmounted(() => {
         <!-- Studio Review & Export Modal -->
         <StudioReviewModal
           v-if="recordingState === 'review'"
+          :camera-telemetry="sessionCameraTelemetry"
           @close="recordingState = 'idle'"
         />
 

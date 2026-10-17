@@ -14,6 +14,18 @@ export interface TelemetryPoint {
   zoom_factor: number;
 }
 
+export interface CameraTelemetryPoint {
+  timeMs: number;
+  x: number;
+  y: number;
+  normX: number; // 0.0 - 1.0 relative to display width
+  normY: number; // 0.0 - 1.0 relative to display height
+  width: number;
+  height: number;
+  shape: CameraShape;
+  hidden: boolean;
+}
+
 export interface AudioLevels {
   micRms: number; // 0.0 to 1.0
   micPeak: number;
@@ -32,6 +44,7 @@ export interface RecordingSession {
   sysAudioPath: string;
   telemetryPath: string;
   metadataPath: string;
+  cameraTelemetry?: CameraTelemetryPoint[];
 }
 
 export interface BatchMattingJob {

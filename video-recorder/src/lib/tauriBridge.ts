@@ -206,7 +206,29 @@ export async function getDefaultVideosDirectory(): Promise<string> {
       if (dir) return dir;
     } catch {}
   }
-  return '~/Videos';
+  return '~/Videos/record_studio';
+}
+
+export async function openExportDirectory(targetPath: string): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      return await window.__ELECTRON_OVERLAY__.invoke('open_path', targetPath);
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+  return { success: false, error: 'Opening folder in file manager is only available in Desktop application.' };
+}
+
+export async function getCameraTelemetry(): Promise<any[]> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      return await window.__ELECTRON_OVERLAY__.invoke('get_camera_telemetry') || [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export async function selectExportDirectory(defaultPath?: string): Promise<string | null> {
@@ -224,7 +246,7 @@ export async function selectExportDirectory(defaultPath?: string): Promise<strin
     try {
       const dirHandle = await (window as any).showDirectoryPicker();
       if (dirHandle?.name) {
-        return `~/Videos/${dirHandle.name}`;
+        return `~/Videos/record_studio/${dirHandle.name}`;
       }
     } catch {
       // User cancelled
@@ -234,17 +256,21 @@ export async function selectExportDirectory(defaultPath?: string): Promise<strin
   return null;
 }
 
-export async function exportSessionPackage(targetDir: string, sessionMetadata?: unknown): Promise<{ success: boolean; targetDir?: string; error?: string }> {
+export async function exportSessionPackage(
+  targetDir: string,
+  sessionMetadata?: unknown,
+  preset: string = 'premiere_xml'
+): Promise<{ success: boolean; targetDir?: string; error?: string }> {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
     try {
-      return await window.__ELECTRON_OVERLAY__.invoke('export_session_package', { targetDir, sessionMetadata });
+      return await window.__ELECTRON_OVERLAY__.invoke('export_session_package', { targetDir, sessionMetadata, preset });
     } catch (e: any) {
       return { success: false, error: e.message };
     }
   }
 
   // Browser simulation
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 800));
   return { success: true, targetDir };
 }
 

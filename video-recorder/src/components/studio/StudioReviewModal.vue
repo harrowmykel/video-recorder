@@ -13,8 +13,13 @@ import {
   X,
   Film
 } from 'lucide-vue-next';
+import type { CameraTelemetryPoint } from '../../types/studio';
 import DragDropBgRemover from './DragDropBgRemover.vue';
 import ExportDestinationModal from './ExportDestinationModal.vue';
+
+const props = defineProps<{
+  cameraTelemetry?: CameraTelemetryPoint[];
+}>();
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -28,6 +33,38 @@ const currentTime = shallowRef(14.2);
 const duration = shallowRef(42.0);
 const isAutoZoomActive = shallowRef(true);
 const isCameraPiPVisible = shallowRef(true);
+
+const pipStyle = computed(() => {
+  const telemetry = props.cameraTelemetry;
+  if (!telemetry || !telemetry.length) {
+    return {
+      bottom: '24px',
+      right: '24px',
+      width: '208px',
+      height: '208px',
+    };
+  }
+
+  const sample = telemetry[0];
+  const normX = typeof sample.normX === 'number' ? sample.normX : 0.8;
+  const normY = typeof sample.normY === 'number' ? sample.normY : 0.72;
+  const leftPct = Math.min(80, Math.max(3, normX * 100));
+  const topPct = Math.min(75, Math.max(3, normY * 100));
+  const sizePx = sample.width ? Math.min(240, Math.max(120, Math.round(sample.width * 0.75))) : 208;
+
+  return {
+    left: `${leftPct.toFixed(1)}%`,
+    top: `${topPct.toFixed(1)}%`,
+    width: `${sizePx}px`,
+    height: `${sizePx}px`,
+  };
+});
+
+const sessionMetadata = computed(() => ({
+  sessionId: currentSessionId.value,
+  cameraTelemetry: props.cameraTelemetry || [],
+  durationMs: Math.round(duration.value * 1000),
+}));
 
 const progressPercent = computed(() => {
   return (currentTime.value / duration.value) * 100;
@@ -140,16 +177,17 @@ function showAlert(msg: string) {
               </div>
             </div>
 
-            <!-- Picture-in-Picture Decoupled Camera Track Preview -->
+            <!-- Picture-in-Picture Decoupled Camera Track Preview (Dynamically Positioned from Recorded Telemetry) -->
             <div
               v-if="isCameraPiPVisible"
-              class="absolute bottom-6 right-6 w-52 aspect-square rounded-[36px] border-2 border-red-500/80 bg-[#161822] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col items-center justify-center text-white"
+              class="absolute aspect-square rounded-[36px] border-2 border-red-500/80 bg-[#161822] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col items-center justify-center text-white transition-all duration-300"
+              :style="pipStyle"
             >
-              <div class="w-14 h-14 rounded-full bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center mb-2 shadow-inner">
-                <Video class="w-7 h-7 text-indigo-300" />
+              <div class="w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center mb-1.5 shadow-inner">
+                <Video class="w-6 h-6 text-indigo-300" />
               </div>
-              <span class="text-xs font-semibold tracking-wide">Isolated Camera Feed</span>
-              <span class="text-[10px] text-emerald-400 font-mono mt-0.5">camera_raw.mp4</span>
+              <span class="text-[11px] font-semibold tracking-wide">Dynamic Facecam PIP</span>
+              <span class="text-[9px] text-emerald-400 font-mono mt-0.5">camera_alpha.webm</span>
             </div>
 
             <!-- Auto-Zoom Indicator Badge -->
@@ -272,6 +310,7 @@ function showAlert(msg: string) {
       <ExportDestinationModal
         :is-open="isExportModalOpen"
         :session-id="currentSessionId"
+        :session-metadata="sessionMetadata"
         @close="isExportModalOpen = false"
       />
     </div>

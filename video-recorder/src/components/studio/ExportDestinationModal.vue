@@ -15,7 +15,7 @@ import {
   Copy,
   Check
 } from 'lucide-vue-next';
-import { getDefaultVideosDirectory, selectExportDirectory, exportSessionPackage } from '../../lib/tauriBridge';
+import { getDefaultVideosDirectory, selectExportDirectory, exportSessionPackage, openExportDirectory } from '../../lib/tauriBridge';
 
 const props = withDefaults(
   defineProps<{
@@ -39,9 +39,10 @@ const isExporting = ref(false);
 const exportProgress = ref(0);
 const isComplete = ref(false);
 const isCopied = ref(false);
-const exportPreset = ref<'nle_sync' | 'mp4_bundle'>('nle_sync');
+const openError = ref<string | null>(null);
+const exportPreset = ref<'premiere_xml' | 'capcut_draft' | 'mp4_bundle'>('premiere_xml');
 
-// Generate default export path: [videos folder]/[date-time][session_id]/***
+// Generate default export path: [videos folder]/record_studio/[date-time]_[session_id]
 async function initializeDefaultPath() {
   const baseVideosDir = await getDefaultVideosDirectory();
   const now = new Date();
@@ -55,8 +56,10 @@ async function initializeDefaultPath() {
   const dateTime = `${year}-${month}-${day}_${hours}${minutes}${seconds}`;
   const sid = props.sessionId || `session_${year}${month}${day}_${hours}${minutes}${seconds}`;
   
-  // Format: [videos folder]/[date-time]_[session_id]/
-  const normalizedBase = baseVideosDir.replace(/\/+$/, '');
+  let normalizedBase = baseVideosDir.replace(/[\\/]+$/, '');
+  if (!normalizedBase.endsWith('record_studio')) {
+    normalizedBase = `${normalizedBase}/record_studio`;
+  }
   exportPath.value = `${normalizedBase}/${dateTime}_${sid}`;
 }
 
@@ -68,6 +71,7 @@ watch(
       exportProgress.value = 0;
       isComplete.value = false;
       isCopied.value = false;
+      openError.value = null;
       initializeDefaultPath();
     }
   },
@@ -94,7 +98,7 @@ async function handleStartExport() {
   }, 200);
 
   try {
-    const res = await exportSessionPackage(exportPath.value.trim(), props.sessionMetadata);
+    const res = await exportSessionPackage(exportPath.value.trim(), props.sessionMetadata, exportPreset.value);
     clearInterval(timer);
     exportProgress.value = 100;
 
@@ -118,6 +122,17 @@ function handleCopyPath() {
   setTimeout(() => {
     isCopied.value = false;
   }, 2000);
+}
+
+async function handleOpenPath() {
+  openError.value = null;
+  const res = await openExportDirectory(exportPath.value);
+  if (!res.success && res.error) {
+    openError.value = res.error;
+    setTimeout(() => {
+      openError.value = null;
+    }, 4000);
+  }
 }
 </script>
 
@@ -178,50 +193,71 @@ function handleCopyPath() {
             </button>
           </div>
           <p class="text-[11px] text-gray-500 font-mono">
-            Default: <span class="text-gray-400">[videos folder]/[date-time]_[session_id]/***</span>
+            Default: <span class="text-gray-400">[videos folder]/record_studio/[date-time]_[session_id]/***</span>
           </p>
         </div>
 
-        <!-- Preset Selection -->
+        <!-- Preset Selection (Premiere XML vs CapCut Draft vs Raw Bundle) -->
         <div class="space-y-2">
           <label class="block text-xs font-semibold uppercase tracking-wider text-gray-300">
             Package Preset Format
           </label>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-3 gap-2.5">
+            <!-- Preset 1: Premiere & DaVinci XML Sync -->
             <div
-              @click="exportPreset = 'nle_sync'"
+              @click="exportPreset = 'premiere_xml'"
               :class="[
-                'p-3.5 rounded-2xl border cursor-pointer transition flex items-start space-x-3',
-                exportPreset === 'nle_sync'
-                  ? 'bg-indigo-600/15 border-indigo-400/50 text-white'
+                'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
+                exportPreset === 'premiere_xml'
+                  ? 'bg-indigo-600/20 border-indigo-400/60 text-white shadow-lg shadow-indigo-950/40'
                   : 'bg-white/[0.02] border-white/5 hover:border-white/15 text-gray-400 hover:text-gray-200'
               ]"
             >
-              <Layers class="w-4 h-4 mt-0.5 text-indigo-400 shrink-0" />
-              <div>
-                <span class="text-xs font-bold block text-white">Premiere & DaVinci XML Sync</span>
-                <span class="text-[10px] text-gray-400 leading-snug block mt-0.5">
-                  ProRes 4444 / WebM Alpha + Multi-Track audio stems + timeline sync XML.
-                </span>
+              <div class="flex items-center space-x-2 mb-1.5">
+                <Layers class="w-4 h-4 text-indigo-400 shrink-0" />
+                <span class="text-xs font-bold block text-white truncate">Premiere & DaVinci</span>
               </div>
+              <span class="text-[10px] text-gray-400 leading-snug block">
+                Standard XMEML timeline with facecam motion position keyframes + stems.
+              </span>
             </div>
 
+            <!-- Preset 2: CapCut Draft & PIP Sync -->
+            <div
+              @click="exportPreset = 'capcut_draft'"
+              :class="[
+                'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
+                exportPreset === 'capcut_draft'
+                  ? 'bg-sky-600/20 border-sky-400/60 text-white shadow-lg shadow-sky-950/40'
+                  : 'bg-white/[0.02] border-white/5 hover:border-white/15 text-gray-400 hover:text-gray-200'
+              ]"
+            >
+              <div class="flex items-center space-x-2 mb-1.5">
+                <Sparkles class="w-4 h-4 text-sky-400 shrink-0" />
+                <span class="text-xs font-bold block text-white truncate">CapCut Draft Sync</span>
+              </div>
+              <span class="text-[10px] text-gray-400 leading-snug block">
+                CapCut Desktop draft_content.json with PIP camera placement + stems.
+              </span>
+            </div>
+
+            <!-- Preset 3: Full Raw Asset Archive -->
             <div
               @click="exportPreset = 'mp4_bundle'"
               :class="[
-                'p-3.5 rounded-2xl border cursor-pointer transition flex items-start space-x-3',
+                'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
                 exportPreset === 'mp4_bundle'
-                  ? 'bg-indigo-600/15 border-indigo-400/50 text-white'
+                  ? 'bg-emerald-600/20 border-emerald-400/60 text-white shadow-lg shadow-emerald-950/40'
                   : 'bg-white/[0.02] border-white/5 hover:border-white/15 text-gray-400 hover:text-gray-200'
               ]"
             >
-              <FileVideo class="w-4 h-4 mt-0.5 text-emerald-400 shrink-0" />
-              <div>
-                <span class="text-xs font-bold block text-white">Full Raw Asset Archive</span>
-                <span class="text-[10px] text-gray-400 leading-snug block mt-0.5">
-                  Clean MP4 desktop + isolated facecam + separate WAV mics + JSON telemetry.
-                </span>
+              <div class="flex items-center space-x-2 mb-1.5">
+                <FileVideo class="w-4 h-4 text-emerald-400 shrink-0" />
+                <span class="text-xs font-bold block text-white truncate">Raw Asset Archive</span>
               </div>
+              <span class="text-[10px] text-gray-400 leading-snug block">
+                Clean MP4 + isolated facecam + separate WAV stems + JSON telemetry.
+              </span>
             </div>
           </div>
         </div>
@@ -242,7 +278,7 @@ function handleCopyPath() {
             </div>
             <div class="flex items-center space-x-2">
               <Sparkles class="w-3.5 h-3.5 text-amber-400" />
-              <span>camera_alpha.webm (Alpha Matte)</span>
+              <span>camera_alpha.webm (Transparent PIP)</span>
             </div>
             <div class="flex items-center space-x-2">
               <FileAudio class="w-3.5 h-3.5 text-emerald-400" />
@@ -252,9 +288,17 @@ function handleCopyPath() {
               <FileAudio class="w-3.5 h-3.5 text-cyan-400" />
               <span>audio_system.wav (Loopback)</span>
             </div>
-            <div class="flex items-center space-x-2">
+            <div v-if="exportPreset === 'premiere_xml'" class="flex items-center space-x-2">
               <FileCode class="w-3.5 h-3.5 text-purple-400" />
-              <span>telemetry.json (Cursor/Zoom)</span>
+              <span>project_sync.xml (Premiere/DaVinci)</span>
+            </div>
+            <div v-else-if="exportPreset === 'capcut_draft'" class="flex items-center space-x-2">
+              <FileCode class="w-3.5 h-3.5 text-sky-400" />
+              <span>draft_content.json (CapCut PIP)</span>
+            </div>
+            <div v-else class="flex items-center space-x-2">
+              <FileCode class="w-3.5 h-3.5 text-purple-400" />
+              <span>telemetry_camera.json (Position/Scale)</span>
             </div>
           </div>
         </div>
@@ -279,24 +323,43 @@ function handleCopyPath() {
         <!-- Success Message on Completion -->
         <div
           v-if="isComplete"
-          class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between"
+          class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col space-y-2.5"
         >
-          <div class="flex items-center space-x-3">
-            <CheckCircle2 class="w-5 h-5 text-emerald-400 shrink-0" />
-            <div>
-              <span class="text-xs font-bold text-white block">Package Export Complete!</span>
-              <span class="text-[11px] text-emerald-200 font-mono truncate max-w-sm block">
-                Saved to: {{ exportPath }}
-              </span>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <CheckCircle2 class="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <span class="text-xs font-bold text-white block">Package Export Complete!</span>
+                <span class="text-[11px] text-emerald-200 font-mono truncate max-w-sm block">
+                  Saved to: {{ exportPath }}
+                </span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <!-- Open Path / Open Folder Action -->
+              <button
+                @click="handleOpenPath"
+                class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-sm"
+                title="Open export folder in system file manager"
+              >
+                <FolderOpen class="w-3.5 h-3.5 text-indigo-400" />
+                <span>Open Folder</span>
+              </button>
+
+              <!-- Copy Path Action -->
+              <button
+                @click="handleCopyPath"
+                class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95 shadow-sm"
+              >
+                <component :is="isCopied ? Check : Copy" class="w-3.5 h-3.5" />
+                <span>{{ isCopied ? 'Copied' : 'Copy Path' }}</span>
+              </button>
             </div>
           </div>
-          <button
-            @click="handleCopyPath"
-            class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center space-x-1.5 transition active:scale-95"
-          >
-            <component :is="isCopied ? Check : Copy" class="w-3.5 h-3.5" />
-            <span>{{ isCopied ? 'Copied' : 'Copy Path' }}</span>
-          </button>
+
+          <div v-if="openError" class="text-[11px] text-amber-300 font-mono bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30">
+            Note: {{ openError }}
+          </div>
         </div>
       </div>
 
