@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::io::Write;
 use anyhow::{Result, Context};
@@ -25,12 +25,13 @@ impl ScreenRecorder {
 
         #[cfg(target_os = "linux")]
         {
+            let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0.0".to_string());
             cmd.args([
                 "-f", "x11grab",
                 "-draw_mouse", "1",
                 "-framerate", &fps.to_string(),
                 "-video_size", &format!("{}x{}", width, height),
-                "-i", ":0.0",
+                "-i", &display,
             ]);
         }
 
@@ -66,7 +67,7 @@ impl ScreenRecorder {
         cmd.arg(&self.temp_path);
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::null());
-        cmd.stderr(Stdio::piped());
+        cmd.stderr(Stdio::null());
 
         let child = cmd.spawn().context("Failed to spawn screen capture ffmpeg process")?;
         self.process = Some(child);
@@ -85,13 +86,11 @@ impl ScreenRecorder {
             // Fast remux from fragmented MP4 to standard faststart MP4
             if self.temp_path.exists() {
                 let _ = Command::new("ffmpeg")
-                    .args([
-                        "-y",
-                        "-i", self.temp_path.to_str().unwrap(),
-                        "-c", "copy",
-                        "-movflags", "+faststart",
-                        self.output_path.to_str().unwrap(),
-                    ])
+                    .arg("-y")
+                    .arg("-i")
+                    .arg(&self.temp_path)
+                    .args(["-c", "copy", "-movflags", "+faststart"])
+                    .arg(&self.output_path)
                     .status();
 
                 let _ = std::fs::remove_file(&self.temp_path);

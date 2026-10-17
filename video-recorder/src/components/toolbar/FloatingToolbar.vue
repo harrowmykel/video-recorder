@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
 import {
-  Circle,
   Square,
   Pause,
   Play,
@@ -24,8 +23,9 @@ import {
 import { RecordingState } from '../../types/studio';
 import { invokeCommand } from '../../lib/tauriBridge';
 
-const props = defineProps<{
-  recordingState: RecordingState;
+const recordingState = defineModel<RecordingState>('recordingState', { required: true });
+
+defineProps<{
   isCameraHidden: boolean;
   isDockedToCamera: boolean;
   isAnnotationActive: boolean;
@@ -33,20 +33,19 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:recordingState', state: RecordingState): void;
   (e: 'toggleCamera'): void;
   (e: 'toggleDock'): void;
   (e: 'toggleAnnotation'): void;
   (e: 'toggleLiveZoom'): void;
 }>();
 
-const elapsedSeconds = ref(0);
-const isMicMuted = ref(false);
-const isSysAudioMuted = ref(false);
-const isCollapsed = ref(false);
-const isHovered = ref(false);
-const isIdleDimmed = ref(false);
-const audioLevel = ref(0.4);
+const elapsedSeconds = shallowRef(0);
+const isMicMuted = shallowRef(false);
+const isSysAudioMuted = shallowRef(false);
+const isCollapsed = shallowRef(false);
+const isHovered = shallowRef(false);
+const isIdleDimmed = shallowRef(false);
+const audioLevel = shallowRef(0.4);
 
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 let vuInterval: ReturnType<typeof setInterval> | null = null;
@@ -54,7 +53,7 @@ let idleTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Timer during recording
 watch(
-  () => props.recordingState,
+  recordingState,
   (state) => {
     if (state === 'recording') {
       if (!timerInterval) {
@@ -81,7 +80,7 @@ watch(
 // Audio VU-meter simulation
 onMounted(() => {
   vuInterval = setInterval(() => {
-    if (isMicMuted.value || props.recordingState === 'idle') {
+    if (isMicMuted.value || recordingState.value === 'idle') {
       audioLevel.value = 0;
     } else {
       audioLevel.value = 0.35 + Math.random() * 0.45;
@@ -99,7 +98,7 @@ onUnmounted(() => {
 function resetIdleTimer() {
   isIdleDimmed.value = false;
   if (idleTimeout) clearTimeout(idleTimeout);
-  if (props.recordingState === 'recording' || props.recordingState === 'paused') {
+  if (recordingState.value === 'recording' || recordingState.value === 'paused') {
     idleTimeout = setTimeout(() => {
       if (!isHovered.value) {
         isIdleDimmed.value = true;
@@ -108,7 +107,7 @@ function resetIdleTimer() {
   }
 }
 
-watch([() => props.recordingState, isHovered], () => {
+watch([recordingState, isHovered], () => {
   resetIdleTimer();
 });
 
@@ -119,33 +118,34 @@ const formattedTime = computed(() => {
 });
 
 function handleStart() {
-  emit('update:recordingState', 'countdown');
+  recordingState.value = 'countdown';
 }
 
 function handlePauseResume() {
-  if (props.recordingState === 'recording') {
-    emit('update:recordingState', 'paused');
-  } else if (props.recordingState === 'paused') {
-    emit('update:recordingState', 'recording');
+  if (recordingState.value === 'recording') {
+    recordingState.value = 'paused';
+  } else if (recordingState.value === 'paused') {
+    recordingState.value = 'recording';
   }
 }
 
 async function handleStop() {
-  emit('update:recordingState', 'review');
+  recordingState.value = 'review';
   await invokeCommand('stop_recording');
 }
 
 async function handleDiscard() {
   if (confirm('Discard active recording buffer and reset?')) {
-    emit('update:recordingState', 'idle');
+    recordingState.value = 'idle';
     elapsedSeconds.value = 0;
     await invokeCommand('discard_recording');
   }
 }
 
-function handleRestart() {
+async function handleRestart() {
+  await invokeCommand('discard_recording');
   elapsedSeconds.value = 0;
-  emit('update:recordingState', 'countdown');
+  recordingState.value = 'countdown';
 }
 </script>
 

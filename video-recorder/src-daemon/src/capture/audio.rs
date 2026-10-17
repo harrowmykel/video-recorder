@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::io::Write;
-use anyhow::{Result, Context};
+use anyhow::Result;
 
 pub struct AudioRecorder {
     mic_process: Option<Child>,
@@ -44,7 +44,7 @@ impl AudioRecorder {
         mic_cmd.arg(&self.mic_path);
         mic_cmd.stdin(Stdio::piped());
         mic_cmd.stdout(Stdio::null());
-        mic_cmd.stderr(Stdio::piped());
+        mic_cmd.stderr(Stdio::null());
 
         if let Ok(child) = mic_cmd.spawn() {
             self.mic_process = Some(child);
@@ -73,7 +73,7 @@ impl AudioRecorder {
         sys_cmd.arg(&self.sys_path);
         sys_cmd.stdin(Stdio::piped());
         sys_cmd.stdout(Stdio::null());
-        sys_cmd.stderr(Stdio::piped());
+        sys_cmd.stderr(Stdio::null());
 
         if let Ok(child) = sys_cmd.spawn() {
             self.sys_process = Some(child);

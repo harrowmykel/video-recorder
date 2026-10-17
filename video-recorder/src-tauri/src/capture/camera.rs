@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::io::Write;
 use anyhow::{Result, Context};
@@ -61,7 +61,7 @@ impl CameraRecorder {
         cmd.arg(&self.output_path);
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::null());
-        cmd.stderr(Stdio::piped());
+        cmd.stderr(Stdio::null());
 
         let child = cmd.spawn().context("Failed to spawn camera recorder process")?;
         self.process = Some(child);

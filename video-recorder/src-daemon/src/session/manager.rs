@@ -57,15 +57,21 @@ impl SessionManager {
 
         // 1. Start Screen Recorder (1080p @ 60 FPS)
         let mut screen_rec = ScreenRecorder::new(screen_path);
-        let _ = screen_rec.start(1920, 1080, 60);
+        if let Err(e) = screen_rec.start(1920, 1080, 60) {
+            eprintln!("[SessionManager] Warning starting screen recorder: {}", e);
+        }
 
         // 2. Start Camera Recorder
         let mut camera_rec = CameraRecorder::new(camera_path);
-        let _ = camera_rec.start(None);
+        if let Err(e) = camera_rec.start(None) {
+            eprintln!("[SessionManager] Warning starting camera recorder: {}", e);
+        }
 
         // 3. Start Audio Recorder
         let mut audio_rec = AudioRecorder::new(mic_path, sys_path);
-        let _ = audio_rec.start();
+        if let Err(e) = audio_rec.start() {
+            eprintln!("[SessionManager] Warning starting audio recorder: {}", e);
+        }
 
         // 4. Start Telemetry Logger
         let mut telemetry_log = TelemetryLogger::new(telemetry_path);

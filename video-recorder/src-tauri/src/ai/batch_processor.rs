@@ -15,7 +15,10 @@ pub fn process_video_background(
     output_format: OutputFormat,
 ) -> Result<PathBuf> {
     let parent = input_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = input_path.file_stem().unwrap().to_str().unwrap();
+    let stem = input_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
 
     let (output_path, args): (PathBuf, Vec<&str>) = match output_format {
         OutputFormat::ProRes4444 => {
@@ -55,9 +58,11 @@ pub fn process_video_background(
     };
 
     let mut cmd = Command::new("ffmpeg");
-    cmd.args(["-y", "-i", input_path.to_str().unwrap()]);
+    cmd.arg("-y")
+        .arg("-i")
+        .arg(input_path);
     cmd.args(&args);
-    cmd.arg(output_path.to_str().unwrap());
+    cmd.arg(&output_path);
 
     let status = cmd.status().context("Failed to run background extraction ffmpeg command")?;
     if status.success() {

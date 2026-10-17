@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, shallowRef, onMounted, onUnmounted, watch, useTemplateRef, nextTick } from 'vue';
 import {
   Pen,
   ArrowRight,
@@ -19,15 +19,15 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-const currentTool = ref<AnnotationTool>('pen');
-const currentColor = ref<string>('#EF4444');
-const strokeWidth = ref<number>(4);
-const autoFade = ref<boolean>(true);
+const currentTool = shallowRef<AnnotationTool>('pen');
+const currentColor = shallowRef<string>('#EF4444');
+const strokeWidth = shallowRef<number>(4);
+const autoFade = shallowRef<boolean>(true);
 const annotations = ref<AnnotationItem[]>([]);
-const isDrawing = ref<boolean>(false);
-const spotlightPos = ref<{ x: number; y: number } | null>(null);
+const isDrawing = shallowRef<boolean>(false);
+const spotlightPos = shallowRef<{ x: number; y: number } | null>(null);
 
-const canvasRef = ref<HTMLCanvasElement | null>(null);
+const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
 let activeItem: AnnotationItem | null = null;
 let autoFadeInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -38,6 +38,17 @@ function handleResize() {
     redraw();
   }
 }
+
+watch(
+  () => props.isActive,
+  (active) => {
+    if (active) {
+      nextTick(() => {
+        handleResize();
+      });
+    }
+  }
+);
 
 onMounted(() => {
   handleResize();

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { shallowRef, computed, onMounted, onUnmounted, useTemplateRef, nextTick } from 'vue';
 import {
   FlipHorizontal,
   Sparkles,
@@ -30,13 +30,13 @@ const emit = defineEmits<{
   (e: 'hide'): void;
 }>();
 
-const shape = ref<CameraShape>('circle');
-const size = ref<CameraSize>('M');
-const isMirrored = ref(true);
-const bgMode = ref<BgRemovalMode>('off');
-const hasCameraStream = ref(false);
-const isHovered = ref(false);
-const videoRef = ref<HTMLVideoElement | null>(null);
+const shape = shallowRef<CameraShape>('circle');
+const size = shallowRef<CameraSize>('M');
+const isMirrored = shallowRef(true);
+const bgMode = shallowRef<BgRemovalMode>('off');
+const hasCameraStream = shallowRef(false);
+const isHovered = shallowRef(false);
+const videoRef = useTemplateRef<HTMLVideoElement>('videoRef');
 
 let mediaStream: MediaStream | null = null;
 
@@ -46,11 +46,12 @@ onMounted(async () => {
       video: { width: 1280, height: 720 },
       audio: false,
     });
-    if (videoRef.value) {
-      videoRef.value.srcObject = mediaStream;
-      videoRef.value.play();
-    }
     hasCameraStream.value = true;
+    await nextTick();
+    if (videoRef.value && mediaStream) {
+      videoRef.value.srcObject = mediaStream;
+      videoRef.value.play().catch((err) => console.warn('Webcam video play error:', err));
+    }
   } catch (err) {
     console.log('Webcam not active, using fallback avatar:', err);
     hasCameraStream.value = false;

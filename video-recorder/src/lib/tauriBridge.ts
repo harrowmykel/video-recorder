@@ -1,7 +1,5 @@
 // Universal Bridge for Tauri v2 Desktop and Local Rust Capture Daemon
 
-import { RecordingSession, AudioLevels } from '../types/studio';
-
 const DAEMON_URL = 'http://127.0.0.1:4820';
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const channel = typeof window !== 'undefined' && 'BroadcastChannel' in window ? new BroadcastChannel('studio_recorder_bus') : null;
@@ -36,6 +34,10 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
         break;
       case 'extract_transparent_background':
         endpoint = '/extract_bg';
+        body = args;
+        break;
+      case 'toggle_live_zoom':
+        endpoint = '/toggle_zoom';
         body = args;
         break;
       case 'get_status':

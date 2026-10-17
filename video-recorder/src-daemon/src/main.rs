@@ -15,6 +15,11 @@ struct ExtractBgRequest {
     format: String,
 }
 
+#[derive(Deserialize)]
+struct ToggleZoomRequest {
+    active: bool,
+}
+
 #[derive(Serialize)]
 struct StatusResponse {
     status: String,
@@ -50,15 +55,23 @@ async fn main() {
             }
         });
 
-    // 3. Stop recording route
+    // 3. Stop recording route (spawned off-thread to avoid blocking async runtime)
     let sm_clone = session_manager.clone();
     let stop_route = warp::path("stop")
         .and(warp::post())
-        .map(move || {
-            let mut mgr = sm_clone.lock().unwrap();
-            match mgr.stop() {
-                Ok(meta) => warp::reply::json(&serde_json::json!({ "success": true, "metadata": meta })),
-                Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
+        .and_then(move || {
+            let sm = sm_clone.clone();
+            async move {
+                let res = tokio::task::spawn_blocking(move || {
+                    let mut mgr = sm.lock().unwrap();
+                    mgr.stop()
+                }).await.map_err(|_| warp::reject::reject())?;
+
+                let reply = match res {
+                    Ok(meta) => warp::reply::json(&serde_json::json!({ "success": true, "metadata": meta })),
+                    Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
+                };
+                Ok::<_, warp::Rejection>(reply)
             }
         });
 
@@ -72,11 +85,22 @@ async fn main() {
             warp::reply::json(&serde_json::json!({ "success": true, "discarded": true }))
         });
 
-    // 5. Extract background transparent video route
+    // 5. Toggle live cursor zoom
+    let sm_clone = session_manager.clone();
+    let toggle_zoom_route = warp::path("toggle_zoom")
+        .and(warp::post())
+        .and(warp::body::json())
+        .map(move |req: ToggleZoomRequest| {
+            let mgr = sm_clone.lock().unwrap();
+            mgr.toggle_live_zoom(req.active);
+            warp::reply::json(&serde_json::json!({ "success": true, "active": req.active }))
+        });
+
+    // 6. Extract background transparent video route (spawned off-thread)
     let extract_route = warp::path("extract_bg")
         .and(warp::post())
         .and(warp::body::json())
-        .map(|req: ExtractBgRequest| {
+        .and_then(|req: ExtractBgRequest| async move {
             let path = PathBuf::from(&req.file_path);
             let out_format = match req.format.as_str() {
                 "webm_alpha" => OutputFormat::WebmAlpha,
@@ -84,13 +108,18 @@ async fn main() {
                 _ => OutputFormat::ProRes4444,
             };
 
-            match process_video_background(&path, out_format) {
+            let res = tokio::task::spawn_blocking(move || {
+                process_video_background(&path, out_format)
+            }).await.map_err(|_| warp::reject::reject())?;
+
+            let reply = match res {
                 Ok(out) => warp::reply::json(&serde_json::json!({ "success": true, "output_path": out.to_string_lossy() })),
                 Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
-            }
+            };
+            Ok::<_, warp::Rejection>(reply)
         });
 
-    // 6. AI Model catalog route
+    // 7. AI Model catalog route
     let models_route = warp::path("models")
         .and(warp::get())
         .map(|| {
@@ -111,6 +140,7 @@ async fn main() {
         .or(start_route)
         .or(stop_route)
         .or(discard_route)
+        .or(toggle_zoom_route)
         .or(extract_route)
         .or(models_route)
         .with(cors);

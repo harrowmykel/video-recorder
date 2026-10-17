@@ -1,52 +1,82 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { shallowRef, onMounted, onUnmounted, watch } from 'vue';
 import FloatingToolbar from './components/toolbar/FloatingToolbar.vue';
 import CameraBubble from './components/camera/CameraBubble.vue';
 import CountdownOverlay from './components/countdown/CountdownOverlay.vue';
 import AnnotationCanvas from './components/annotations/AnnotationCanvas.vue';
 import StudioReviewModal from './components/studio/StudioReviewModal.vue';
 import { RecordingState } from './types/studio';
+import { invokeCommand, broadcastEvent, subscribeToEvent } from './lib/tauriBridge';
 import {
   Wifi,
-  BatteryCharging,
-  Sliders,
-  Sparkles,
-  Layers,
-  Circle,
-  Video,
-  Eye
+  BatteryCharging
 } from 'lucide-vue-next';
 
 // Read window target from URL query parameter
 const urlParams = new URLSearchParams(window.location.search);
-const targetWindow = ref(urlParams.get('window') || 'preview-all');
+const targetWindow = shallowRef(urlParams.get('window') || 'preview-all');
 
 // Global state
-const recordingState = ref<RecordingState>('idle');
-const isCameraHidden = ref(false);
-const isDockedToCamera = ref(false);
-const isAnnotationActive = ref(false);
-const isLiveZoomActive = ref(false);
-const audioVolume = ref(0.4);
+const recordingState = shallowRef<RecordingState>('idle');
+const isCameraHidden = shallowRef(false);
+const isDockedToCamera = shallowRef(false);
+const isAnnotationActive = shallowRef(false);
+const isLiveZoomActive = shallowRef(false);
+const audioVolume = shallowRef(0.4);
+
+let isSyncingFromBus = false;
+
+function broadcastSync() {
+  if (isSyncingFromBus) return;
+  broadcastEvent('sync_state', {
+    recordingState: recordingState.value,
+    isCameraHidden: isCameraHidden.value,
+    isDockedToCamera: isDockedToCamera.value,
+    isAnnotationActive: isAnnotationActive.value,
+    isLiveZoomActive: isLiveZoomActive.value,
+  });
+}
+
+watch(
+  [recordingState, isCameraHidden, isDockedToCamera, isAnnotationActive, isLiveZoomActive],
+  () => {
+    broadcastSync();
+  }
+);
 
 // Simulated audio fluctuation for camera halo
 let audioInterval: ReturnType<typeof setInterval> | null = null;
-onMounted(() => {
-  audioInterval = setInterval(() => {
-    if (recordingState.value === 'recording') {
-      audioVolume.value = 0.25 + Math.random() * 0.55;
-    } else {
-      audioVolume.value = 0.15;
-    }
-  }, 100);
-});
+let unsubscribeSync: (() => void) | null = null;
 
-function handleCountdownComplete() {
+async function handleCountdownComplete() {
   recordingState.value = 'recording';
+  try {
+    await invokeCommand('start_recording');
+  } catch (err) {
+    console.warn('Failed to start recording on backend:', err);
+  }
 }
 
 function handleCountdownCancel() {
   recordingState.value = 'idle';
+}
+
+function handleToggleCamera() {
+  isCameraHidden.value = !isCameraHidden.value;
+  invokeCommand('toggle_camera_bubble').catch(() => {});
+}
+
+function handleToggleLiveZoom() {
+  isLiveZoomActive.value = !isLiveZoomActive.value;
+  invokeCommand('toggle_live_zoom', { active: isLiveZoomActive.value }).catch(() => {});
+}
+
+function handleToggleAnnotation() {
+  isAnnotationActive.value = !isAnnotationActive.value;
+}
+
+function handleToggleDock() {
+  isDockedToCamera.value = !isDockedToCamera.value;
 }
 
 // Global Shortcuts (Task 1.2)
@@ -61,6 +91,7 @@ function handleGlobalHotkeys(e: KeyboardEvent) {
         recordingState.value = 'countdown';
       } else if (recordingState.value === 'recording' || recordingState.value === 'paused') {
         recordingState.value = 'review';
+        invokeCommand('stop_recording').catch(() => {});
       }
       break;
     case 'Space':
@@ -73,21 +104,54 @@ function handleGlobalHotkeys(e: KeyboardEvent) {
       break;
     case 'KeyH':
       e.preventDefault();
-      isCameraHidden.value = !isCameraHidden.value;
+      handleToggleCamera();
       break;
     case 'KeyZ':
       e.preventDefault();
-      isLiveZoomActive.value = !isLiveZoomActive.value;
+      handleToggleLiveZoom();
       break;
     case 'KeyA':
       e.preventDefault();
-      isAnnotationActive.value = !isAnnotationActive.value;
+      handleToggleAnnotation();
       break;
   }
 }
 
 onMounted(() => {
+  audioInterval = setInterval(() => {
+    if (recordingState.value === 'recording') {
+      audioVolume.value = 0.25 + Math.random() * 0.55;
+    } else {
+      audioVolume.value = 0.15;
+    }
+  }, 100);
+
   window.addEventListener('keydown', handleGlobalHotkeys);
+
+  // Subscribe to cross-window sync events
+  unsubscribeSync = subscribeToEvent<Record<string, any>>('sync_state', (payload) => {
+    isSyncingFromBus = true;
+    if (payload.recordingState !== undefined) recordingState.value = payload.recordingState;
+    if (payload.isCameraHidden !== undefined) isCameraHidden.value = payload.isCameraHidden;
+    if (payload.isDockedToCamera !== undefined) isDockedToCamera.value = payload.isDockedToCamera;
+    if (payload.isAnnotationActive !== undefined) isAnnotationActive.value = payload.isAnnotationActive;
+    if (payload.isLiveZoomActive !== undefined) isLiveZoomActive.value = payload.isLiveZoomActive;
+    setTimeout(() => {
+      isSyncingFromBus = false;
+    }, 50);
+  });
+});
+
+onUnmounted(() => {
+  if (audioInterval) {
+    clearInterval(audioInterval);
+    audioInterval = null;
+  }
+  window.removeEventListener('keydown', handleGlobalHotkeys);
+  if (unsubscribeSync) {
+    unsubscribeSync();
+    unsubscribeSync = null;
+  }
 });
 </script>
 
@@ -102,10 +166,10 @@ onMounted(() => {
           :is-docked-to-camera="isDockedToCamera"
           :is-annotation-active="isAnnotationActive"
           :is-live-zoom-active="isLiveZoomActive"
-          @toggle-camera="isCameraHidden = !isCameraHidden"
-          @toggle-dock="isDockedToCamera = !isDockedToCamera"
-          @toggle-annotation="isAnnotationActive = !isAnnotationActive"
-          @toggle-live-zoom="isLiveZoomActive = !isLiveZoomActive"
+          @toggle-camera="handleToggleCamera"
+          @toggle-dock="handleToggleDock"
+          @toggle-annotation="handleToggleAnnotation"
+          @toggle-live-zoom="handleToggleLiveZoom"
         />
       </div>
     </template>
@@ -221,10 +285,10 @@ onMounted(() => {
               :is-docked-to-camera="isDockedToCamera"
               :is-annotation-active="isAnnotationActive"
               :is-live-zoom-active="isLiveZoomActive"
-              @toggle-camera="isCameraHidden = !isCameraHidden"
-              @toggle-dock="isDockedToCamera = !isDockedToCamera"
-              @toggle-annotation="isAnnotationActive = !isAnnotationActive"
-              @toggle-live-zoom="isLiveZoomActive = !isLiveZoomActive"
+              @toggle-camera="handleToggleCamera"
+              @toggle-dock="handleToggleDock"
+              @toggle-annotation="handleToggleAnnotation"
+              @toggle-live-zoom="handleToggleLiveZoom"
             />
           </div>
 
@@ -239,10 +303,10 @@ onMounted(() => {
               :is-docked-to-camera="isDockedToCamera"
               :is-annotation-active="isAnnotationActive"
               :is-live-zoom-active="isLiveZoomActive"
-              @toggle-camera="isCameraHidden = !isCameraHidden"
-              @toggle-dock="isDockedToCamera = !isDockedToCamera"
-              @toggle-annotation="isAnnotationActive = !isAnnotationActive"
-              @toggle-live-zoom="isLiveZoomActive = !isLiveZoomActive"
+              @toggle-camera="handleToggleCamera"
+              @toggle-dock="handleToggleDock"
+              @toggle-annotation="handleToggleAnnotation"
+              @toggle-live-zoom="handleToggleLiveZoom"
             />
           </div>
         </main>

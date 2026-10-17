@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, shallowRef, onUnmounted } from 'vue';
 import {
   UploadCloud,
-  FileVideo,
   Sparkles,
   CheckCircle2,
   Trash2,
@@ -12,6 +11,7 @@ import {
   Film
 } from 'lucide-vue-next';
 import { BatchMattingJob, BgModelType } from '../../types/studio';
+import { invokeCommand } from '../../lib/tauriBridge';
 
 const jobs = ref<BatchMattingJob[]>([
   {
@@ -28,9 +28,15 @@ const jobs = ref<BatchMattingJob[]>([
   },
 ]);
 
-const isDragging = ref(false);
-const selectedModel = ref<BgModelType>('birefnet_hq');
-const defaultFormat = ref<'prores_4444' | 'webm_alpha' | 'luma_matte'>('prores_4444');
+const isDragging = shallowRef(false);
+const selectedModel = shallowRef<BgModelType>('birefnet_hq');
+const defaultFormat = shallowRef<'prores_4444' | 'webm_alpha' | 'luma_matte'>('prores_4444');
+const activeIntervals = new Set<ReturnType<typeof setInterval>>();
+
+onUnmounted(() => {
+  activeIntervals.forEach(clearInterval);
+  activeIntervals.clear();
+});
 
 function handleDragOver(e: DragEvent) {
   e.preventDefault();
@@ -41,17 +47,18 @@ function handleDragLeave() {
   isDragging.value = false;
 }
 
-function handleDrop(e: DragEvent) {
+async function handleDrop(e: DragEvent) {
   e.preventDefault();
   isDragging.value = false;
   if (!e.dataTransfer?.files) return;
 
   const files = Array.from(e.dataTransfer.files);
-  files.forEach((file) => {
+  for (const file of files) {
+    const filePath = (file as unknown as { path?: string }).path || `/recordings/${file.name}`;
     const newJob: BatchMattingJob = {
       id: `job_${Date.now()}_${Math.random()}`,
       fileName: file.name,
-      filePath: (file as unknown as { path?: string }).path || `/recordings/${file.name}`,
+      filePath,
       fileSizeBytes: file.size,
       status: 'queued',
       progressPct: 0,
@@ -60,8 +67,21 @@ function handleDrop(e: DragEvent) {
       outputFormat: defaultFormat.value,
     };
     jobs.value.unshift(newJob);
+
+    // Call native background extractor via daemon / IPC
+    invokeCommand<{ success: boolean; output_path: string }>('extract_transparent_background', {
+      file_path: filePath,
+      format: defaultFormat.value,
+    }).then((res) => {
+      if (res && res.output_path) {
+        newJob.outputPath = res.output_path;
+      }
+    }).catch((err) => {
+      console.log('Daemon extraction unavailable, falling back to preview simulation:', err);
+    });
+
     simulateProcessing(newJob.id);
-  });
+  }
 }
 
 function simulateProcessing(jobId: string) {
@@ -71,13 +91,17 @@ function simulateProcessing(jobId: string) {
     const target = jobs.value.find((j) => j.id === jobId);
     if (!target) {
       clearInterval(interval);
+      activeIntervals.delete(interval);
       return;
     }
     if (progress >= 100) {
       clearInterval(interval);
+      activeIntervals.delete(interval);
       target.status = 'completed';
       target.progressPct = 100;
-      target.outputPath = target.filePath.replace(/\.[^/.]+$/, '_transparent.mov');
+      if (!target.outputPath) {
+        target.outputPath = target.filePath.replace(/\.[^/.]+$/, '_transparent.mov');
+      }
     } else {
       target.status = 'processing';
       target.progressPct = progress;
@@ -85,6 +109,7 @@ function simulateProcessing(jobId: string) {
       target.etaSeconds = Math.max(1, Math.round((100 - progress) / 3));
     }
   }, 450);
+  activeIntervals.add(interval);
 }
 
 function formatBytes(bytes: number) {
@@ -97,6 +122,10 @@ function formatBytes(bytes: number) {
 
 function removeJob(id: string) {
   jobs.value = jobs.value.filter((j) => j.id !== id);
+}
+
+function showAlert(msg: string) {
+  window.alert(msg);
 }
 </script>
 
@@ -231,7 +260,7 @@ function removeJob(id: string) {
           <!-- Reveal Action -->
           <button
             v-if="job.status === 'completed'"
-            @click="alert(`Exported transparent video file:\n${job.outputPath}`)"
+            @click="showAlert(`Exported transparent video file:\n${job.outputPath}`)"
             class="flex items-center space-x-2 px-4 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm"
           >
             <Download class="w-3.5 h-3.5" />

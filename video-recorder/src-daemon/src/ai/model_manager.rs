@@ -1,7 +1,6 @@
-use std::path::{Path, PathBuf};
-use std::fs::{self, File};
-use std::io::copy;
-use anyhow::{Result, Context};
+use std::path::PathBuf;
+use std::fs;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,10 +61,12 @@ impl ModelManager {
         ]
     }
 
+    #[allow(dead_code)]
     pub fn get_model_path(&self, file_name: &str) -> PathBuf {
         self.models_dir.join(file_name)
     }
 
+    #[allow(dead_code)]
     pub fn is_model_ready(&self, file_name: &str) -> bool {
         self.models_dir.join(file_name).exists()
     }

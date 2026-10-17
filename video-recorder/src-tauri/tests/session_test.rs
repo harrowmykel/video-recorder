@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     #[test]
     fn test_session_folder_naming() {
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();

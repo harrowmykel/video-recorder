@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { shallowRef, computed } from 'vue';
 import {
   Play,
   Pause,
@@ -8,14 +8,10 @@ import {
   FolderOpen,
   ZoomIn,
   Sparkles,
-  Layers,
   Monitor,
   Video,
   X,
-  Volume2,
-  CheckCircle2,
-  Film,
-  Sliders
+  Film
 } from 'lucide-vue-next';
 import DragDropBgRemover from './DragDropBgRemover.vue';
 
@@ -23,13 +19,12 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-const activeTab = ref<'review' | 'batch_ai'>('review');
-const isPlaying = ref(false);
-const currentTime = ref(14.2);
-const duration = ref(42.0);
-const isAutoZoomActive = ref(true);
-const isCameraPiPVisible = ref(true);
-const selectedExportFormat = ref<'multi_track' | 'composite_zoom' | 'prores'>('multi_track');
+const activeTab = shallowRef<'review' | 'batch_ai'>('review');
+const isPlaying = shallowRef(false);
+const currentTime = shallowRef(14.2);
+const duration = shallowRef(42.0);
+const isAutoZoomActive = shallowRef(true);
+const isCameraPiPVisible = shallowRef(true);
 
 const progressPercent = computed(() => {
   return (currentTime.value / duration.value) * 100;
@@ -44,6 +39,10 @@ function formatTime(secs: number) {
   const s = Math.floor(secs % 60);
   const ms = Math.floor((secs % 1) * 10);
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
+}
+
+function showAlert(msg: string) {
+  window.alert(msg);
 }
 </script>
 
@@ -241,7 +240,7 @@ function formatTime(secs: number) {
               <!-- Export Actions -->
               <div class="flex items-center space-x-3">
                 <button
-                  @click="alert('Opening session assets folder:\n• screen_clean.mp4\n• camera_raw.mp4\n• audio_mic.wav\n• audio_system.wav\n• telemetry.json')"
+                  @click="showAlert('Opening session assets folder:\n• screen_clean.mp4\n• camera_raw.mp4\n• audio_mic.wav\n• audio_system.wav\n• telemetry.json')"
                   class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-gray-200 hover:text-white transition-all border border-white/10"
                 >
                   <FolderOpen class="w-4 h-4 text-indigo-400" />
@@ -249,7 +248,7 @@ function formatTime(secs: number) {
                 </button>
 
                 <button
-                  @click="alert('Exporting synced package for Premiere Pro / DaVinci Resolve with ProRes 4444 / WebM Alpha.')"
+                  @click="showAlert('Exporting synced package for Premiere Pro / DaVinci Resolve with ProRes 4444 / WebM Alpha.')"
                   class="btn-primary flex items-center space-x-2 px-5 py-2 rounded-xl text-xs font-bold text-white transition-all active:scale-95 cursor-pointer"
                 >
                   <Download class="w-4 h-4" />
