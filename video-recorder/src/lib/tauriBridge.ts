@@ -524,10 +524,11 @@ export async function exportSessionPackage(
 
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
     try {
+      const cleanMeta = toSerializable(sessionMetadata);
       const res = await window.__ELECTRON_OVERLAY__.invoke('export_session_package', {
-        targetDir,
-        sessionMetadata,
-        preset,
+        targetDir: String(targetDir),
+        sessionMetadata: cleanMeta,
+        preset: String(preset),
       });
       if (res?.success) {
         exportedDirectories.add(normalized);

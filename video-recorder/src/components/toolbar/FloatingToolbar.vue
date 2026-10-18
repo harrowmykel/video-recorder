@@ -37,9 +37,6 @@ import SpatialToolbar from './variants/SpatialToolbar.vue';
 import GraphiteToolbar from './variants/GraphiteToolbar.vue';
 import NordicToolbar from './variants/NordicToolbar.vue';
 
-// Theme Settings Modal
-import ThemeSelectorModal from '../settings/ThemeSelectorModal.vue';
-
 const recordingState = defineModel<RecordingState>('recordingState', { required: true });
 
 const props = defineProps<{
@@ -81,7 +78,6 @@ const { cameras, microphones, liveMicLevel, refreshDevices, startMicMeter, stopM
 
 const elapsedSeconds = shallowRef(0);
 const audioLevel = shallowRef(0.35);
-const isSettingsOpen = ref(false);
 const activePopover = shallowRef<'camera' | 'mic' | 'source' | null>(null);
 const displays = ref<DisplaySourceInfo[]>([]);
 const windows = ref<WindowSourceInfo[]>([]);
@@ -140,11 +136,9 @@ function onDragMouseUp() {
 
 // Dynamically size Electron toolbar window so popovers & modals are never clipped
 watch(
-  [isToolbarCollapsed, activePopover, isSettingsOpen, () => props.isCameraHidden],
-  ([collapsed, popover, settingsOpen, cameraHidden]) => {
-    if (settingsOpen) {
-      resizeOverlayWindow('toolbar', 760, 560);
-    } else if (popover !== null) {
+  [isToolbarCollapsed, activePopover, () => props.isCameraHidden],
+  ([collapsed, popover, cameraHidden]) => {
+   if (popover !== null) {
       resizeOverlayWindow('toolbar', 760, 390);
     } else if (collapsed) {
       resizeOverlayWindow('toolbar', cameraHidden ? 230 : 190, 58);
@@ -326,13 +320,11 @@ async function handleStop() {
 
 function handleOpenSettings() {
   activePopover.value = null;
-  if (isNativeOverlayWindow()) {
-    openDesktopSettingsWindow();
-    emit('openSettingsModal');
+  if (!isNativeOverlayWindow()) {
     return;
   }
-  isSettingsOpen.value = true;
-  emit('openSettingsModal');
+    openDesktopSettingsWindow();
+    emit('openSettingsModal');
 }
 
 const activeToolbarVariant = computed(() => {
@@ -674,10 +666,5 @@ const activeToolbarVariant = computed(() => {
       @drag-mouse-down="onDragMouseDown"
     />
 
-    <!-- Theme Settings Modal -->
-    <ThemeSelectorModal
-      :is-open="isSettingsOpen"
-      @close="isSettingsOpen = false"
-    />
   </div>
 </template>

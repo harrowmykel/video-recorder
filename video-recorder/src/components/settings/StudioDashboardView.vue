@@ -32,6 +32,8 @@ import { useStudioState } from '../../composables/useStudioState';
 import { useMediaDevices } from '../../composables/useMediaDevices';
 import { fetchCaptureSources, isNativeOverlayWindow } from '../../lib/tauriBridge';
 import type { DisplaySourceInfo, WindowSourceInfo } from '../../types/studio';
+// Theme Settings Modal
+import ThemeSelectorModal from '../settings/ThemeSelectorModal.vue';
 
 const props = defineProps<{
   initialSection?: 'workspace' | 'settings' | 'backgrounds' | 'ai_studio';
@@ -42,13 +44,12 @@ const emit = defineEmits<{
   (e: 'toggleCamera'): void;
   (e: 'toggleDock'): void;
   (e: 'toggleAnnotation'): void;
-  (e: 'toggleLiveZoom'): void;
-  (e: 'openThemeModal'): void;
+  (e: 'toggleLiveZoom'): void; 
   (e: 'openReviewModal'): void;
   (e: 'openAreaPicker'): void;
 }>();
 
-const { currentTheme, themeMeta, setTheme } = useTheme();
+const { currentTheme,  setTheme } = useTheme();
 const {
   recordingState,
   isCameraHidden,
@@ -225,14 +226,7 @@ onMounted(() => {
         >
           Review & Export
         </button>
-
-        <button
-          @click="emit('openThemeModal')"
-          class="px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 text-rose-300 font-semibold transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
-        >
-          <Palette class="w-3.5 h-3.5" />
-          <span>{{ themeMeta[currentTheme].name }}</span>
-        </button>
+ 
 
         <div class="hidden lg:flex items-center space-x-2 text-gray-400 pl-1">
           <Wifi class="w-3.5 h-3.5" />
@@ -674,6 +668,11 @@ onMounted(() => {
               </button>
             </div>
           </div>
+        </div>
+
+        <div class="p-5 rounded-3xl bg-[#0e111a]/90 border border-white/10 shadow-xl space-y-4">
+        <ThemeSelectorModal/>
+
         </div>
       </div>
     </main>
