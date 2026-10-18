@@ -35,7 +35,7 @@ const props = defineProps<{
   initialSessionId?: string;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'close'): void;
 }>();
 
