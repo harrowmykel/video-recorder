@@ -56,16 +56,16 @@ impl ModelManager {
                 name: "RMBG-1.4 Studio HQ (Hair-level)".to_string(),
                 model_type: ModelType::BriaRmbg14,
                 file_name: "rmbg_1_4.onnx".to_string(),
-                size_mb: 172.0,
-                download_url: "https://huggingface.co/briaai/RMBG-1.4/resolve/main/model.onnx".to_string(),
+                size_mb: 176.0,
+                download_url: "https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx".to_string(),
                 is_downloaded: self.models_dir.join("rmbg_1_4.onnx").exists(),
             },
             ModelInfo {
                 name: "BiRefNet Ultra (Cinema Quality)".to_string(),
                 model_type: ModelType::BiRefNet,
                 file_name: "birefnet_general.onnx".to_string(),
-                size_mb: 190.0,
-                download_url: "https://huggingface.co/ZhengPeng7/BiRefNet/resolve/main/birefnet_general.onnx".to_string(),
+                size_mb: 224.0,
+                download_url: "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/main/onnx/model.onnx".to_string(),
                 is_downloaded: self.models_dir.join("birefnet_general.onnx").exists(),
             },
         ]
@@ -95,7 +95,8 @@ impl ModelManager {
         println!("[ModelManager] Downloading {} from {}...", info.name, info.download_url);
         
         let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
+            .timeout(std::time::Duration::from_secs(600))
+            .user_agent("VideoRecorderStudio/0.1.0 (Linux; x86_64)")
             .build()?;
             
         let mut response = client.get(&info.download_url).send()

@@ -262,7 +262,7 @@ async fn main() {
         });
 
     // 13. AI Model catalog route
-    let models_route = warp::path("models")
+    let models_route = warp::path!("models")
         .and(warp::get())
         .map(|| {
             if let Ok(manager) = ai::ModelManager::new() {
