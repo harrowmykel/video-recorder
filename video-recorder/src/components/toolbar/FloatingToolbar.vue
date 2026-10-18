@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { shallowRef, ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from 'vue';
-import type { RecordingState, CaptureSourceMode, DisplaySourceInfo, WindowSourceInfo } from '@/types/studio';
+import type { RecordingState, CaptureSourceMode, CaptureSourceOption, DisplaySourceInfo, WindowSourceInfo } from '@/types/studio';
 import {
   invokeCommand,
   updateAudioSettings,
@@ -39,6 +39,30 @@ import ObsidianToolbar from '@/components/toolbar/variants/ObsidianToolbar.vue';
 import SpatialToolbar from '@/components/toolbar/variants/SpatialToolbar.vue';
 import GraphiteToolbar from '@/components/toolbar/variants/GraphiteToolbar.vue';
 import NordicToolbar from '@/components/toolbar/variants/NordicToolbar.vue';
+
+const captureSources: CaptureSourceOption[] = [
+  {
+    mode: 'display',
+    label: 'Screen',
+    icon: Monitor,
+    iconClass: 'text-blue-600 dark:text-blue-400',
+    title: 'Switch to Screen Capture',
+  },
+  {
+    mode: 'window',
+    label: 'Window',
+    icon: AppWindow,
+    iconClass: 'text-indigo-500',
+    title: 'Switch to Window Capture',
+  },
+  {
+    mode: 'area',
+    label: 'Area',
+    icon: Crop,
+    iconClass: 'text-emerald-500',
+    title: 'Switch to Area Capture',
+  },
+];
 
 const recordingState = defineModel<RecordingState>('recordingState', { required: true });
 
@@ -152,7 +176,7 @@ function onDragMouseUp() {
 watch(
   [isToolbarCollapsed, activePopover, () => props.isCameraHidden],
   ([collapsed, popover, cameraHidden]) => {
-   if (popover !== null) {
+    if (popover !== null) {
       resizeOverlayWindow('toolbar', 860, 390);
     } else if (collapsed) {
       resizeOverlayWindow('toolbar', cameraHidden ? 230 : 190, 58);
@@ -373,12 +397,12 @@ function handleStart() {
 
 async function handlePause() {
   recordingState.value = 'paused';
-  await invokeCommand('pause_recording').catch(() => {});
+  await invokeCommand('pause_recording').catch(() => { });
 }
 
 async function handleResume() {
   recordingState.value = 'recording';
-  await invokeCommand('resume_recording').catch(() => {});
+  await invokeCommand('resume_recording').catch(() => { });
 }
 
 async function handleStop() {
@@ -429,44 +453,31 @@ const activeToolbarVariant = computed(() => {
 <template>
   <div class="relative font-sans select-none flex flex-col items-center justify-end">
     <!-- Popover 1: Camera Device & Real-Time Virtual Background Picker -->
-    <div
-      v-if="activePopover === 'camera'"
-      data-popover="true"
-      class="mb-2.5 w-[440px] p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3.5 z-50"
-    >
+    <div v-if="activePopover === 'camera'" data-popover="true"
+      class="mb-2.5 w-[440px] p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3.5 z-50">
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2 text-xs font-bold">
           <Video class="w-4 h-4 text-indigo-400" />
           <span>Camera & Real-Time Background</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <button
-            v-if="selectedCameraId !== 'none'"
-            @click="emit('toggleCamera')"
-            :class="[
-              'px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition',
-              props.isCameraHidden
-                ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-300'
-                : 'bg-white/5 hover:bg-white/10 border-white/15 text-white/75 hover:text-white'
-            ]"
-            :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'"
-          >
+          <button v-if="selectedCameraId !== 'none'" @click="emit('toggleCamera')" :class="[
+            'px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition',
+            props.isCameraHidden
+              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-300'
+              : 'bg-white/5 hover:bg-white/10 border-white/15 text-white/75 hover:text-white'
+          ]" :title="props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble'">
             <component :is="props.isCameraHidden ? Eye : EyeOff" class="w-3 h-3" />
             <span>{{ props.isCameraHidden ? 'Show Bubble' : 'Hide Bubble' }}</span>
           </button>
-          <button
-            v-else
+          <button v-else
             @click="selectedCameraId = cameras[0]?.deviceId || 'default'; if (props.isCameraHidden) emit('toggleCamera');"
             class="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border bg-indigo-500/20 hover:bg-indigo-500/30 border-indigo-400/40 text-indigo-300 transition"
-            title="Enable Camera Recording"
-          >
+            title="Enable Camera Recording">
             <Video class="w-3 h-3" />
             <span>Enable Cam</span>
           </button>
-          <button
-            @click="activePopover = null"
-            class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
-          >
+          <button @click="activePopover = null" class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white">
             <X class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -477,15 +488,12 @@ const activeToolbarVariant = computed(() => {
         <span class="text-[10px] font-mono uppercase tracking-wider text-white/50 block">Choose Camera Device</span>
         <div class="space-y-1 max-h-32 overflow-y-auto">
           <!-- Dedicated No Camera Option -->
-          <button
-            @click="selectedCameraId = 'none'; if (!props.isCameraHidden) emit('toggleCamera');"
-            :class="[
-              'w-full px-3 py-1.5 rounded-xl text-left text-xs flex items-center justify-between transition border',
-              selectedCameraId === 'none'
-                ? 'bg-rose-500/20 border-rose-400/50 text-white font-semibold'
-                : 'bg-white/5 border-transparent hover:bg-white/10 text-white/75'
-            ]"
-          >
+          <button @click="selectedCameraId = 'none'; if (!props.isCameraHidden) emit('toggleCamera');" :class="[
+            'w-full px-3 py-1.5 rounded-xl text-left text-xs flex items-center justify-between transition border',
+            selectedCameraId === 'none'
+              ? 'bg-rose-500/20 border-rose-400/50 text-white font-semibold'
+              : 'bg-white/5 border-transparent hover:bg-white/10 text-white/75'
+          ]">
             <div class="flex items-center gap-2 truncate">
               <VideoOff class="w-3.5 h-3.5 text-rose-400 shrink-0" />
               <span class="truncate">No Camera (Screen Only)</span>
@@ -493,17 +501,13 @@ const activeToolbarVariant = computed(() => {
             <Check v-if="selectedCameraId === 'none'" class="w-3.5 h-3.5 text-rose-400 shrink-0" />
           </button>
 
-          <button
-            v-for="cam in cameras"
-            :key="cam.deviceId"
-            @click="selectedCameraId = cam.deviceId; if (props.isCameraHidden) emit('toggleCamera');"
-            :class="[
+          <button v-for="cam in cameras" :key="cam.deviceId"
+            @click="selectedCameraId = cam.deviceId; if (props.isCameraHidden) emit('toggleCamera');" :class="[
               'w-full px-3 py-1.5 rounded-xl text-left text-xs flex items-center justify-between transition border',
               selectedCameraId === cam.deviceId
                 ? 'bg-indigo-500/20 border-indigo-400/50 text-white font-semibold'
                 : 'bg-white/5 border-transparent hover:bg-white/10 text-white/75'
-            ]"
-          >
+            ]">
             <div class="flex items-center gap-2 truncate">
               <Video class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <span class="truncate">{{ cam.label }}</span>
@@ -520,34 +524,22 @@ const activeToolbarVariant = computed(() => {
             <Sparkles class="w-3 h-3 text-rose-400" />
             <span>Real-Time Background Mode</span>
           </span>
-          <button
-            @click="bgFileInput?.click()"
-            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition"
-          >
+          <button @click="bgFileInput?.click()"
+            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition">
             <Upload class="w-3 h-3" />
             <span>Upload BG Image</span>
           </button>
-          <input
-            ref="bgFileInput"
-            type="file"
-            accept="image/*"
-            class="hidden"
-            @change="handleCustomBgUpload"
-          />
+          <input ref="bgFileInput" type="file" accept="image/*" class="hidden" @change="handleCustomBgUpload" />
         </div>
 
         <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-          <button
-            v-for="mode in (['off', 'blur', 'transparent', 'color', 'image', 'gradient'] as const)"
-            :key="mode"
-            @click="bgMode = mode"
-            :class="[
+          <button v-for="mode in (['off', 'blur', 'transparent', 'color', 'image', 'gradient'] as const)" :key="mode"
+            @click="bgMode = mode" :class="[
               'py-1.5 px-1 rounded-xl text-[10px] font-semibold capitalize border transition text-center',
               bgMode === mode
                 ? 'bg-rose-500 text-white border-rose-400 shadow'
                 : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
-            ]"
-          >
+            ]">
             {{ mode === 'transparent' ? 'Cutout' : (mode === 'color' ? 'Solid' : mode) }}
           </button>
         </div>
@@ -556,20 +548,13 @@ const activeToolbarVariant = computed(() => {
         <div class="space-y-1 pt-1">
           <div class="text-[9px] font-mono uppercase text-white/40">Solid Colors</div>
           <div class="grid grid-cols-7 gap-1.5">
-            <button
-              v-for="preset in solidColorPresets"
-              :key="preset.id"
-              type="button"
+            <button v-for="preset in solidColorPresets" :key="preset.id" type="button"
               @click="bgMode = 'color'; bgColor = preset.value;"
-              class="h-6 rounded-md border transition flex items-center justify-center shadow"
-              :class="[
+              class="h-6 rounded-md border transition flex items-center justify-center shadow" :class="[
                 bgMode === 'color' && bgColor.toUpperCase() === preset.value.toUpperCase()
                   ? 'border-emerald-400 ring-2 ring-emerald-400/50 scale-105'
                   : 'border-white/15 hover:border-white/60'
-              ]"
-              :style="{ backgroundColor: preset.value }"
-              :title="preset.name"
-            />
+              ]" :style="{ backgroundColor: preset.value }" :title="preset.name" />
           </div>
         </div>
 
@@ -577,19 +562,13 @@ const activeToolbarVariant = computed(() => {
         <div v-if="savedBgImages.length > 0" class="space-y-1 pt-1">
           <div class="text-[9px] font-mono uppercase text-white/40">Recent Backgrounds</div>
           <div class="grid grid-cols-4 gap-1.5 max-h-24 overflow-y-auto">
-            <button
-              v-for="img in savedBgImages.slice(0, 8)"
-              :key="img.id"
-              type="button"
+            <button v-for="img in savedBgImages.slice(0, 8)" :key="img.id" type="button"
               @click="bgMode = 'image'; bgImageUrl = img.dataUrl;"
-              class="h-9 rounded-lg border overflow-hidden relative transition group shadow"
-              :class="[
+              class="h-9 rounded-lg border overflow-hidden relative transition group shadow" :class="[
                 bgMode === 'image' && bgImageUrl === img.dataUrl
                   ? 'border-emerald-400 ring-2 ring-emerald-400/50'
                   : 'border-white/15 hover:border-white/50'
-              ]"
-              :title="img.name"
-            >
+              ]" :title="img.name">
               <img :src="img.dataUrl" :alt="img.name" class="w-full h-full object-cover" />
             </button>
           </div>
@@ -599,16 +578,13 @@ const activeToolbarVariant = computed(() => {
         <div class="space-y-1 pt-1">
           <div class="text-[9px] font-mono uppercase text-white/40">Studio Sceneries</div>
           <div class="grid grid-cols-4 gap-1.5">
-            <button
-              v-for="preset in sceneryPresets"
-              :key="preset.id"
+            <button v-for="preset in sceneryPresets" :key="preset.id"
               @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value; else if (preset.type === 'gradient') bgGradient = preset.value;"
               class="h-9 rounded-lg border border-white/15 hover:border-white/50 overflow-hidden relative group transition"
               :class="{ 'border-emerald-400 ring-2 ring-emerald-400/50': (bgMode === preset.type && ((preset.type === 'image' && bgImageUrl === preset.value) || (preset.type === 'gradient' && bgGradient === preset.value))) }"
-              :style="{ background: preset.thumbnail }"
-              :title="preset.name"
-            >
-              <span class="absolute inset-x-0 bottom-0 bg-black/75 text-[8px] text-white font-medium py-0.5 truncate px-1">
+              :style="{ background: preset.thumbnail }" :title="preset.name">
+              <span
+                class="absolute inset-x-0 bottom-0 bg-black/75 text-[8px] text-white font-medium py-0.5 truncate px-1">
                 {{ preset.name }}
               </span>
             </button>
@@ -629,51 +605,38 @@ const activeToolbarVariant = computed(() => {
     </div>
 
     <!-- Popover 2: Microphone Device Picker -->
-    <div
-      v-else-if="activePopover === 'mic'"
-      data-popover="true"
-      class="mb-2.5 w-80 p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3 z-50"
-    >
+    <div v-else-if="activePopover === 'mic'" data-popover="true"
+      class="mb-2.5 w-80 p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3 z-50">
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2 text-xs font-bold">
           <Mic class="w-4 h-4 text-emerald-400" />
           <span>Microphone Input</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <button
-            @click="isMicMuted = !isMicMuted"
-            :class="[
-              'px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition',
-              isMicMuted
-                ? 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-400/40 text-rose-300'
-                : 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-300'
-            ]"
-            :title="isMicMuted ? 'Unmute Microphone' : 'Mute Microphone'"
-          >
+          <button @click="isMicMuted = !isMicMuted" :class="[
+            'px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition',
+            isMicMuted
+              ? 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-400/40 text-rose-300'
+              : 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-300'
+          ]" :title="isMicMuted ? 'Unmute Microphone' : 'Mute Microphone'">
             <component :is="isMicMuted ? MicOff : Mic" class="w-3 h-3" />
             <span>{{ isMicMuted ? 'Muted' : 'Live' }}</span>
           </button>
-          <button
-            @click="activePopover = null"
-            class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
-          >
+          <button @click="activePopover = null" class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white">
             <X class="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       <div class="space-y-1 max-h-40 overflow-y-auto">
-        <button
-          v-for="mic in microphones"
-          :key="mic.deviceId"
+        <button v-for="mic in microphones" :key="mic.deviceId"
           @click="selectedMicId = mic.deviceId; isMicMuted = false; startMicMeter(mic.deviceId); activePopover = null;"
           :class="[
             'w-full px-3 py-2 rounded-xl text-left text-xs flex items-center justify-between transition border',
             selectedMicId === mic.deviceId
               ? 'bg-emerald-500/20 border-emerald-400/50 text-white font-semibold'
               : 'bg-white/5 border-transparent hover:bg-white/10 text-white/75'
-          ]"
-        >
+          ]">
           <span class="truncate">{{ mic.label }}</span>
           <Check v-if="selectedMicId === mic.deviceId" class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
         </button>
@@ -681,28 +644,19 @@ const activeToolbarVariant = computed(() => {
     </div>
 
     <!-- Popover 3: Display / Window / Area Source Picker -->
-    <div
-      v-else-if="activePopover === 'source'"
-      data-popover="true"
-      class="mb-2.5 w-[440px] p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3 z-50"
-    >
+    <div v-else-if="activePopover === 'source'" data-popover="true"
+      class="mb-2.5 w-[440px] p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3 z-50">
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2 text-xs font-bold">
           <component :is="captureSourceMode === 'window' ? AppWindow : Monitor" class="w-4 h-4 text-rose-400" />
           <span>{{ captureSourceMode === 'window' ? 'Select Window to Record' : 'Select Display or Region' }}</span>
         </div>
         <div class="flex items-center gap-1">
-          <button
-            @click="loadCaptureSources"
-            class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
-            title="Refresh list"
-          >
+          <button @click="loadCaptureSources" class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
+            title="Refresh list">
             <RefreshCw class="w-3.5 h-3.5" :class="isLoadingSources ? 'animate-spin' : ''" />
           </button>
-          <button
-            @click="activePopover = null"
-            class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
-          >
+          <button @click="activePopover = null" class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white">
             <X class="w-3.5 h-3.5" />
           </button>
         </div>
@@ -710,17 +664,14 @@ const activeToolbarVariant = computed(() => {
 
       <!-- Display List -->
       <div v-if="captureSourceMode === 'display'" class="space-y-1.5 max-h-44 overflow-y-auto">
-        <button
-          v-for="d in displays"
-          :key="d.id"
+        <button v-for="d in displays" :key="d.id"
           @click="selectedDisplayId = d.id; selectedWindowTitle = d.name; captureArea = { x: d.x, y: d.y, width: d.width, height: d.height }; activePopover = null;"
           :class="[
             'w-full px-3 py-2 rounded-xl text-left text-xs flex items-center justify-between transition border',
             selectedDisplayId === d.id
               ? 'bg-rose-500/20 border-rose-400/50 text-white font-semibold'
               : 'bg-white/5 border-transparent hover:bg-white/10 text-white/80'
-          ]"
-        >
+          ]">
           <div>
             <div class="font-semibold">{{ d.name }}</div>
             <div class="text-[10px] font-mono text-white/50">{{ d.width }} × {{ d.height }}</div>
@@ -731,17 +682,14 @@ const activeToolbarVariant = computed(() => {
 
       <!-- Window List -->
       <div v-else-if="captureSourceMode === 'window'" class="space-y-1.5 max-h-48 overflow-y-auto">
-        <button
-          v-for="w in windows"
-          :key="w.id"
+        <button v-for="w in windows" :key="w.id"
           @click="selectedWindowId = w.id; selectedWindowTitle = w.title; captureArea = { x: w.x, y: w.y, width: w.width, height: w.height }; activePopover = null;"
           :class="[
             'w-full px-3 py-2 rounded-xl text-left text-xs flex items-center justify-between transition border',
             selectedWindowId === w.id
               ? 'bg-indigo-500/20 border-indigo-400/50 text-white font-semibold'
               : 'bg-white/5 border-transparent hover:bg-white/10 text-white/80'
-          ]"
-        >
+          ]">
           <div class="min-w-0 pr-2">
             <div class="font-semibold truncate">{{ w.title }}</div>
             <div class="text-[10px] font-mono text-white/50">{{ w.appName }} • {{ w.width }} × {{ w.height }}</div>
@@ -753,10 +701,8 @@ const activeToolbarVariant = computed(() => {
       <!-- Bottom Quick Action for Custom Area -->
       <div class="pt-1 border-t border-white/10 flex items-center justify-between text-[11px]">
         <span class="text-white/50 font-mono truncate max-w-[240px]">Target: {{ selectedWindowTitle }}</span>
-        <button
-          @click="captureSourceMode = 'area'; activePopover = null; emit('openAreaPicker')"
-          class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 font-semibold flex items-center gap-1"
-        >
+        <button @click="captureSourceMode = 'area'; activePopover = null; emit('openAreaPicker')"
+          class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 font-semibold flex items-center gap-1">
           <Crop class="w-3 h-3" />
           <span>Draw Custom Area</span>
         </button>
@@ -764,39 +710,20 @@ const activeToolbarVariant = computed(() => {
     </div>
 
     <!-- Active Toolbar Theme Variant -->
-    <component
-      :is="activeToolbarVariant"
-      :recording-state="recordingState"
-      :capture-source-mode="captureSourceMode"
-      :elapsed-seconds="elapsedSeconds"
-      :formatted-time="formattedTime"
+    <component :is="activeToolbarVariant" :capture-sources="captureSources" :recording-state="recordingState"
+      :capture-source-mode="captureSourceMode" :elapsed-seconds="elapsedSeconds" :formatted-time="formattedTime"
       :is-camera-hidden="props.isCameraHidden || selectedCameraId === 'none'"
-      :is-camera-disabled="selectedCameraId === 'none'"
-      :is-mic-muted="isMicMuted"
-      :is-sys-audio-muted="isSysAudioMuted"
-      :is-annotation-active="props.isAnnotationActive"
-      :is-live-zoom-active="props.isLiveZoomActive"
-      :is-docked-to-camera="props.isDockedToCamera"
-      :is-collapsed="isToolbarCollapsed"
-      :audio-level="audioLevel"
-      @start-record="handleStart"
-      @stop-record="handleStop"
-      @pause-record="handlePause"
-      @resume-record="handleResume"
-      @select-source="handleSelectSource"
-      @toggle-camera="handleToggleCamera"
-      @open-camera-menu="handleToggleCameraPopover"
-      @toggle-mic="isMicMuted = !isMicMuted"
-      @open-mic-menu="handleToggleMicPopover"
-      @toggle-sys-audio="isSysAudioMuted = !isSysAudioMuted"
-      @toggle-annotation="emit('toggleAnnotation')"
-      @open-notes="handleOpenNotes"
-      @toggle-live-zoom="emit('toggleLiveZoom')"
-      @toggle-dock="emit('toggleDock')"
+      :is-camera-disabled="selectedCameraId === 'none'" :is-mic-muted="isMicMuted" :is-sys-audio-muted="isSysAudioMuted"
+      :is-annotation-active="props.isAnnotationActive" :is-live-zoom-active="props.isLiveZoomActive"
+      :is-docked-to-camera="props.isDockedToCamera" :is-collapsed="isToolbarCollapsed" :audio-level="audioLevel"
+      @start-record="handleStart" @stop-record="handleStop" @pause-record="handlePause" @resume-record="handleResume"
+      @select-source="handleSelectSource" @toggle-camera="handleToggleCamera"
+      @open-camera-menu="handleToggleCameraPopover" @toggle-mic="isMicMuted = !isMicMuted"
+      @open-mic-menu="handleToggleMicPopover" @toggle-sys-audio="isSysAudioMuted = !isSysAudioMuted"
+      @toggle-annotation="emit('toggleAnnotation')" @open-notes="handleOpenNotes"
+      @toggle-live-zoom="emit('toggleLiveZoom')" @toggle-dock="emit('toggleDock')"
       @toggle-collapse="activePopover = null; isToolbarCollapsed = !isToolbarCollapsed"
-      @open-settings="handleOpenSettings"
-      @drag-mouse-down="onDragMouseDown"
-    />
+      @open-settings="handleOpenSettings" @drag-mouse-down="onDragMouseDown" />
 
   </div>
 </template>

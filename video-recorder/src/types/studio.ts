@@ -1,3 +1,5 @@
+import type { Component } from 'vue';
+
 export type RecordingState = 'idle' | 'countdown' | 'recording' | 'paused' | 'review';
 
 export type CameraShape = 'circle' | 'squircle' | 'rect16_9';
@@ -8,6 +10,14 @@ export type BgModelType = 'mediapipe_fast' | 'rvm_video' | 'birefnet_hq' | 'rmbg
 export type BgEngineType = 'rust' | 'js';
 
 export type CaptureSourceMode = 'display' | 'window' | 'area';
+
+export interface CaptureSourceOption {
+  mode: CaptureSourceMode;
+  label: string;
+  icon: Component;
+  iconClass: string;
+  title: string;
+}
 
 export interface CaptureAreaRect {
   x: number;
