@@ -1,5 +1,6 @@
 import { shallowRef, watch, onUnmounted, type Ref } from 'vue';
 import type { BgRemovalMode } from '../types/studio';
+import { resolveDaemonUrl, updateCameraBackgroundMode } from '@/lib/tauriBridge';
 
 export interface UseBackgroundSegmentationOptions {
   videoRef: Ref<HTMLVideoElement | null>;
@@ -23,8 +24,34 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
   } = options;
 
   const isBgImageLoaded = shallowRef(false);
+  const isDaemonStreamActive = shallowRef(false);
+  let daemonStreamImg: HTMLImageElement | null = null;
   let loadedBgImage: HTMLImageElement | null = null;
   let animFrameId: number | null = null;
+
+  async function initDaemonStream() {
+    try {
+      const daemonUrl = await resolveDaemonUrl();
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        isDaemonStreamActive.value = true;
+      };
+      img.onerror = () => {
+        isDaemonStreamActive.value = false;
+      };
+      img.src = `${daemonUrl}/camera/preview`;
+      daemonStreamImg = img;
+    } catch {
+      isDaemonStreamActive.value = false;
+    }
+  }
+
+  initDaemonStream();
+
+  watch(bgMode, (mode) => {
+    updateCameraBackgroundMode(mode);
+  }, { immediate: true });
 
   // Offscreen canvases for real-time foreground segmentation & alpha feathering
   const maskWidth = 160;
@@ -186,6 +213,20 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
         ctx.clearRect(0, 0, cw, ch);
 
         const mode = bgMode.value;
+
+        // Fast path: if Rust Core Daemon is actively streaming live AI cutout frames, render directly
+        if (isDaemonStreamActive.value && daemonStreamImg && daemonStreamImg.naturalWidth > 0) {
+          ctx.save();
+          if (isMirrored.value) {
+            ctx.translate(cw, 0);
+            ctx.scale(-1, 1);
+          }
+          drawCoverImage(ctx, daemonStreamImg, cw, ch);
+          ctx.restore();
+          animFrameId = requestAnimationFrame(renderFrame);
+          return;
+        }
+
         const hasVideo = Boolean(hasCameraStream.value && video && video.readyState >= 2);
 
         if (hasVideo && video) {
@@ -315,10 +356,15 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
 
   onUnmounted(() => {
     stopSegmentationLoop();
+    if (daemonStreamImg) {
+      daemonStreamImg.src = '';
+      daemonStreamImg = null;
+    }
   });
 
   return {
     isBgImageLoaded,
+    isDaemonStreamActive,
     startSegmentationLoop,
     stopSegmentationLoop,
   };

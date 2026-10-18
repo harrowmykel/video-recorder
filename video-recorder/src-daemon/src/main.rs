@@ -10,8 +10,9 @@ use session::{
     SessionManager, StartRecordingRequest,
     default_recordings_base_dir, list_recorded_sessions,
 };
-use capture::{enumerate_displays, enumerate_windows};
-use ai::{process_video_background, OutputFormat};
+use capture::{enumerate_displays, enumerate_windows, CameraStreamer};
+use ai::{process_video_background, OutputFormat, ModelManager, SegmentationEngine};
+use futures_util::StreamExt;
 
 #[derive(Deserialize)]
 struct ExtractBgRequest {
@@ -37,6 +38,32 @@ struct StatusResponse {
 async fn main() {
     let session_manager = Arc::new(Mutex::new(SessionManager::default()));
     let recordings_dir = default_recordings_base_dir();
+    // Initialize AI Segmentation Engine and Live Camera Streamer
+    let segmentation_engine = match ModelManager::new() {
+        Ok(mgr) => match mgr.ensure_default_model() {
+            Ok(ref path) => match SegmentationEngine::new(path) {
+                Ok(eng) => {
+                    println!("[Rust Core Daemon] Segmentation Engine initialized with ONNX model at {:?}", path);
+                    Some(Arc::new(eng))
+                }
+                Err(e) => {
+                    eprintln!("[Rust Core Daemon] Failed to initialize Segmentation Engine: {}", e);
+                    None
+                }
+            },
+            Err(e) => {
+                eprintln!("[Rust Core Daemon] Could not ensure default model: {}", e);
+                None
+            }
+        },
+        Err(e) => {
+            eprintln!("[Rust Core Daemon] Could not create ModelManager: {}", e);
+            None
+        }
+    };
+
+    let camera_streamer = Arc::new(CameraStreamer::new(segmentation_engine));
+    camera_streamer.start_loop();
 
     // 1. Health / Status route
     let sm_clone = session_manager.clone();
@@ -67,6 +94,7 @@ async fn main() {
     // 3. Start recording route (accepts optional JSON body or empty body)
     let sm_clone = session_manager.clone();
     let rec_dir_start = recordings_dir.clone();
+    let streamer_start = camera_streamer.clone();
     let start_route = warp::path("start")
         .and(warp::post())
         .and(warp::body::bytes())
@@ -78,7 +106,11 @@ async fn main() {
             };
             let mut mgr = sm_clone.lock().unwrap();
             match mgr.start_with_options(&rec_dir_start, req) {
-                Ok(id) => warp::reply::json(&serde_json::json!({ "success": true, "session_id": id })),
+                Ok(id) => {
+                    let sess_dir = rec_dir_start.join(&id);
+                    let _ = streamer_start.start_recording(&sess_dir);
+                    warp::reply::json(&serde_json::json!({ "success": true, "session_id": id }))
+                }
                 Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
             }
         });
@@ -123,11 +155,14 @@ async fn main() {
 
     // 6. Stop recording route (spawned off-thread to avoid blocking async runtime)
     let sm_clone = session_manager.clone();
+    let streamer_stop = camera_streamer.clone();
     let stop_route = warp::path("stop")
         .and(warp::post())
         .and_then(move || {
             let sm = sm_clone.clone();
+            let st = streamer_stop.clone();
             async move {
+                let _ = st.stop_recording();
                 let res = tokio::task::spawn_blocking(move || {
                     let mut mgr = sm.lock().unwrap();
                     mgr.stop()
@@ -287,6 +322,68 @@ async fn main() {
             }
         });
 
+    // 16. Camera MJPEG preview stream route
+    let streamer_clone = camera_streamer.clone();
+    let camera_preview_route = warp::path!("camera" / "preview")
+        .and(warp::get())
+        .map(move || {
+            let rx = streamer_clone.subscribe();
+            let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
+                .filter_map(|res| async move {
+                    match res {
+                        Ok(frame_bytes) => {
+                            let header = format!(
+                                "--frame\r\nContent-Type: image/jpeg\r\nContent-Length: {}\r\n\r\n",
+                                frame_bytes.len()
+                            );
+                            let mut payload = Vec::with_capacity(header.len() + frame_bytes.len() + 2);
+                            payload.extend_from_slice(header.as_bytes());
+                            payload.extend_from_slice(&frame_bytes);
+                            payload.extend_from_slice(b"\r\n");
+                            Some(Ok::<_, warp::Error>(warp::hyper::body::Bytes::from(payload)))
+                        }
+                        Err(_) => None,
+                    }
+                });
+            let body = warp::hyper::Body::wrap_stream(stream);
+            warp::reply::with_header(
+                warp::reply::Response::new(body),
+                "Content-Type",
+                "multipart/x-mixed-replace; boundary=frame",
+            )
+        });
+
+    #[derive(Deserialize)]
+    struct CameraConfigRequest {
+        bg_mode: Option<String>,
+    }
+
+    // 17. Camera config route
+    let streamer_clone = camera_streamer.clone();
+    let camera_config_route = warp::path!("camera" / "config")
+        .and(warp::post())
+        .and(warp::body::json())
+        .map(move |req: CameraConfigRequest| {
+            if let Some(ref mode) = req.bg_mode {
+                streamer_clone.set_bg_mode(mode);
+            }
+            warp::reply::json(&serde_json::json!({
+                "success": true,
+                "bg_mode": streamer_clone.get_bg_mode()
+            }))
+        });
+
+    // 18. Camera status route
+    let streamer_clone = camera_streamer.clone();
+    let camera_status_route = warp::path!("camera" / "status")
+        .and(warp::get())
+        .map(move || {
+            warp::reply::json(&serde_json::json!({
+                "bg_mode": streamer_clone.get_bg_mode(),
+                "is_recording": streamer_clone.is_recording()
+            }))
+        });
+
     // Enable CORS for frontend dev server
     let cors = warp::cors()
         .allow_any_origin()
@@ -309,6 +406,9 @@ async fn main() {
         .or(toggle_zoom_route)
         .or(extract_route)
         .or(models_route)
+        .or(camera_preview_route)
+        .or(camera_config_route)
+        .or(camera_status_route)
         .with(cors);
 
 

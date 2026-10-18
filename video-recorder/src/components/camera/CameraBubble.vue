@@ -63,7 +63,7 @@ let mediaStream: MediaStream | null = null;
 let mediaRecorder: MediaRecorder | null = null;
 let recordedChunks: Blob[] = [];
 
-const { startSegmentationLoop, stopSegmentationLoop } = useBackgroundSegmentation({
+const { isDaemonStreamActive, startSegmentationLoop, stopSegmentationLoop } = useBackgroundSegmentation({
   videoRef,
   canvasRef,
   bgMode,
@@ -72,6 +72,8 @@ const { startSegmentationLoop, stopSegmentationLoop } = useBackgroundSegmentatio
   isMirrored,
   hasCameraStream,
 });
+
+const hasEffectiveStream = computed(() => hasCameraStream.value || isDaemonStreamActive.value);
 
 async function startCameraStream(deviceId?: string) {
   if (mediaStream) {
@@ -141,7 +143,7 @@ watch(
     }
 
     if (isActivelyRecording) {
-      if (!hasCameraStream.value) {
+      if (!hasEffectiveStream.value) {
         startCameraStream(camId);
       }
       if (mediaRecorder && mediaRecorder.state === 'paused') {
@@ -538,7 +540,7 @@ const activeCameraVariant = computed(() => {
 
     <component
       :is="activeCameraVariant"
-      :has-camera-stream="hasCameraStream"
+      :has-camera-stream="hasEffectiveStream"
       :is-mirrored="isMirrored"
       :bg-mode="bgMode"
       :shape="shape"
