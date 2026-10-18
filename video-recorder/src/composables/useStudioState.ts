@@ -4,6 +4,7 @@ import type {
   CameraShape,
   CameraSize,
   BgRemovalMode,
+  BgModelType,
   CaptureSourceMode,
   CaptureAreaRect,
   RecordingSession,
@@ -164,6 +165,7 @@ const cameraSize = shallowRef<CameraSize>('M');
 const cameraCustomDiameter = shallowRef<number | null>(null);
 const isCameraMirrored = shallowRef(true);
 const bgMode = shallowRef<BgRemovalMode>('off');
+const selectedBgModel = shallowRef<BgModelType>('mediapipe_fast');
 const bgImageUrl = shallowRef<string>(STUDIO_BG_PRESETS[0].value);
 const bgGradient = shallowRef<string>('linear-gradient(135deg, #064e3b 0%, #0f172a 50%, #312e81 100%)');
 
@@ -194,6 +196,7 @@ function loadPersistedSettings() {
     if (data.cameraSize) cameraSize.value = data.cameraSize;
     if (typeof data.isCameraMirrored === 'boolean') isCameraMirrored.value = data.isCameraMirrored;
     if (data.bgMode) bgMode.value = data.bgMode;
+    if (data.selectedBgModel) selectedBgModel.value = data.selectedBgModel;
     if (data.bgImageUrl) bgImageUrl.value = data.bgImageUrl;
     if (data.bgGradient) bgGradient.value = data.bgGradient;
     if (data.lastRecordedSession) lastRecordedSession.value = data.lastRecordedSession;
@@ -220,6 +223,7 @@ function savePersistedSettings() {
       cameraSize: cameraSize.value,
       isCameraMirrored: isCameraMirrored.value,
       bgMode: bgMode.value,
+      selectedBgModel: selectedBgModel.value,
       bgImageUrl: bgImageUrl.value,
       bgGradient: bgGradient.value,
       lastRecordedSession: lastRecordedSession.value,
@@ -257,6 +261,7 @@ function broadcastFullState() {
     cameraCustomDiameter: cameraCustomDiameter.value,
     isCameraMirrored: isCameraMirrored.value,
     bgMode: bgMode.value,
+    selectedBgModel: selectedBgModel.value,
     bgImageUrl: bgImageUrl.value,
     bgGradient: bgGradient.value,
     lastRecordedSession: lastRecordedSession.value ? { ...lastRecordedSession.value } : null,
@@ -294,6 +299,7 @@ export function useStudioState() {
       if (payload.cameraCustomDiameter !== undefined) cameraCustomDiameter.value = payload.cameraCustomDiameter;
       if (payload.isCameraMirrored !== undefined) isCameraMirrored.value = payload.isCameraMirrored;
       if (payload.bgMode !== undefined) bgMode.value = payload.bgMode;
+      if (payload.selectedBgModel !== undefined) selectedBgModel.value = payload.selectedBgModel;
       if (payload.bgImageUrl !== undefined) bgImageUrl.value = payload.bgImageUrl;
       if (payload.bgGradient !== undefined) bgGradient.value = payload.bgGradient;
       if (payload.lastRecordedSession !== undefined) lastRecordedSession.value = payload.lastRecordedSession;
@@ -341,6 +347,7 @@ export function useStudioState() {
         cameraCustomDiameter,
         isCameraMirrored,
         bgMode,
+        selectedBgModel,
         bgImageUrl,
         bgGradient,
         lastRecordedSession,
@@ -403,6 +410,7 @@ export function useStudioState() {
     cameraCustomDiameter,
     isCameraMirrored,
     bgMode,
+    selectedBgModel,
     bgImageUrl,
     bgGradient,
     lastRecordedSession,

@@ -11,6 +11,7 @@ use crate::ai::SegmentationEngine;
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CameraStreamerConfig {
     pub bg_mode: String, // "blur", "transparent", "gradient", "off"
+    pub bg_model: Option<String>,
     pub device_name: Option<String>,
 }
 
@@ -18,6 +19,7 @@ impl Default for CameraStreamerConfig {
     fn default() -> Self {
         Self {
             bg_mode: "blur".to_string(),
+            bg_model: Some("mediapipe_fast".to_string()),
             device_name: None,
         }
     }
@@ -75,6 +77,20 @@ impl CameraStreamer {
             .read()
             .map(|c| c.bg_mode.clone())
             .unwrap_or_else(|_| "blur".to_string())
+    }
+
+    pub fn set_bg_model(&self, model: &str) {
+        if let Ok(mut cfg) = self.config.write() {
+            cfg.bg_model = Some(model.to_string());
+        }
+    }
+
+    pub fn get_bg_model(&self) -> String {
+        self.config
+            .read()
+            .ok()
+            .and_then(|c| c.bg_model.clone())
+            .unwrap_or_else(|| "mediapipe_fast".to_string())
     }
 
     pub fn is_recording(&self) -> bool {

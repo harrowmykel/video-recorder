@@ -263,19 +263,43 @@ export async function getCameraPreviewUrl(): Promise<string> {
   return `${daemonBase}/camera/preview`;
 }
 
-export async function updateCameraBackgroundMode(bgMode: string): Promise<boolean> {
+export async function updateCameraBackgroundMode(bgMode: string, bgModel?: string): Promise<boolean> {
   try {
     const daemonBase = await resolveDaemonUrl();
+    const payload: Record<string, any> = { bg_mode: bgMode };
+    if (bgModel) payload.bg_model = bgModel;
     const resp = await fetch(`${daemonBase}/camera/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bg_mode: bgMode }),
+      body: JSON.stringify(payload),
     });
     return resp.ok;
   } catch (err) {
     console.warn('[updateCameraBackgroundMode] Failed to sync bg_mode with daemon:', err);
     return false;
   }
+}
+
+export interface DaemonModelInfo {
+  name: string;
+  model_type: string;
+  file_name: string;
+  size_mb: number;
+  download_url: string;
+  is_downloaded: boolean;
+}
+
+export async function fetchAvailableModels(): Promise<DaemonModelInfo[]> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/models`);
+    if (resp.ok) {
+      return await resp.json();
+    }
+  } catch (err) {
+    console.warn('[fetchAvailableModels] Failed to fetch models from daemon:', err);
+  }
+  return [];
 }
 
 export async function getCameraStreamStatus(): Promise<{ bg_mode: string; is_recording: boolean } | null> {

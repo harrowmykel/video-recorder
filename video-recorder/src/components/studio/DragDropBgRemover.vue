@@ -14,7 +14,7 @@ import {
   RotateCcw,
   Loader2,
 } from 'lucide-vue-next';
-import { BatchMattingJob, BgModelType } from '@/types/studio';
+import type { BatchMattingJob } from '@/types/studio';
 import {
   STUDIO_BG_REMOVER_DIR,
   getDefaultBgRemoverDirectory,
@@ -25,7 +25,10 @@ import {
   getFilePathForFile,
 } from '@/lib/tauriBridge';
 
+import { useStudioState } from '@/composables/useStudioState';
+
 const bgRemoverDir = shallowRef<string>(STUDIO_BG_REMOVER_DIR);
+const { selectedBgModel: selectedModel } = useStudioState();
 
 const jobs = ref<BatchMattingJob[]>([
   {
@@ -43,7 +46,6 @@ const jobs = ref<BatchMattingJob[]>([
 ]);
 
 const isDragging = shallowRef(false);
-const selectedModel = shallowRef<BgModelType>('birefnet_hq');
 const defaultFormat = shallowRef<'prores_4444' | 'webm_alpha' | 'luma_matte'>('webm_alpha');
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
 
