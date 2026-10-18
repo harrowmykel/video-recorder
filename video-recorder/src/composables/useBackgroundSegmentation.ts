@@ -9,6 +9,7 @@ export interface UseBackgroundSegmentationOptions {
   bgMode: Ref<BgRemovalMode>;
   bgImageUrl: Ref<string>;
   bgGradient: Ref<string>;
+  bgColor?: Ref<string>;
   isMirrored: Ref<boolean>;
   hasCameraStream: Ref<boolean>;
   bgEngine?: Ref<BgEngineType>;
@@ -75,6 +76,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     bgMode,
     bgImageUrl,
     bgGradient,
+    bgColor,
     isMirrored,
     hasCameraStream,
   } = options;
@@ -413,6 +415,9 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
               ctx.filter = 'blur(16px) brightness(0.88)';
               drawCoverImage(ctx, video, cw, ch);
               ctx.restore();
+            } else if (mode === 'color') {
+              ctx.fillStyle = bgColor?.value || '#FFFFFF';
+              ctx.fillRect(0, 0, cw, ch);
             } else if (mode === 'image' && loadedBgImage && isBgImageLoaded.value) {
               drawCoverImage(ctx, loadedBgImage, cw, ch);
             } else if (mode === 'gradient' || (mode === 'image' && !isBgImageLoaded.value)) {
@@ -465,7 +470,10 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
           }
         } else {
           // Fallback live background preview when hardware webcam is off/unavailable
-          if (mode === 'image' && loadedBgImage && isBgImageLoaded.value) {
+          if (mode === 'color') {
+            ctx.fillStyle = bgColor?.value || '#FFFFFF';
+            ctx.fillRect(0, 0, cw, ch);
+          } else if (mode === 'image' && loadedBgImage && isBgImageLoaded.value) {
             drawCoverImage(ctx, loadedBgImage, cw, ch);
           } else if (mode === 'gradient') {
             drawGradientBackdrop(ctx, cw, ch);

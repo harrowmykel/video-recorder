@@ -69,6 +69,9 @@ const {
   isSysAudioMuted,
   bgMode,
   bgImageUrl,
+  bgGradient,
+  bgColor,
+  savedBgImages,
   bgPresets,
   countdownDuration,
   isProcessingSession,
@@ -76,6 +79,9 @@ const {
   lastRecordedSession,
   setCustomBgImageFromFile,
 } = useStudioState();
+
+const solidColorPresets = computed(() => bgPresets.filter((p) => p.type === 'color'));
+const sceneryPresets = computed(() => bgPresets.filter((p) => p.type !== 'color'));
 
 const { cameras, microphones, liveMicLevel, refreshDevices, startMicMeter, stopMicMeter } = useMediaDevices();
 
@@ -489,36 +495,83 @@ const activeToolbarVariant = computed(() => {
           />
         </div>
 
-        <div class="grid grid-cols-5 gap-1.5">
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
           <button
-            v-for="mode in (['off', 'blur', 'transparent', 'image', 'gradient'] as const)"
+            v-for="mode in (['off', 'blur', 'transparent', 'color', 'image', 'gradient'] as const)"
             :key="mode"
             @click="bgMode = mode"
             :class="[
-              'py-1.5 px-2 rounded-xl text-[11px] font-semibold capitalize border transition',
+              'py-1.5 px-1 rounded-xl text-[10px] font-semibold capitalize border transition text-center',
               bgMode === mode
                 ? 'bg-rose-500 text-white border-rose-400 shadow'
                 : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
             ]"
           >
-            {{ mode === 'transparent' ? 'Cutout' : mode }}
+            {{ mode === 'transparent' ? 'Cutout' : (mode === 'color' ? 'Solid' : mode) }}
           </button>
         </div>
 
+        <!-- Solid Colors Row -->
+        <div class="space-y-1 pt-1">
+          <div class="text-[9px] font-mono uppercase text-white/40">Solid Colors</div>
+          <div class="grid grid-cols-7 gap-1.5">
+            <button
+              v-for="preset in solidColorPresets"
+              :key="preset.id"
+              type="button"
+              @click="bgMode = 'color'; bgColor = preset.value;"
+              class="h-6 rounded-md border transition flex items-center justify-center shadow"
+              :class="[
+                bgMode === 'color' && bgColor.toUpperCase() === preset.value.toUpperCase()
+                  ? 'border-emerald-400 ring-2 ring-emerald-400/50 scale-105'
+                  : 'border-white/15 hover:border-white/60'
+              ]"
+              :style="{ backgroundColor: preset.value }"
+              :title="preset.name"
+            />
+          </div>
+        </div>
+
+        <!-- Saved Background Images Strip (if any) -->
+        <div v-if="savedBgImages.length > 0" class="space-y-1 pt-1">
+          <div class="text-[9px] font-mono uppercase text-white/40">Recent Backgrounds</div>
+          <div class="grid grid-cols-4 gap-1.5 max-h-24 overflow-y-auto">
+            <button
+              v-for="img in savedBgImages.slice(0, 8)"
+              :key="img.id"
+              type="button"
+              @click="bgMode = 'image'; bgImageUrl = img.dataUrl;"
+              class="h-9 rounded-lg border overflow-hidden relative transition group shadow"
+              :class="[
+                bgMode === 'image' && bgImageUrl === img.dataUrl
+                  ? 'border-emerald-400 ring-2 ring-emerald-400/50'
+                  : 'border-white/15 hover:border-white/50'
+              ]"
+              :title="img.name"
+            >
+              <img :src="img.dataUrl" :alt="img.name" class="w-full h-full object-cover" />
+            </button>
+          </div>
+        </div>
+
         <!-- Preset Studio Background Images Strip -->
-        <div class="grid grid-cols-4 gap-2 pt-1">
-          <button
-            v-for="preset in bgPresets"
-            :key="preset.id"
-            @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value;"
-            class="h-10 rounded-xl border border-white/15 hover:border-white/50 overflow-hidden relative group transition"
-            :style="{ background: preset.thumbnail }"
-            :title="preset.name"
-          >
-            <span class="absolute inset-x-0 bottom-0 bg-black/70 text-[9px] text-white font-medium py-0.5 truncate px-1">
-              {{ preset.name }}
-            </span>
-          </button>
+        <div class="space-y-1 pt-1">
+          <div class="text-[9px] font-mono uppercase text-white/40">Studio Sceneries</div>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button
+              v-for="preset in sceneryPresets"
+              :key="preset.id"
+              @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value; else if (preset.type === 'gradient') bgGradient = preset.value;"
+              class="h-9 rounded-lg border border-white/15 hover:border-white/50 overflow-hidden relative group transition"
+              :class="{ 'border-emerald-400 ring-2 ring-emerald-400/50': (bgMode === preset.type && ((preset.type === 'image' && bgImageUrl === preset.value) || (preset.type === 'gradient' && bgGradient === preset.value))) }"
+              :style="{ background: preset.thumbnail }"
+              :title="preset.name"
+            >
+              <span class="absolute inset-x-0 bottom-0 bg-black/75 text-[8px] text-white font-medium py-0.5 truncate px-1">
+                {{ preset.name }}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 

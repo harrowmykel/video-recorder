@@ -16,6 +16,8 @@ const props = defineProps<{
   hasCameraStream: boolean;
   isMirrored: boolean;
   bgMode: BgRemovalMode;
+  isBgPillVisible?: boolean;
+  bgPillLabel?: string;
   shape: CameraShape;
   size: CameraSize;
   customDiameter?: number | null;
@@ -63,13 +65,23 @@ const emit = defineEmits<{
         <span class="text-[10px] font-mono text-sky-300 drop-shadow">{{ props.isRecording ? 'Capturing' : 'Vision Ready' }}</span>
       </div>
 
-      <div
-        v-if="props.bgMode !== 'off'"
-        class="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full spatial-glass-dark text-[10px] font-semibold text-sky-300 flex items-center gap-1 z-10 pointer-events-none"
+      <!-- Temporary Background Switch Notification Badge -->
+      <transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 -translate-y-1.5 scale-95"
+        enter-to-class="opacity-100 translate-y-0 scale-100"
+        leave-active-class="transition duration-300 ease-in"
+        leave-from-class="opacity-100 translate-y-0 scale-100"
+        leave-to-class="opacity-0 -translate-y-1.5 scale-95"
       >
-        <Sparkles class="w-3 h-3" />
-        <span class="uppercase">{{ props.bgMode === 'image' ? 'Custom BG' : props.bgMode }}</span>
-      </div>
+        <div
+          v-if="props.isBgPillVisible"
+          class="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full spatial-glass-dark text-[10px] font-semibold text-sky-300 flex items-center gap-1 z-10 pointer-events-none shadow-lg"
+        >
+          <Sparkles class="w-3 h-3" />
+          <span class="uppercase font-semibold tracking-wider">{{ props.bgPillLabel || (props.bgMode === 'image' ? 'Custom BG' : props.bgMode) }}</span>
+        </div>
+      </transition>
     </div>
 
     <transition

@@ -623,6 +623,138 @@ ipcMain.handle('get_default_bg_remover_dir', () => {
   return getStudioSubDir('bg-remover');
 });
 
+ipcMain.handle('get_default_bg_images_dir', () => {
+  return getStudioSubDir('bg-images');
+});
+
+function getImageMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.webp': return 'image/webp';
+    case '.svg': return 'image/svg+xml';
+    case '.gif': return 'image/gif';
+    case '.bmp': return 'image/bmp';
+    case '.avif': return 'image/avif';
+    default: return 'application/octet-stream';
+  }
+}
+
+ipcMain.handle('list_bg_images', async () => {
+  try {
+    const bgDir = getStudioSubDir('bg-images');
+    const entries = await fs.promises.readdir(bgDir, { withFileTypes: true });
+    const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.bmp', '.avif']);
+    const results = [];
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!imageExtensions.has(ext)) continue;
+
+      const fullPath = path.join(bgDir, entry.name);
+      try {
+        const stats = await fs.promises.stat(fullPath);
+        const fileBuf = await fs.promises.readFile(fullPath);
+        const mime = getImageMimeType(entry.name);
+        const dataUrl = `data:${mime};base64,${fileBuf.toString('base64')}`;
+        results.push({
+          id: entry.name,
+          name: entry.name,
+          filePath: fullPath,
+          dataUrl,
+          mtime: stats.mtimeMs,
+        });
+      } catch (fileErr) {
+        console.warn(`[list_bg_images] Could not read ${entry.name}:`, fileErr);
+      }
+    }
+
+    results.sort((a, b) => b.mtime - a.mtime);
+    return { success: true, images: results };
+  } catch (err) {
+    console.error('Failed to list background images:', err);
+    return { success: false, images: [], error: err.message };
+  }
+});
+
+ipcMain.handle('save_bg_image', async (_event, { sourcePath, fileName, buffer }) => {
+  try {
+    const bgDir = getStudioSubDir('bg-images');
+    let targetFileName = fileName || (sourcePath ? path.basename(sourcePath) : `bg_${Date.now()}.png`);
+    // Sanitize filename
+    targetFileName = targetFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const destPath = path.join(bgDir, targetFileName);
+
+    if (sourcePath) {
+      const resolvedSource = sourcePath.startsWith('~/')
+        ? path.join(app.getPath('home'), sourcePath.slice(2))
+        : sourcePath;
+
+      // If source file is already inside the bg-images folder, avoid redundant copy
+      if (path.resolve(resolvedSource) === path.resolve(destPath)) {
+        const stats = await fs.promises.stat(destPath);
+        const fileBuf = await fs.promises.readFile(destPath);
+        const mime = getImageMimeType(destPath);
+        return {
+          success: true,
+          image: {
+            id: targetFileName,
+            name: targetFileName,
+            filePath: destPath,
+            dataUrl: `data:${mime};base64,${fileBuf.toString('base64')}`,
+            mtime: stats.mtimeMs,
+          },
+        };
+      }
+
+      await fs.promises.copyFile(resolvedSource, destPath);
+    } else if (buffer) {
+      await fs.promises.writeFile(destPath, Buffer.from(buffer));
+    } else {
+      return { success: false, error: 'No sourcePath or buffer provided' };
+    }
+
+    const stats = await fs.promises.stat(destPath);
+    const fileBuf = await fs.promises.readFile(destPath);
+    const mime = getImageMimeType(destPath);
+
+    return {
+      success: true,
+      image: {
+        id: targetFileName,
+        name: targetFileName,
+        filePath: destPath,
+        dataUrl: `data:${mime};base64,${fileBuf.toString('base64')}`,
+        mtime: stats.mtimeMs,
+      },
+    };
+  } catch (err) {
+    console.error('Failed to save background image:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('delete_bg_image', async (_event, target) => {
+  try {
+    const bgDir = getStudioSubDir('bg-images');
+    const fileName = typeof target === 'string' ? path.basename(target) : path.basename(target?.fileName || '');
+    if (!fileName) return { success: false, error: 'Invalid filename' };
+
+    const destPath = path.join(bgDir, fileName);
+    if (fs.existsSync(destPath)) {
+      await fs.promises.unlink(destPath);
+      return { success: true, deleted: true, fileName };
+    }
+    return { success: true, deleted: false };
+  } catch (err) {
+    console.error('Failed to delete background image:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('check_directory_not_empty', (_event, targetDir) => {
   if (!targetDir) return { exists: false, notEmpty: false, fileCount: 0 };
   try {

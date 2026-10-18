@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from 'vue';
-import type { CameraShape, CameraSize } from '@/types/studio';
+import type { CameraShape, CameraSize, BgRemovalMode } from '@/types/studio';
 import {
   moveOverlayWindow,
   resizeOverlayWindow,
@@ -48,6 +48,7 @@ const {
   bgImageUrl,
   bgGradient,
   bgEngine,
+  bgColor,
   lastRecordedSession,
   setCustomBgImageFromFile,
   cycleBgMode,
@@ -60,6 +61,48 @@ const videoRef = useTemplateRef<HTMLVideoElement>('videoRef');
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
 const bgFileInput = useTemplateRef<HTMLInputElement>('bgFileInput');
 
+const isBgPillVisible = shallowRef(false);
+const bgPillLabel = shallowRef('');
+let bgPillTimer: ReturnType<typeof setTimeout> | null = null;
+
+function formatBgLabel(mode: BgRemovalMode): string {
+  switch (mode) {
+    case 'transparent': return 'Cutout';
+    case 'blur': return 'Blur';
+    case 'color': {
+      if (bgColor.value.toUpperCase() === '#FFFFFF') return 'White BG';
+      if (bgColor.value.toUpperCase() === '#090A0F') return 'Black BG';
+      if (bgColor.value.toUpperCase() === '#00B140') return 'Chroma Green';
+      if (bgColor.value.toUpperCase() === '#1D4ED8') return 'Cobalt BG';
+      if (bgColor.value.toUpperCase() === '#FDF8F0') return 'Cream BG';
+      if (bgColor.value.toUpperCase() === '#6366F1') return 'Violet BG';
+      if (bgColor.value.toUpperCase() === '#F43F5E') return 'Rose BG';
+      return 'Solid Color';
+    }
+    case 'image': return 'Custom BG';
+    case 'gradient': return 'Gradient';
+    default: return mode;
+  }
+}
+
+watch([bgMode, bgColor, bgImageUrl], ([newMode], [oldMode]) => {
+  if (newMode && newMode !== 'off' && oldMode !== undefined) {
+    bgPillLabel.value = formatBgLabel(newMode);
+    isBgPillVisible.value = true;
+    if (bgPillTimer) clearTimeout(bgPillTimer);
+    bgPillTimer = setTimeout(() => {
+      isBgPillVisible.value = false;
+      bgPillTimer = null;
+    }, 3000);
+  } else if (newMode === 'off') {
+    isBgPillVisible.value = false;
+    if (bgPillTimer) {
+      clearTimeout(bgPillTimer);
+      bgPillTimer = null;
+    }
+  }
+});
+
 let mediaStream: MediaStream | null = null;
 let mediaRecorder: MediaRecorder | null = null;
 let recordedChunks: Blob[] = [];
@@ -70,6 +113,7 @@ const { isDaemonStreamActive, startSegmentationLoop, stopSegmentationLoop } = us
   bgMode,
   bgImageUrl,
   bgGradient,
+  bgColor,
   isMirrored,
   hasCameraStream,
   bgEngine,
@@ -554,6 +598,8 @@ const activeCameraVariant = computed(() => {
       :has-camera-stream="hasEffectiveStream"
       :is-mirrored="isMirrored"
       :bg-mode="bgMode"
+      :is-bg-pill-visible="isBgPillVisible"
+      :bg-pill-label="bgPillLabel"
       :shape="shape"
       :size="size"
       :custom-diameter="customDiameter"

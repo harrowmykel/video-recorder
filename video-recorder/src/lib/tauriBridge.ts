@@ -1,6 +1,4 @@
-// Universal Bridge for Native Desktop Overlays (Electron / Tauri v2) and Local Rust Capture Daemon
-
-import type { DisplaySourceInfo, WindowSourceInfo, RecordingSession } from '../types/studio';
+import type { DisplaySourceInfo, WindowSourceInfo, RecordingSession, SavedBgImage } from '../types/studio';
 
 export interface ElectronOverlayAPI {
   send: (channel: string, payload?: unknown) => void;
@@ -523,6 +521,109 @@ export const APP_DATA = '~/Videos/studio';
 export const STUDIO_PROJECTS_DIR = `${APP_DATA}/projects`;
 export const STUDIO_EXPORTS_DIR = `${APP_DATA}/exports`;
 export const STUDIO_BG_REMOVER_DIR = `${APP_DATA}/bg-remover`;
+export const STUDIO_BG_IMAGES_DIR = `${APP_DATA}/bg-images`;
+
+export async function getDefaultBgImagesDirectory(): Promise<string> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const dir = await window.__ELECTRON_OVERLAY__.invoke('get_default_bg_images_dir');
+      if (dir) return dir;
+    } catch {}
+  }
+  return STUDIO_BG_IMAGES_DIR;
+}
+
+const STORAGE_KEY_SAVED_BG = 'studio_saved_bg_images_v1';
+
+export async function fetchSavedBgImages(): Promise<SavedBgImage[]> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('list_bg_images');
+      if (res && res.success && Array.isArray(res.images)) {
+        return res.images;
+      }
+    } catch (e) {
+      console.warn('[fetchSavedBgImages] Electron invoke failed:', e);
+    }
+  }
+
+  // Browser local fallback
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SAVED_BG);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+export async function saveBgImageFile(file: File, sourcePath?: string): Promise<SavedBgImage | null> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const resolvedPath = sourcePath || (window.__ELECTRON_OVERLAY__.getPathForFile ? window.__ELECTRON_OVERLAY__.getPathForFile(file) : '');
+      let payload: { sourcePath?: string; fileName?: string; buffer?: ArrayBuffer };
+
+      if (resolvedPath) {
+        payload = { sourcePath: resolvedPath, fileName: file.name };
+      } else {
+        const buffer = await file.arrayBuffer();
+        payload = { fileName: file.name, buffer };
+      }
+
+      const res = await window.__ELECTRON_OVERLAY__.invoke('save_bg_image', payload);
+      if (res && res.success && res.image) {
+        return res.image as SavedBgImage;
+      }
+    } catch (e) {
+      console.warn('[saveBgImageFile] Electron invoke failed:', e);
+    }
+  }
+
+  // Browser fallback using FileReader
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const item: SavedBgImage = {
+        id: file.name,
+        name: file.name,
+        filePath: file.name,
+        dataUrl,
+        mtime: Date.now(),
+      };
+      try {
+        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY_SAVED_BG) || '[]');
+        const updated = [item, ...existing.filter((x: SavedBgImage) => x.name !== file.name)];
+        localStorage.setItem(STORAGE_KEY_SAVED_BG, JSON.stringify(updated));
+      } catch {}
+      resolve(item);
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function deleteSavedBgImage(fileNameOrPath: string): Promise<boolean> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('delete_bg_image', fileNameOrPath);
+      if (res && res.success) return true;
+    } catch (e) {
+      console.warn('[deleteSavedBgImage] Electron invoke failed:', e);
+    }
+  }
+
+  // Browser fallback
+  try {
+    const existing: SavedBgImage[] = JSON.parse(localStorage.getItem(STORAGE_KEY_SAVED_BG) || '[]');
+    const name = fileNameOrPath.split('/').pop() || fileNameOrPath;
+    const updated = existing.filter((x) => x.name !== name && x.id !== name);
+    localStorage.setItem(STORAGE_KEY_SAVED_BG, JSON.stringify(updated));
+    return true;
+  } catch {}
+  return false;
+}
 
 export async function getStudioAppDataDirectory(): Promise<string> {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {

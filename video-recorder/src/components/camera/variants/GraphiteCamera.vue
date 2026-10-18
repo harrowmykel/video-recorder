@@ -11,6 +11,8 @@ const props = defineProps<{
   hasCameraStream: boolean;
   isMirrored: boolean;
   bgMode: BgRemovalMode;
+  isBgPillVisible?: boolean;
+  bgPillLabel?: string;
   shape: CameraShape;
   size: CameraSize;
   customDiameter?: number | null;

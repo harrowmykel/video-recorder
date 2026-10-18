@@ -3,7 +3,7 @@ export type RecordingState = 'idle' | 'countdown' | 'recording' | 'paused' | 're
 export type CameraShape = 'circle' | 'squircle' | 'rect16_9';
 export type CameraSize = 'S' | 'M' | 'L' | 'fullscreen';
 
-export type BgRemovalMode = 'off' | 'blur' | 'transparent' | 'image' | 'gradient';
+export type BgRemovalMode = 'off' | 'blur' | 'transparent' | 'color' | 'image' | 'gradient';
 export type BgModelType = 'mediapipe_fast' | 'rvm_video' | 'birefnet_hq' | 'rmbg_1_4';
 export type BgEngineType = 'rust' | 'js';
 
@@ -132,7 +132,15 @@ export interface AnnotationItem {
 export interface BgPresetItem {
   id: string;
   name: string;
-  type: 'image' | 'gradient';
+  type: 'color' | 'image' | 'gradient';
   value: string;
   thumbnail: string;
+}
+
+export interface SavedBgImage {
+  id: string;
+  name: string;
+  filePath: string;
+  dataUrl: string;
+  mtime: number;
 }

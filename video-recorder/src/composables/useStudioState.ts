@@ -11,13 +11,72 @@ import type {
   RecordingSession,
   CameraTelemetryPoint,
   BgPresetItem,
+  SavedBgImage,
 } from '../types/studio';
-import { broadcastEvent, subscribeToEvent, fetchCaptureSources } from '../lib/tauriBridge';
+import {
+  broadcastEvent,
+  subscribeToEvent,
+  fetchCaptureSources,
+  fetchSavedBgImages,
+  saveBgImageFile,
+  deleteSavedBgImage,
+} from '../lib/tauriBridge';
 
 const STORAGE_KEY_SETTINGS = 'studio_recorder_settings_v1';
 
-// Built-in offline high-resolution SVG Studio Background Images (100% offline data URIs)
+// Built-in offline high-resolution SVG & Solid Studio Background Presets
 export const STUDIO_BG_PRESETS: BgPresetItem[] = [
+  // 7 Solid Color Presets
+  {
+    id: 'solid_white',
+    name: 'Pure White',
+    type: 'color',
+    value: '#FFFFFF',
+    thumbnail: '#FFFFFF',
+  },
+  {
+    id: 'solid_black',
+    name: 'Deep Obsidian',
+    type: 'color',
+    value: '#090A0F',
+    thumbnail: '#090A0F',
+  },
+  {
+    id: 'solid_green',
+    name: 'Chroma Studio Green',
+    type: 'color',
+    value: '#00B140',
+    thumbnail: '#00B140',
+  },
+  {
+    id: 'solid_cobalt',
+    name: 'Royal Cobalt Blue',
+    type: 'color',
+    value: '#1D4ED8',
+    thumbnail: '#1D4ED8',
+  },
+  {
+    id: 'solid_cream',
+    name: 'Warm Sandstone',
+    type: 'color',
+    value: '#FDF8F0',
+    thumbnail: '#FDF8F0',
+  },
+  {
+    id: 'solid_violet',
+    name: 'Cyber Violet',
+    type: 'color',
+    value: '#6366F1',
+    thumbnail: '#6366F1',
+  },
+  {
+    id: 'solid_rose',
+    name: 'Coral Rose',
+    type: 'color',
+    value: '#F43F5E',
+    thumbnail: '#F43F5E',
+  },
+  // Studio Sceneries & Gradients
   {
     id: 'neon_studio',
     name: 'Cyber Neon Loft',
@@ -172,6 +231,9 @@ const selectedBgModel = shallowRef<BgModelType>('mediapipe_fast');
 const bgEngine = shallowRef<BgEngineType>('rust');
 const bgImageUrl = shallowRef<string>(STUDIO_BG_PRESETS[0].value);
 const bgGradient = shallowRef<string>('linear-gradient(135deg, #064e3b 0%, #0f172a 50%, #312e81 100%)');
+const bgColor = shallowRef<string>('#FFFFFF');
+const savedBgImages = ref<SavedBgImage[]>([]);
+const isLoadingSavedBgImages = shallowRef<boolean>(false);
 
 // Session, Processing & Telemetry State
 const lastRecordedSession = ref<RecordingSession | null>(null);
@@ -208,6 +270,7 @@ function loadPersistedSettings() {
     if (data.bgEngine) bgEngine.value = data.bgEngine;
     if (data.bgImageUrl) bgImageUrl.value = data.bgImageUrl;
     if (data.bgGradient) bgGradient.value = data.bgGradient;
+    if (data.bgColor) bgColor.value = data.bgColor;
     if (data.lastRecordedSession) lastRecordedSession.value = data.lastRecordedSession;
   } catch (err) {
     console.warn('[useStudioState] Failed to parse saved settings:', err);
@@ -238,6 +301,7 @@ function savePersistedSettings() {
       bgEngine: bgEngine.value,
       bgImageUrl: bgImageUrl.value,
       bgGradient: bgGradient.value,
+      bgColor: bgColor.value,
       lastRecordedSession: lastRecordedSession.value,
     };
     localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(payload));
@@ -307,6 +371,7 @@ function broadcastFullState() {
     bgEngine: bgEngine.value,
     bgImageUrl: bgImageUrl.value,
     bgGradient: bgGradient.value,
+    bgColor: bgColor.value,
     lastRecordedSession: lastRecordedSession.value ? { ...lastRecordedSession.value } : null,
   });
 }
@@ -351,12 +416,15 @@ export function useStudioState() {
       if (payload.bgEngine !== undefined) bgEngine.value = payload.bgEngine;
       if (payload.bgImageUrl !== undefined) bgImageUrl.value = payload.bgImageUrl;
       if (payload.bgGradient !== undefined) bgGradient.value = payload.bgGradient;
+      if (payload.bgColor !== undefined) bgColor.value = payload.bgColor;
       if (payload.lastRecordedSession !== undefined) lastRecordedSession.value = payload.lastRecordedSession;
 
       setTimeout(() => {
         isSyncingFromBus = false;
       }, 40);
     });
+
+    loadSavedBgImages();
 
     // Listen to storage events across browser tabs when not using Electron IPC
     if (!window.__ELECTRON_OVERLAY__) {
@@ -400,6 +468,7 @@ export function useStudioState() {
         bgEngine,
         bgImageUrl,
         bgGradient,
+        bgColor,
         lastRecordedSession,
       ],
       () => {
@@ -409,7 +478,29 @@ export function useStudioState() {
     );
   }
 
-  function setCustomBgImageFromFile(file: File): Promise<string> {
+  async function loadSavedBgImages() {
+    isLoadingSavedBgImages.value = true;
+    try {
+      const list = await fetchSavedBgImages();
+      savedBgImages.value = list;
+    } finally {
+      isLoadingSavedBgImages.value = false;
+    }
+  }
+
+  async function setCustomBgImageFromFile(file: File): Promise<string> {
+    try {
+      const saved = await saveBgImageFile(file);
+      if (saved && saved.dataUrl) {
+        bgImageUrl.value = saved.dataUrl;
+        bgMode.value = 'image';
+        await loadSavedBgImages();
+        return saved.dataUrl;
+      }
+    } catch (e) {
+      console.warn('[setCustomBgImageFromFile] Failed to save file:', e);
+    }
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -423,8 +514,21 @@ export function useStudioState() {
     });
   }
 
+  async function deleteBgImage(item: SavedBgImage) {
+    const success = await deleteSavedBgImage(item.name || item.id);
+    if (success) {
+      // If the deleted image was currently active, fall back to solid white
+      if (bgImageUrl.value === item.dataUrl || bgImageUrl.value === item.filePath) {
+        bgMode.value = 'color';
+        bgColor.value = '#FFFFFF';
+      }
+      await loadSavedBgImages();
+    }
+    return success;
+  }
+
   function cycleBgMode() {
-    const order: BgRemovalMode[] = ['off', 'blur', 'transparent', 'image', 'gradient'];
+    const order: BgRemovalMode[] = ['off', 'blur', 'transparent', 'color', 'image', 'gradient'];
     const idx = order.indexOf(bgMode.value);
     bgMode.value = order[(idx + 1) % order.length];
   }
@@ -468,10 +572,15 @@ export function useStudioState() {
     bgEngine,
     bgImageUrl,
     bgGradient,
+    bgColor,
+    savedBgImages,
+    isLoadingSavedBgImages,
     lastRecordedSession,
     sessionCameraTelemetry,
     bgPresets: STUDIO_BG_PRESETS,
+    loadSavedBgImages,
     setCustomBgImageFromFile,
+    deleteBgImage,
     cycleBgMode,
     cycleCameraShape,
     broadcastFullState,
