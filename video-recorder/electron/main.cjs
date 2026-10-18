@@ -451,7 +451,10 @@ ipcMain.handle('select_directory', async (_event, defaultPath) => {
 ipcMain.handle('open_path', async (_event, targetPath) => {
   if (!targetPath) return { success: false, error: 'Target path required' };
   try {
-    const errMsg = await shell.openPath(targetPath);
+    const resolved = targetPath.startsWith('~/')
+      ? path.join(app.getPath('home'), targetPath.slice(2))
+      : targetPath;
+    const errMsg = await shell.openPath(resolved);
     if (errMsg) {
       return { success: false, error: errMsg };
     }
@@ -468,19 +471,38 @@ ipcMain.handle('get_camera_telemetry', () => {
 ipcMain.handle('get_default_videos_dir', () => {
   try {
     const baseVideos = app.getPath('videos');
-    const studioDir = path.join(baseVideos, 'record_studio');
+    const studioDir = path.join(baseVideos, 'studio', 'projects');
     if (!fs.existsSync(studioDir)) {
       fs.mkdirSync(studioDir, { recursive: true });
     }
     return studioDir;
   } catch {
-    const homeVideos = path.join(app.getPath('home'), 'Videos', 'record_studio');
+    const homeVideos = path.join(app.getPath('home'), 'Videos', 'studio', 'projects');
     try {
       if (!fs.existsSync(homeVideos)) {
         fs.mkdirSync(homeVideos, { recursive: true });
       }
     } catch {}
     return homeVideos;
+  }
+});
+
+ipcMain.handle('get_default_exports_dir', () => {
+  try {
+    const baseVideos = app.getPath('videos');
+    const exportsDir = path.join(baseVideos, 'studio', 'exports');
+    if (!fs.existsSync(exportsDir)) {
+      fs.mkdirSync(exportsDir, { recursive: true });
+    }
+    return exportsDir;
+  } catch {
+    const homeExports = path.join(app.getPath('home'), 'Videos', 'studio', 'exports');
+    try {
+      if (!fs.existsSync(homeExports)) {
+        fs.mkdirSync(homeExports, { recursive: true });
+      }
+    } catch {}
+    return homeExports;
   }
 });
 
@@ -500,21 +522,99 @@ ipcMain.handle('check_directory_not_empty', (_event, targetDir) => {
   }
 });
 
+ipcMain.handle('list_sessions', async () => {
+  const sessions = [];
+  const baseVideos = app.getPath('videos');
+  const candidateDirs = [
+    path.join(baseVideos, 'studio', 'projects'),
+    path.join(app.getPath('home'), 'Videos', 'studio', 'projects'),
+  ];
+
+  const seenIds = new Set();
+
+  for (const baseDir of candidateDirs) {
+    if (!fs.existsSync(baseDir)) continue;
+    try {
+      const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        const sessionId = ent.name;
+        if (seenIds.has(sessionId)) continue;
+
+        const sessionDir = path.join(baseDir, sessionId);
+        const metaFile = path.join(sessionDir, 'metadata.json');
+        let meta = null;
+        if (fs.existsSync(metaFile)) {
+          try {
+            meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+          } catch {}
+        }
+
+        let chunkCount = meta?.chunk_count || 0;
+        const chunksDir = path.join(sessionDir, 'chunks');
+        if (fs.existsSync(chunksDir)) {
+          try {
+            chunkCount = fs.readdirSync(chunksDir).length;
+          } catch {}
+        }
+
+        const stat = fs.statSync(sessionDir);
+        const createdAt =
+          meta?.created_at ||
+          (stat.birthtime && stat.birthtime.getTime() > 0 ? stat.birthtime.toISOString() : null) ||
+          stat.mtime?.toISOString?.() ||
+          new Date().toISOString();
+
+        const screenPath = meta?.screen_track || path.join(sessionDir, 'screen_clean.mp4');
+        const cameraPath = meta?.camera_raw_track || path.join(sessionDir, 'camera_raw.mp4');
+        const micPath = meta?.mic_track || path.join(sessionDir, 'audio_mic.wav');
+        const sysPath = meta?.sys_audio_track || path.join(sessionDir, 'audio_system.wav');
+        const telemetryPath = meta?.telemetry_file || path.join(sessionDir, 'telemetry.json');
+
+        seenIds.add(sessionId);
+        sessions.push({
+          id: sessionId,
+          created_at: createdAt,
+          duration_ms: meta?.duration_ms || 15000,
+          session_dir: sessionDir,
+          screen_track: fs.existsSync(screenPath) ? screenPath : '',
+          camera_raw_track: fs.existsSync(cameraPath) ? cameraPath : '',
+          mic_track: fs.existsSync(micPath) ? micPath : '',
+          sys_audio_track: fs.existsSync(sysPath) ? sysPath : '',
+          telemetry_file: fs.existsSync(telemetryPath) ? telemetryPath : '',
+          screen_manifest: path.join(sessionDir, 'screen_manifest.ndjson'),
+          camera_manifest: path.join(sessionDir, 'camera_manifest.ndjson'),
+          mic_manifest: path.join(sessionDir, 'mic_manifest.ndjson'),
+          sys_audio_manifest: path.join(sessionDir, 'sys_audio_manifest.ndjson'),
+          chunk_count: chunkCount,
+          status: meta?.status || 'completed',
+        });
+      }
+    } catch (err) {
+      console.warn('[list_sessions] Error reading directory:', baseDir, err);
+    }
+  }
+
+  sessions.sort((a, b) => (b.created_at || b.id).localeCompare(a.created_at || a.id));
+  return { sessions };
+});
+
 ipcMain.handle('delete_session', async (_event, sessionId) => {
   if (!sessionId) return { success: false, error: 'Session ID required' };
   try {
     const baseVideos = app.getPath('videos');
-    const sessionDir = path.join(baseVideos, 'record_studio', 'sessions', sessionId);
-    if (fs.existsSync(sessionDir)) {
-      fs.rmSync(sessionDir, { recursive: true, force: true });
-      return { success: true };
+    const candidateDirs = [
+      path.join(baseVideos, 'studio', 'projects', sessionId),
+      path.join(app.getPath('home'), 'Videos', 'studio', 'projects', sessionId),
+    ];
+    let deleted = false;
+    for (const dir of candidateDirs) {
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        deleted = true;
+      }
     }
-    const homeVideos = path.join(app.getPath('home'), 'Videos', 'record_studio', 'sessions', sessionId);
-    if (fs.existsSync(homeVideos)) {
-      fs.rmSync(homeVideos, { recursive: true, force: true });
-      return { success: true };
-    }
-    return { success: true };
+    return { success: true, deleted };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -578,13 +678,12 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
         'camera_manifest.ndjson',
         'mic_manifest.ndjson',
         'sys_audio_manifest.ndjson',
-        'session_metadata.json',
+        'metadata.json',
         'screen_clean.mp4',
         'camera_raw.mp4',
         'camera_alpha.webm',
         'audio_mic.wav',
         'audio_system.wav',
-        'metadata.json',
       ];
       for (const fileName of manifestAndMedia) {
         const srcFile = path.join(sourceDir, fileName);

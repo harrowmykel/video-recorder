@@ -32,6 +32,7 @@ import ExportDestinationModal from './ExportDestinationModal.vue';
 
 const props = defineProps<{
   cameraTelemetry?: CameraTelemetryPoint[];
+  initialSessionId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -87,7 +88,9 @@ const currentSessionId = computed(() => activeSession.value?.id || 'session_late
 async function loadSessionsList() {
   const list = await fetchRecordedSessions();
   sessions.value = list;
-  if (lastRecordedSession.value) {
+  if (props.initialSessionId) {
+    selectedSessionId.value = props.initialSessionId;
+  } else if (lastRecordedSession.value) {
     const exists = list.some((s) => s.id === lastRecordedSession.value?.id);
     if (!exists) {
       sessions.value.unshift(lastRecordedSession.value);
@@ -97,6 +100,12 @@ async function loadSessionsList() {
     selectedSessionId.value = list[0].id;
   }
 }
+
+watch(() => props.initialSessionId, (newId) => {
+  if (newId) {
+    selectedSessionId.value = newId;
+  }
+});
 
 watch(activeSession, (sess) => {
   hasVideoLoaded.value = false;
@@ -247,8 +256,9 @@ function handleTrimDeadAir() {
 }
 
 async function handleOpenSessionAssets() {
+  const sessionDir = activeSession.value?.sessionDir || '';
   const screenPath = activeSession.value?.screenPath || '';
-  const dir = screenPath ? screenPath.replace(/\/[^/]+$/, '') : '~/Videos/record_studio/sessions';
+  const dir = sessionDir || (screenPath ? screenPath.replace(/\/[^/]+$/, '') : '~/Videos/studio/projects');
   const res = await openExportDirectory(dir);
   if (!res.success) {
     navigator.clipboard?.writeText(dir).catch(() => {});

@@ -283,19 +283,21 @@ export async function buildRecordingSessionFromDaemonMeta(meta: any): Promise<Re
   const daemonBase = await resolveDaemonUrl();
   const id = meta?.id || `session_${Date.now()}`;
   const ts = Date.now();
+  const sessionDir = meta?.session_dir || '';
   return {
     id,
     timestamp: meta?.created_at || new Date().toISOString(),
     durationMs: meta?.duration_ms || 15000,
-    screenPath: meta?.screen_track || `/recordings/${id}/screen_clean.mp4`,
-    cameraRawPath: meta?.camera_raw_track || `/recordings/${id}/camera_raw.mp4`,
+    sessionDir,
+    screenPath: meta?.screen_track || (sessionDir ? `${sessionDir}/screen_clean.mp4` : `/recordings/${id}/screen_clean.mp4`),
+    cameraRawPath: meta?.camera_raw_track ?? (sessionDir ? `${sessionDir}/camera_raw.mp4` : `/recordings/${id}/camera_raw.mp4`),
     cameraAlphaPath: meta?.camera_raw_track
       ? meta.camera_raw_track.replace('camera_raw.mp4', 'camera_alpha.webm')
-      : `/recordings/${id}/camera_alpha.webm`,
-    micAudioPath: meta?.mic_track || `/recordings/${id}/audio_mic.wav`,
-    sysAudioPath: meta?.sys_audio_track || `/recordings/${id}/audio_system.wav`,
-    telemetryPath: meta?.telemetry_file || `/recordings/${id}/telemetry.json`,
-    metadataPath: meta?.session_dir ? `${meta.session_dir}/session_metadata.json` : `/recordings/${id}/session_metadata.json`,
+      : (sessionDir ? `${sessionDir}/camera_alpha.webm` : `/recordings/${id}/camera_alpha.webm`),
+    micAudioPath: meta?.mic_track || (sessionDir ? `${sessionDir}/audio_mic.wav` : `/recordings/${id}/audio_mic.wav`),
+    sysAudioPath: meta?.sys_audio_track || (sessionDir ? `${sessionDir}/audio_system.wav` : `/recordings/${id}/audio_system.wav`),
+    telemetryPath: meta?.telemetry_file || (sessionDir ? `${sessionDir}/telemetry.json` : `/recordings/${id}/telemetry.json`),
+    metadataPath: sessionDir ? `${sessionDir}/metadata.json` : `/recordings/${id}/metadata.json`,
     screenUrl: `${daemonBase}/media/${id}/screen_clean.mp4?t=${ts}`,
     cameraUrl: `${daemonBase}/media/${id}/camera_raw.mp4?t=${ts}`,
     micUrl: `${daemonBase}/media/${id}/audio_mic.wav?t=${ts}`,
@@ -305,12 +307,26 @@ export async function buildRecordingSessionFromDaemonMeta(meta: any): Promise<Re
     micManifest: meta?.mic_manifest,
     sysAudioManifest: meta?.sys_audio_manifest,
     chunkCount: meta?.chunk_count,
+    status: meta?.status || 'completed',
   };
 }
 
 
 export async function fetchRecordedSessions(): Promise<RecordingSession[]> {
   try {
+    if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+      try {
+        const res = await window.__ELECTRON_OVERLAY__.invoke('list_sessions');
+        if (res?.sessions && Array.isArray(res.sessions) && res.sessions.length > 0) {
+          const items: RecordingSession[] = [];
+          for (const m of res.sessions) {
+            items.push(await buildRecordingSessionFromDaemonMeta(m));
+          }
+          return items;
+        }
+      } catch {}
+    }
+
     const res = await invokeCommand<{ sessions?: any[] }>('get_sessions');
     if (res?.sessions && Array.isArray(res.sessions)) {
       const items: RecordingSession[] = [];
@@ -437,7 +453,17 @@ export async function getDefaultVideosDirectory(): Promise<string> {
       if (dir) return dir;
     } catch {}
   }
-  return '~/Videos/record_studio';
+  return '~/Videos/studio/projects';
+}
+
+export async function getDefaultExportsDirectory(): Promise<string> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const dir = await window.__ELECTRON_OVERLAY__.invoke('get_default_exports_dir');
+      if (dir) return dir;
+    } catch {}
+  }
+  return '~/Videos/studio/exports';
 }
 
 export async function openExportDirectory(targetPath: string): Promise<{ success: boolean; error?: string }> {
@@ -476,7 +502,7 @@ export async function selectExportDirectory(defaultPath?: string): Promise<strin
     try {
       const dirHandle = await (window as any).showDirectoryPicker();
       if (dirHandle?.name) {
-        return `~/Videos/record_studio/${dirHandle.name}`;
+        return `~/Videos/studio/projects/${dirHandle.name}`;
       }
     } catch {
       // User cancelled

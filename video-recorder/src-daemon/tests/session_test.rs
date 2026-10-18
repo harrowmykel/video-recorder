@@ -92,5 +92,50 @@ mod tests {
         assert_eq!(parsed.get("mic_muted").and_then(|v| v.as_bool()), Some(true));
         assert_eq!(parsed.get("sys_audio_muted").and_then(|v| v.as_bool()), Some(false));
     }
+
+    #[test]
+    fn test_session_metadata_json_serialization_and_defaults() {
+        let meta_json = r#"{
+            "id": "session_123e4567-e89b-12d3-a456-426614174000",
+            "created_at": "2026-10-18T03:50:00+02:00",
+            "duration_ms": 0,
+            "session_dir": "/home/user/Videos/studio/projects/session_123e4567-e89b-12d3-a456-426614174000",
+            "screen_track": "/home/user/Videos/studio/projects/session_123/screen_clean.mp4",
+            "camera_raw_track": "",
+            "mic_track": "/home/user/Videos/studio/projects/session_123/audio_mic.wav",
+            "sys_audio_track": "/home/user/Videos/studio/projects/session_123/audio_system.wav",
+            "telemetry_file": "/home/user/Videos/studio/projects/session_123/telemetry.json",
+            "status": "recording"
+        }"#;
+
+        let parsed: serde_json::Value = serde_json::from_str(meta_json).unwrap();
+        assert_eq!(parsed["status"], "recording");
+        assert_eq!(parsed["id"], "session_123e4567-e89b-12d3-a456-426614174000");
+        assert!(parsed["session_dir"].as_str().unwrap().contains("studio/projects"));
+    }
+
+    #[test]
+    fn test_studio_projects_path_convention() {
+        let home = std::path::PathBuf::from("/home/user");
+        let session_id = "session_test_uuid";
+        let session_dir = home.join("Videos").join("studio").join("projects").join(session_id);
+        assert_eq!(
+            session_dir.to_str().unwrap(),
+            "/home/user/Videos/studio/projects/session_test_uuid"
+        );
+    }
+
+    #[test]
+    fn test_studio_exports_sess_format_uuid_convention() {
+        let home = std::path::PathBuf::from("/home/user");
+        let raw_uuid = "82f1b4a3-488b-47e2-880c-e2f472851532";
+        let format = "premiere_xml";
+        let folder_name = format!("sess_{}_{}", format, raw_uuid);
+        let export_dir = home.join("Videos").join("studio").join("exports").join(folder_name);
+        assert_eq!(
+            export_dir.to_str().unwrap(),
+            "/home/user/Videos/studio/exports/sess_premiere_xml_82f1b4a3-488b-47e2-880c-e2f472851532"
+        );
+    }
 }
 

@@ -130,7 +130,7 @@ impl SessionManager {
         };
 
         if let Some(dir) = &self.session_dir {
-            let meta_file = dir.join("session_metadata.json");
+            let meta_file = dir.join("metadata.json");
             let _ = std::fs::write(meta_file, serde_json::to_string_pretty(&metadata)?);
         }
 

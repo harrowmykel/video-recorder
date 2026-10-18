@@ -32,6 +32,10 @@ pub struct UpdateAudioRequest {
     pub sys_audio_muted: Option<bool>,
 }
 
+fn default_status_completed() -> String {
+    "completed".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMetadata {
     pub id: String,
@@ -53,6 +57,8 @@ pub struct SessionMetadata {
     pub sys_audio_manifest: String,
     #[serde(default)]
     pub chunk_count: u32,
+    #[serde(default = "default_status_completed")]
+    pub status: String,
 }
 
 pub struct SessionManager {
@@ -61,6 +67,7 @@ pub struct SessionManager {
     last_session_dir: Option<PathBuf>,
     last_metadata: Option<SessionMetadata>,
     started_at: Option<Instant>,
+    created_at_rfc3339: Option<String>,
     is_paused: bool,
     screen_recorder: Option<ScreenRecorder>,
     camera_recorder: Option<CameraRecorder>,
@@ -76,6 +83,7 @@ impl Default for SessionManager {
             last_session_dir: None,
             last_metadata: None,
             started_at: None,
+            created_at_rfc3339: None,
             is_paused: false,
             screen_recorder: None,
             camera_recorder: None,
@@ -86,15 +94,17 @@ impl Default for SessionManager {
 }
 
 pub fn default_recordings_base_dir() -> PathBuf {
-    if let Ok(home) = std::env::var("HOME") {
-        let dir = PathBuf::from(home).join("Videos").join("record_studio").join("sessions");
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
+    if let Ok(home) = home {
+        let dir = PathBuf::from(home).join("Videos").join("studio").join("projects");
         if std::fs::create_dir_all(&dir).is_ok() {
             return dir;
         }
     }
     let fallback = std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
-        .join("recordings");
+        .join("studio")
+        .join("projects");
     let _ = std::fs::create_dir_all(&fallback);
     fallback
 }
@@ -136,6 +146,7 @@ impl SessionManager {
         let telemetry_path = session_dir.join("telemetry.json");
 
         let screen_manifest = session_dir.join("screen_manifest.ndjson");
+        let camera_manifest = session_dir.join("camera_manifest.ndjson");
         let mic_manifest = session_dir.join("mic_manifest.ndjson");
         let sys_manifest = session_dir.join("sys_audio_manifest.ndjson");
 
@@ -160,9 +171,9 @@ impl SessionManager {
 
         // 1. Start Screen Recorder (Chunked)
         let mut screen_rec = ScreenRecorder::new_chunked(
-            screen_path,
+            screen_path.clone(),
             chunks_dir.clone(),
-            screen_manifest,
+            screen_manifest.clone(),
             req.source_mode.clone(),
             req.window_id.clone(),
         );
@@ -183,7 +194,7 @@ impl SessionManager {
         };
 
         let camera_rec = if !is_camera_disabled {
-            let mut rec = CameraRecorder::new(camera_path);
+            let mut rec = CameraRecorder::new(camera_path.clone());
             if let Err(e) = rec.start(req.camera_device.as_deref()) {
                 eprintln!("[SessionManager] Warning starting camera recorder: {}", e);
             }
@@ -195,11 +206,11 @@ impl SessionManager {
 
         // 3. Start Audio Recorder (Chunked)
         let mut audio_rec = AudioRecorder::new_chunked(
-            mic_path,
-            sys_path,
+            mic_path.clone(),
+            sys_path.clone(),
             chunks_dir.clone(),
-            mic_manifest,
-            sys_manifest,
+            mic_manifest.clone(),
+            sys_manifest.clone(),
         );
         let mic_muted = req.mic_muted.unwrap_or(false);
         let sys_muted = req.sys_audio_muted.unwrap_or(false);
@@ -208,13 +219,41 @@ impl SessionManager {
         }
 
         // 4. Start Telemetry Logger
-        let mut telemetry_log = TelemetryLogger::new(telemetry_path);
+        let mut telemetry_log = TelemetryLogger::new(telemetry_path.clone());
         telemetry_log.start();
+
+        let created_at = Local::now().to_rfc3339();
+        let initial_meta = SessionMetadata {
+            id: session_id.clone(),
+            created_at: created_at.clone(),
+            duration_ms: 0,
+            session_dir: session_dir.to_string_lossy().to_string(),
+            screen_track: screen_path.to_string_lossy().to_string(),
+            camera_raw_track: if camera_rec.is_some() {
+                camera_path.to_string_lossy().to_string()
+            } else {
+                String::new()
+            },
+            mic_track: mic_path.to_string_lossy().to_string(),
+            sys_audio_track: sys_path.to_string_lossy().to_string(),
+            telemetry_file: telemetry_path.to_string_lossy().to_string(),
+            screen_manifest: screen_manifest.to_string_lossy().to_string(),
+            camera_manifest: camera_manifest.to_string_lossy().to_string(),
+            mic_manifest: mic_manifest.to_string_lossy().to_string(),
+            sys_audio_manifest: sys_manifest.to_string_lossy().to_string(),
+            chunk_count: 0,
+            status: "recording".to_string(),
+        };
+
+        if let Ok(meta_json) = serde_json::to_string_pretty(&initial_meta) {
+            let _ = std::fs::write(session_dir.join("metadata.json"), &meta_json);
+        }
 
         self.session_id = Some(session_id.clone());
         self.session_dir = Some(session_dir.clone());
         self.last_session_dir = Some(session_dir);
         self.started_at = Some(Instant::now());
+        self.created_at_rfc3339 = Some(created_at);
         self.is_paused = false;
         self.screen_recorder = Some(screen_rec);
         self.camera_recorder = camera_rec;
@@ -374,9 +413,14 @@ impl SessionManager {
             }
         }
 
+        let created_at = self
+            .created_at_rfc3339
+            .take()
+            .unwrap_or_else(|| Local::now().to_rfc3339());
+
         let metadata = SessionMetadata {
             id: session_id,
-            created_at: Local::now().to_rfc3339(),
+            created_at,
             duration_ms,
             session_dir: dir_str.clone(),
             screen_track: screen_path,
@@ -389,12 +433,13 @@ impl SessionManager {
             mic_manifest: format!("{}/mic_manifest.ndjson", dir_str),
             sys_audio_manifest: format!("{}/sys_audio_manifest.ndjson", dir_str),
             chunk_count,
+            status: "completed".to_string(),
         };
 
         if let Some(dir) = &self.session_dir {
             self.last_session_dir = Some(dir.clone());
-            let meta_file = dir.join("session_metadata.json");
-            let _ = std::fs::write(meta_file, serde_json::to_string_pretty(&metadata)?);
+            let meta_json = serde_json::to_string_pretty(&metadata)?;
+            let _ = std::fs::write(dir.join("metadata.json"), &meta_json);
         }
 
         self.last_metadata = Some(metadata.clone());
@@ -527,60 +572,86 @@ impl SessionManager {
 
 pub fn list_recorded_sessions(base_dir: &Path) -> Vec<SessionMetadata> {
     let mut list = Vec::new();
+    let mut seen_ids = std::collections::HashSet::new();
+
     if let Ok(entries) = std::fs::read_dir(base_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                let meta_path = path.join("session_metadata.json");
-                if let Ok(raw) = std::fs::read_to_string(&meta_path) {
+                let folder_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("session")
+                    .to_string();
+
+                // 1. Read metadata.json
+                let meta_file = path.join("metadata.json");
+                if let Ok(raw) = std::fs::read_to_string(&meta_file) {
                     if let Ok(meta) = serde_json::from_str::<SessionMetadata>(&raw) {
-                        list.push(meta);
+                        if !seen_ids.contains(&meta.id) {
+                            seen_ids.insert(meta.id.clone());
+                            list.push(meta);
+                        }
                         continue;
                     }
                 }
-                // Fallback if session_metadata.json wasn't written yet
-                let screen_path = path.join("screen_clean.mp4");
-                if screen_path.exists() {
-                    let id = path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("session")
-                        .to_string();
+
+                // 2. Fallback: use folder name as session id, creation/modification time as created_at
+                if !seen_ids.contains(&folder_name) {
+                    let screen_path = path.join("screen_clean.mp4");
                     let cam_track = path.join("camera_raw.mp4");
-                    let camera_raw_track = if cam_track.exists() {
-                        cam_track.to_string_lossy().to_string()
-                    } else {
-                        String::new()
-                    };
-
-                    let screen_manifest = path.join("screen_manifest.ndjson");
-                    let camera_manifest = path.join("camera_manifest.ndjson");
-                    let mic_manifest = path.join("mic_manifest.ndjson");
-                    let sys_manifest = path.join("sys_audio_manifest.ndjson");
                     let chunks_d = path.join("chunks");
-                    let chunk_count = std::fs::read_dir(&chunks_d).map(|e| e.count() as u32).unwrap_or(0);
 
-                    list.push(SessionMetadata {
-                        id,
-                        created_at: Local::now().to_rfc3339(),
-                        duration_ms: 15000,
-                        session_dir: path.to_string_lossy().to_string(),
-                        screen_track: screen_path.to_string_lossy().to_string(),
-                        camera_raw_track,
-                        mic_track: path.join("audio_mic.wav").to_string_lossy().to_string(),
-                        sys_audio_track: path.join("audio_system.wav").to_string_lossy().to_string(),
-                        telemetry_file: path.join("telemetry.json").to_string_lossy().to_string(),
-                        screen_manifest: screen_manifest.to_string_lossy().to_string(),
-                        camera_manifest: camera_manifest.to_string_lossy().to_string(),
-                        mic_manifest: mic_manifest.to_string_lossy().to_string(),
-                        sys_audio_manifest: sys_manifest.to_string_lossy().to_string(),
-                        chunk_count,
-                    });
+                    // Consider valid if either screen_clean.mp4 or chunks/ exists
+                    if screen_path.exists() || chunks_d.exists() {
+                        let created_at = entry
+                            .metadata()
+                            .ok()
+                            .and_then(|m| m.created().or_else(|_| m.modified()).ok())
+                            .map(|sys_time| {
+                                let dt: chrono::DateTime<Local> = sys_time.into();
+                                dt.to_rfc3339()
+                            })
+                            .unwrap_or_else(|| Local::now().to_rfc3339());
+
+                        let camera_raw_track = if cam_track.exists() {
+                            cam_track.to_string_lossy().to_string()
+                        } else {
+                            String::new()
+                        };
+
+                        let screen_manifest = path.join("screen_manifest.ndjson");
+                        let camera_manifest = path.join("camera_manifest.ndjson");
+                        let mic_manifest = path.join("mic_manifest.ndjson");
+                        let sys_manifest = path.join("sys_audio_manifest.ndjson");
+                        let chunk_count = std::fs::read_dir(&chunks_d).map(|e| e.count() as u32).unwrap_or(0);
+
+                        let fallback_meta = SessionMetadata {
+                            id: folder_name.clone(),
+                            created_at,
+                            duration_ms: 15000,
+                            session_dir: path.to_string_lossy().to_string(),
+                            screen_track: if screen_path.exists() { screen_path.to_string_lossy().to_string() } else { String::new() },
+                            camera_raw_track,
+                            mic_track: path.join("audio_mic.wav").to_string_lossy().to_string(),
+                            sys_audio_track: path.join("audio_system.wav").to_string_lossy().to_string(),
+                            telemetry_file: path.join("telemetry.json").to_string_lossy().to_string(),
+                            screen_manifest: screen_manifest.to_string_lossy().to_string(),
+                            camera_manifest: camera_manifest.to_string_lossy().to_string(),
+                            mic_manifest: mic_manifest.to_string_lossy().to_string(),
+                            sys_audio_manifest: sys_manifest.to_string_lossy().to_string(),
+                            chunk_count,
+                            status: "completed".to_string(),
+                        };
+
+                        seen_ids.insert(folder_name);
+                        list.push(fallback_meta);
+                    }
                 }
             }
         }
     }
-    list.sort_by(|a, b| b.id.cmp(&a.id));
+    list.sort_by(|a, b| b.created_at.cmp(&a.created_at).then_with(|| b.id.cmp(&a.id)));
     list
 }
 

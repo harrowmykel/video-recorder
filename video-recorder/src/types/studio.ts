@@ -97,6 +97,8 @@ export interface RecordingSession {
   micManifest?: string;
   sysAudioManifest?: string;
   chunkCount?: number;
+  status?: string;
+  sessionDir?: string;
 }
 
 export interface BatchMattingJob {
