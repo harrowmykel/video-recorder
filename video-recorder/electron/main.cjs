@@ -620,32 +620,15 @@ ipcMain.handle('delete_session', async (_event, sessionId) => {
   }
 });
 
-function readNdjsonLines(filePath) {
-  if (!fs.existsSync(filePath)) return [];
-  try {
-    return fs.readFileSync(filePath, 'utf8')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
 ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMetadata, preset = 'premiere_xml' }) => {
   try {
-    fs.mkdirSync(targetDir, { recursive: true });
+    const resolvedTargetDir = targetDir.startsWith('~/')
+      ? path.join(app.getPath('home'), targetDir.slice(2))
+      : targetDir;
+    fs.mkdirSync(resolvedTargetDir, { recursive: true });
 
     // Determine source directory
-    const sourceDir =
+    const rawSourceDir =
       sessionMetadata && sessionMetadata.sessionDir
         ? sessionMetadata.sessionDir
         : sessionMetadata && sessionMetadata.outputDir
@@ -654,56 +637,53 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
             ? path.dirname(sessionMetadata.screenPath)
             : null;
 
-    if (sourceDir && fs.existsSync(sourceDir) && path.resolve(sourceDir) !== path.resolve(targetDir)) {
-      // 1. Copy chunks directory if present
-      const sourceChunksDir = path.join(sourceDir, 'chunks');
-      const targetChunksDir = path.join(targetDir, 'chunks');
-      if (fs.existsSync(sourceChunksDir)) {
-        fs.mkdirSync(targetChunksDir, { recursive: true });
-        const chunkFiles = fs.readdirSync(sourceChunksDir);
-        for (const cf of chunkFiles) {
-          const srcCf = path.join(sourceChunksDir, cf);
-          const destCf = path.join(targetChunksDir, cf);
-          if (fs.existsSync(srcCf)) {
-            try {
-              fs.copyFileSync(srcCf, destCf);
-            } catch {}
-          }
+    const sourceDir = rawSourceDir && rawSourceDir.startsWith('~/')
+      ? path.join(app.getPath('home'), rawSourceDir.slice(2))
+      : rawSourceDir;
+
+    // Only copy clean finalized media files (do not copy internal chunks/ or daemon manifests)
+    const mediaTracks = [
+      { name: 'screen_clean.mp4', explicit: sessionMetadata?.screenPath },
+      { name: 'camera_raw.mp4', explicit: sessionMetadata?.cameraRawPath },
+      { name: 'camera_alpha.webm', explicit: sessionMetadata?.cameraAlphaPath },
+      { name: 'audio_mic.wav', explicit: sessionMetadata?.micAudioPath },
+      { name: 'audio_system.wav', explicit: sessionMetadata?.sysAudioPath },
+    ];
+
+    for (const track of mediaTracks) {
+      const destFile = path.join(resolvedTargetDir, track.name);
+      if (fs.existsSync(destFile)) continue;
+
+      let src = null;
+      if (track.explicit && fs.existsSync(track.explicit)) {
+        src = track.explicit;
+      } else if (sourceDir) {
+        const candidate = path.join(sourceDir, track.name);
+        if (fs.existsSync(candidate)) {
+          src = candidate;
         }
       }
 
-      // 2. Copy manifest and media files
-      const manifestAndMedia = [
-        'screen_manifest.ndjson',
-        'camera_manifest.ndjson',
-        'mic_manifest.ndjson',
-        'sys_audio_manifest.ndjson',
-        'metadata.json',
-        'screen_clean.mp4',
-        'camera_raw.mp4',
-        'camera_alpha.webm',
-        'audio_mic.wav',
-        'audio_system.wav',
-      ];
-      for (const fileName of manifestAndMedia) {
-        const srcFile = path.join(sourceDir, fileName);
-        const destFile = path.join(targetDir, fileName);
-        if (fs.existsSync(srcFile)) {
-          try {
-            fs.copyFileSync(srcFile, destFile);
-          } catch (copyErr) {
-            console.warn(`[Export] Could not copy ${fileName}:`, copyErr);
-          }
+      if (src && path.resolve(src) !== path.resolve(destFile)) {
+        try {
+          fs.copyFileSync(src, destFile);
+        } catch (copyErr) {
+          console.warn(`[Export] Could not copy ${track.name}:`, copyErr);
         }
       }
     }
 
-    // Read manifests if available for chunk-based non-linear timeline export
-    const readBase = sourceDir && fs.existsSync(sourceDir) ? sourceDir : targetDir;
-    const screenChunks = readNdjsonLines(path.join(readBase, 'screen_manifest.ndjson'));
-    const cameraChunks = readNdjsonLines(path.join(readBase, 'camera_manifest.ndjson'));
-    const micChunks = readNdjsonLines(path.join(readBase, 'mic_manifest.ndjson'));
-    const sysChunks = readNdjsonLines(path.join(readBase, 'sys_audio_manifest.ndjson'));
+    const hasScreenFile = fs.existsSync(path.join(resolvedTargetDir, 'screen_clean.mp4'));
+    const hasCameraAlpha = fs.existsSync(path.join(resolvedTargetDir, 'camera_alpha.webm'));
+    const hasCameraRaw = fs.existsSync(path.join(resolvedTargetDir, 'camera_raw.mp4'));
+    const hasCameraFile = hasCameraAlpha || hasCameraRaw;
+    const hasMicFile = fs.existsSync(path.join(resolvedTargetDir, 'audio_mic.wav'));
+    const hasSysAudioFile = fs.existsSync(path.join(resolvedTargetDir, 'audio_system.wav'));
+
+    const durMs = sessionMetadata?.durationMs || sessionMetadata?.duration_ms || 15000;
+    const durSec = durMs / 1000;
+    const durFrames = Math.max(1, Math.round(durSec * 60));
+    const durUs = Math.round(durSec * 1000000);
 
     const telemetry = (sessionMetadata && sessionMetadata.cameraTelemetry && sessionMetadata.cameraTelemetry.length)
       ? sessionMetadata.cameraTelemetry
@@ -715,138 +695,68 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
       width: 288,
       height: 288,
       shape: 'circle',
-      hidden: false
+      hidden: false,
     };
 
-    // 1. Write package_manifest.json
-    const manifestPath = path.join(targetDir, 'package_manifest.json');
+    // 1. Write package_manifest.json with summary of included tracks
+    const manifestPath = path.join(resolvedTargetDir, 'package_manifest.json');
     fs.writeFileSync(manifestPath, JSON.stringify({
       preset,
       exportedAt: new Date().toISOString(),
-      session: sessionMetadata || {},
-      cameraInitialPosition: initialPoint,
-      telemetrySampleCount: telemetry.length,
-      chunks: {
-        screenCount: screenChunks.length,
-        cameraCount: cameraChunks.length,
-        micCount: micChunks.length,
-        sysCount: sysChunks.length,
+      session: {
+        id: sessionMetadata?.sessionId || sessionMetadata?.id || 'session',
+        durationMs: durMs,
+      },
+      tracks: {
+        screen: hasScreenFile ? 'screen_clean.mp4' : null,
+        camera: hasCameraAlpha ? 'camera_alpha.webm' : (hasCameraRaw ? 'camera_raw.mp4' : null),
+        mic: hasMicFile ? 'audio_mic.wav' : null,
+        sysAudio: hasSysAudioFile ? 'audio_system.wav' : null,
+      },
+      cameraInitialPosition: hasCameraFile ? initialPoint : null,
+      telemetrySampleCount: hasCameraFile ? telemetry.length : 0,
+    }, null, 2));
+
+    // 2. Preset-specific project files
+    if (preset === 'premiere_xml') {
+      if (hasCameraFile && telemetry.length > 0) {
+        fs.writeFileSync(path.join(resolvedTargetDir, 'telemetry_camera.json'), JSON.stringify(telemetry, null, 2));
       }
-    }, null, 2));
 
-    // 2. Write telemetry_camera.json & telemetry.json
-    fs.writeFileSync(path.join(targetDir, 'telemetry_camera.json'), JSON.stringify(telemetry, null, 2));
-    fs.writeFileSync(path.join(targetDir, 'telemetry.json'), JSON.stringify({
-      cameraTrajectory: telemetry,
-      cursorTelemetry: [],
-      deviceDisplay: screen.getPrimaryDisplay().bounds,
-    }, null, 2));
-
-    // Check if camera track was recorded in this session
-    const hasCameraFile =
-      cameraChunks.length > 0 ||
-      fs.existsSync(path.join(targetDir, 'camera_raw.mp4')) ||
-      fs.existsSync(path.join(targetDir, 'camera_alpha.webm')) ||
-      Boolean(
-        sessionMetadata &&
-        sessionMetadata.cameraRawPath &&
-        sessionMetadata.cameraRawPath.trim().length > 0 &&
-        fs.existsSync(sessionMetadata.cameraRawPath)
-      );
-
-    // 3. Generate Premiere Pro XML (XMEML with Chunks or Unified Fallback)
-    let screenXmlTrack = '';
-    if (screenChunks.length > 0) {
-      screenXmlTrack = `
-            <track>
-              <!-- Video Track 1: Clean Screen Recording Chunks -->
-              ${screenChunks.map((c, i) => {
-                const durFrames = Math.max(1, Math.round(((c.duration_ms || 15000) / 1000) * 60));
-                const startFrame = Math.round(((c.start_ms || 0) / 1000) * 60);
-                const endFrame = startFrame + durFrames;
-                const fileName = path.basename(c.file);
-                return `<clipitem id="clipitem-screen-${i+1}">
-                <name>${fileName}</name>
-                <duration>${durFrames}</duration>
-                <rate><timebase>60</timebase></rate>
-                <start>${startFrame}</start>
-                <end>${endFrame}</end>
-                <file id="file-screen-${i+1}">
-                  <name>${fileName}</name>
-                  <pathurl>file://${c.file}</pathurl>
-                </file>
-              </clipitem>`;
-              }).join('\n              ')}
-            </track>`;
-    } else {
-      screenXmlTrack = `
+      const screenXmlTrack = hasScreenFile ? `
             <track>
               <!-- Video Track 1: Clean Screen Recording -->
               <clipitem id="clipitem-screen">
                 <name>screen_clean.mp4</name>
-                <duration>2520</duration>
+                <duration>${durFrames}</duration>
                 <rate><timebase>60</timebase></rate>
+                <start>0</start>
+                <end>${durFrames}</end>
                 <file id="file-screen">
                   <name>screen_clean.mp4</name>
                   <pathurl>file://screen_clean.mp4</pathurl>
                 </file>
               </clipitem>
-            </track>`;
-    }
+            </track>` : '';
 
-    let cameraXmlTrack = '';
-    if (cameraChunks.length > 0) {
-      cameraXmlTrack = `
+      let cameraXmlTrack = '';
+      if (hasCameraFile) {
+        const camFile = hasCameraAlpha ? 'camera_alpha.webm' : 'camera_raw.mp4';
+        const pScale = Number((((initialPoint.width || 288) / 1920) * 100).toFixed(2));
+        const pCenterX = Number(((initialPoint.normX || 0.8) - 0.5 + ((initialPoint.width || 288) / (1920 * 2))).toFixed(4));
+        const pCenterY = Number(((initialPoint.normY || 0.7) - 0.5 + ((initialPoint.height || 288) / (1080 * 2))).toFixed(4));
+        cameraXmlTrack = `
             <track>
-              <!-- Video Track 2: Decoupled Camera Chunks with Per-Chunk Telemetry -->
-              ${cameraChunks.map((c, i) => {
-                const durFrames = Math.max(1, Math.round(((c.duration_ms || 15000) / 1000) * 60));
-                const startFrame = Math.round(((c.start_ms || 0) / 1000) * 60);
-                const endFrame = startFrame + durFrames;
-                const fileName = path.basename(c.file);
-                const width = c.bubble?.width || 240;
-                const height = c.bubble?.height || 240;
-                const normX = c.position?.norm_x ?? 0.8;
-                const normY = c.position?.norm_y ?? 0.7;
-                const pScale = Number(((width / 1920) * 100).toFixed(2));
-                const pCenterX = Number((normX - 0.5 + (width / (1920 * 2))).toFixed(4));
-                const pCenterY = Number((normY - 0.5 + (height / (1080 * 2))).toFixed(4));
-
-                return `<clipitem id="clipitem-camera-${i+1}">
-                <name>${fileName}</name>
+              <!-- Video Track 2: Camera PIP -->
+              <clipitem id="clipitem-camera">
+                <name>${camFile}</name>
                 <duration>${durFrames}</duration>
                 <rate><timebase>60</timebase></rate>
-                <start>${startFrame}</start>
-                <end>${endFrame}</end>
-                <file id="file-camera-${i+1}">
-                  <name>${fileName}</name>
-                  <pathurl>file://${c.file}</pathurl>
-                </file>
-                <filter>
-                  <effect>
-                    <name>Basic Motion</name>
-                    <effectid>basic</effectid>
-                    <effectcategory>motion</effectcategory>
-                    <parameter><parameterid>scale</parameterid><name>Scale</name><value>${pScale}</value></parameter>
-                    <parameter><parameterid>center</parameterid><name>Center</name><value><horiz>${pCenterX}</horiz><vert>${pCenterY}</vert></value></parameter>
-                  </effect>
-                </filter>
-              </clipitem>`;
-              }).join('\n              ')}
-            </track>`;
-    } else if (hasCameraFile) {
-      const pScale = Number((((initialPoint.width || 288) / 1920) * 100).toFixed(2));
-      const pCenterX = Number(((initialPoint.normX || 0.8) - 0.5 + ((initialPoint.width || 288) / (1920 * 2))).toFixed(4));
-      const pCenterY = Number(((initialPoint.normY || 0.7) - 0.5 + ((initialPoint.height || 288) / (1080 * 2))).toFixed(4));
-      cameraXmlTrack = `
-            <track>
-              <clipitem id="clipitem-camera">
-                <name>camera_alpha.webm</name>
-                <duration>2520</duration>
-                <rate><timebase>60</timebase></rate>
+                <start>0</start>
+                <end>${durFrames}</end>
                 <file id="file-camera">
-                  <name>camera_alpha.webm</name>
-                  <pathurl>file://camera_alpha.webm</pathurl>
+                  <name>${camFile}</name>
+                  <pathurl>file://${camFile}</pathurl>
                 </file>
                 <filter>
                   <effect>
@@ -859,68 +769,34 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
                 </filter>
               </clipitem>
             </track>`;
-    }
+      }
 
-    let micXmlTrack = '';
-    if (micChunks.length > 0) {
-      micXmlTrack = `
+      const micXmlTrack = hasMicFile ? `
             <track>
-              <!-- Audio Track 1: Microphone Stem Chunks -->
-              ${micChunks.map((c, i) => {
-                const durFrames = Math.max(1, Math.round(((c.duration_ms || 15000) / 1000) * 60));
-                const startFrame = Math.round(((c.start_ms || 0) / 1000) * 60);
-                const endFrame = startFrame + durFrames;
-                const fileName = path.basename(c.file);
-                return `<clipitem id="clipitem-mic-${i+1}">
-                <name>${fileName}</name>
-                <duration>${durFrames}</duration>
-                <start>${startFrame}</start>
-                <end>${endFrame}</end>
-                <file id="file-mic-${i+1}"><pathurl>file://${c.file}</pathurl></file>
-              </clipitem>`;
-              }).join('\n              ')}
-            </track>`;
-    } else {
-      micXmlTrack = `
-            <track>
+              <!-- Audio Track 1: Microphone Stem -->
               <clipitem id="clipitem-mic">
                 <name>audio_mic.wav</name>
+                <duration>${durFrames}</duration>
+                <start>0</start>
+                <end>${durFrames}</end>
                 <file id="file-mic"><pathurl>file://audio_mic.wav</pathurl></file>
               </clipitem>
-            </track>`;
-    }
+            </track>` : '';
 
-    let sysXmlTrack = '';
-    if (sysChunks.length > 0) {
-      sysXmlTrack = `
+      const sysXmlTrack = hasSysAudioFile ? `
             <track>
-              <!-- Audio Track 2: System Audio Stem Chunks -->
-              ${sysChunks.map((c, i) => {
-                const durFrames = Math.max(1, Math.round(((c.duration_ms || 15000) / 1000) * 60));
-                const startFrame = Math.round(((c.start_ms || 0) / 1000) * 60);
-                const endFrame = startFrame + durFrames;
-                const fileName = path.basename(c.file);
-                return `<clipitem id="clipitem-sys-${i+1}">
-                <name>${fileName}</name>
-                <duration>${durFrames}</duration>
-                <start>${startFrame}</start>
-                <end>${endFrame}</end>
-                <file id="file-sys-${i+1}"><pathurl>file://${c.file}</pathurl></file>
-              </clipitem>`;
-              }).join('\n              ')}
-            </track>`;
-    } else {
-      sysXmlTrack = `
-            <track>
+              <!-- Audio Track 2: System Audio Stem -->
               <clipitem id="clipitem-sys">
                 <name>audio_system.wav</name>
+                <duration>${durFrames}</duration>
+                <start>0</start>
+                <end>${durFrames}</end>
                 <file id="file-sys"><pathurl>file://audio_system.wav</pathurl></file>
               </clipitem>
-            </track>`;
-    }
+            </track>` : '';
 
-    const xmlPath = path.join(targetDir, 'project_sync.xml');
-    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+      const xmlPath = path.join(resolvedTargetDir, 'project_sync.xml');
+      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="4">
   <project>
@@ -939,202 +815,131 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
     </children>
   </project>
 </xmeml>`;
-    fs.writeFileSync(xmlPath, xmlContent);
+      fs.writeFileSync(xmlPath, xmlContent);
+    } else if (preset === 'capcut_draft') {
+      const capcutVideos = [];
+      const capcutAudios = [];
+      const capcutScreenSegments = [];
+      const capcutCameraSegments = [];
+      const capcutMicSegments = [];
+      const capcutSysSegments = [];
 
-    // 4. Generate CapCut Draft Package: draft_content.json + draft_meta_info.json
-    const capcutVideos = [];
-    const capcutAudios = [];
-    const capcutScreenSegments = [];
-    const capcutCameraSegments = [];
-    const capcutMicSegments = [];
-    const capcutSysSegments = [];
-
-    if (screenChunks.length > 0) {
-      screenChunks.forEach((c, idx) => {
-        const matId = `mat_screen_${idx}`;
-        const durUs = (c.duration_ms || 15000) * 1000;
-        const startUs = (c.start_ms || 0) * 1000;
+      if (hasScreenFile) {
         capcutVideos.push({
-          id: matId,
-          path: c.file,
+          id: 'mat_screen_0',
+          path: 'screen_clean.mp4',
           type: 'video',
-          width: c.resolution?.width || 1920,
-          height: c.resolution?.height || 1080,
+          width: 1920,
+          height: 1080,
           duration: durUs,
         });
         capcutScreenSegments.push({
-          id: `seg_screen_${idx}`,
-          material_id: matId,
-          target_timerange: { duration: durUs, start: startUs },
+          id: 'seg_screen',
+          material_id: 'mat_screen_0',
+          target_timerange: { duration: durUs, start: 0 },
           source_timerange: { duration: durUs, start: 0 },
         });
-      });
-    } else {
-      capcutVideos.push({
-        id: 'mat_screen_0',
-        path: 'screen_clean.mp4',
-        type: 'video',
-        width: 1920,
-        height: 1080,
-        duration: 42000000
-      });
-      capcutScreenSegments.push({
-        id: 'seg_screen',
-        material_id: 'mat_screen_0',
-        target_timerange: { duration: 42000000, start: 0 },
-        source_timerange: { duration: 42000000, start: 0 }
-      });
-    }
+      }
 
-    if (cameraChunks.length > 0) {
-      cameraChunks.forEach((c, idx) => {
-        const matId = `mat_camera_${idx}`;
-        const durUs = (c.duration_ms || 15000) * 1000;
-        const startUs = (c.start_ms || 0) * 1000;
-        const width = c.bubble?.width || 240;
-        const normX = c.position?.norm_x ?? 0.8;
-        const normY = c.position?.norm_y ?? 0.7;
-        const cX = Number(((normX - 0.5) * 2).toFixed(4));
-        const cY = Number((-((normY - 0.5) * 2)).toFixed(4));
-        const cScale = Number((width / 1920).toFixed(4));
-
+      if (hasCameraFile) {
+        const camFile = hasCameraAlpha ? 'camera_alpha.webm' : 'camera_raw.mp4';
+        const cX = Number((((initialPoint.normX || 0.8) - 0.5) * 2).toFixed(4));
+        const cY = Number((-((initialPoint.normY || 0.7) - 0.5) * 2).toFixed(4));
+        const cScale = Number(((initialPoint.width || 288) / 1920).toFixed(4));
         capcutVideos.push({
-          id: matId,
-          path: c.file,
+          id: 'mat_camera_1',
+          path: camFile,
           type: 'video',
           width: 1280,
           height: 720,
           duration: durUs,
         });
         capcutCameraSegments.push({
-          id: `seg_camera_${idx}`,
-          material_id: matId,
-          target_timerange: { duration: durUs, start: startUs },
+          id: 'seg_camera',
+          material_id: 'mat_camera_1',
+          target_timerange: { duration: durUs, start: 0 },
           source_timerange: { duration: durUs, start: 0 },
           clip: {
             transform: { x: cX, y: cY },
             scale: { x: cScale, y: cScale },
-          }
+          },
         });
-      });
-    } else if (hasCameraFile) {
-      const cX = Number((((initialPoint.normX || 0.8) - 0.5) * 2).toFixed(4));
-      const cY = Number((-((initialPoint.normY || 0.7) - 0.5) * 2).toFixed(4));
-      const cScale = Number(((initialPoint.width || 288) / 1920).toFixed(4));
-      capcutVideos.push({
-        id: 'mat_camera_1',
-        path: 'camera_raw.mp4',
-        type: 'video',
-        width: 1280,
-        height: 720,
-        duration: 42000000
-      });
-      capcutCameraSegments.push({
-        id: 'seg_camera',
-        material_id: 'mat_camera_1',
-        target_timerange: { duration: 42000000, start: 0 },
-        source_timerange: { duration: 42000000, start: 0 },
-        clip: {
-          transform: { x: cX, y: cY },
-          scale: { x: cScale, y: cScale }
-        }
-      });
-    }
+      }
 
-    if (micChunks.length > 0) {
-      micChunks.forEach((c, idx) => {
-        const matId = `mat_mic_${idx}`;
-        const durUs = (c.duration_ms || 15000) * 1000;
-        const startUs = (c.start_ms || 0) * 1000;
-        capcutAudios.push({ id: matId, path: c.file, type: 'audio', duration: durUs });
+      if (hasMicFile) {
+        capcutAudios.push({ id: 'mat_mic_audio', path: 'audio_mic.wav', type: 'audio', duration: durUs });
         capcutMicSegments.push({
-          id: `seg_mic_${idx}`,
-          material_id: matId,
-          target_timerange: { duration: durUs, start: startUs },
+          id: 'seg_mic',
+          material_id: 'mat_mic_audio',
+          target_timerange: { duration: durUs, start: 0 },
           source_timerange: { duration: durUs, start: 0 },
         });
-      });
-    } else {
-      capcutAudios.push({ id: 'mat_mic_audio', path: 'audio_mic.wav', type: 'audio', duration: 42000000 });
-      capcutMicSegments.push({
-        id: 'seg_mic',
-        material_id: 'mat_mic_audio',
-        target_timerange: { duration: 42000000, start: 0 },
-        source_timerange: { duration: 42000000, start: 0 }
-      });
-    }
+      }
 
-    if (sysChunks.length > 0) {
-      sysChunks.forEach((c, idx) => {
-        const matId = `mat_sys_${idx}`;
-        const durUs = (c.duration_ms || 15000) * 1000;
-        const startUs = (c.start_ms || 0) * 1000;
-        capcutAudios.push({ id: matId, path: c.file, type: 'audio', duration: durUs });
+      if (hasSysAudioFile) {
+        capcutAudios.push({ id: 'mat_sys_audio', path: 'audio_system.wav', type: 'audio', duration: durUs });
         capcutSysSegments.push({
-          id: `seg_sys_${idx}`,
-          material_id: matId,
-          target_timerange: { duration: durUs, start: startUs },
+          id: 'seg_sys',
+          material_id: 'mat_sys_audio',
+          target_timerange: { duration: durUs, start: 0 },
           source_timerange: { duration: durUs, start: 0 },
         });
-      });
-    } else {
-      capcutAudios.push({ id: 'mat_sys_audio', path: 'audio_system.wav', type: 'audio', duration: 42000000 });
-      capcutSysSegments.push({
-        id: 'seg_sys',
-        material_id: 'mat_sys_audio',
-        target_timerange: { duration: 42000000, start: 0 },
-        source_timerange: { duration: 42000000, start: 0 }
-      });
-    }
+      }
 
-    const capcutTracks = [
-      { id: 'track_screen_main', type: 'video', segments: capcutScreenSegments },
-    ];
-    if (capcutCameraSegments.length > 0) {
-      capcutTracks.push({ id: 'track_camera_pip', type: 'video', segments: capcutCameraSegments });
-    }
-    capcutTracks.push(
-      { id: 'track_mic_audio', type: 'audio', segments: capcutMicSegments },
-      { id: 'track_sys_audio', type: 'audio', segments: capcutSysSegments },
-    );
+      const capcutTracks = [];
+      if (capcutScreenSegments.length > 0) {
+        capcutTracks.push({ id: 'track_screen_main', type: 'video', segments: capcutScreenSegments });
+      }
+      if (capcutCameraSegments.length > 0) {
+        capcutTracks.push({ id: 'track_camera_pip', type: 'video', segments: capcutCameraSegments });
+      }
+      if (capcutMicSegments.length > 0) {
+        capcutTracks.push({ id: 'track_mic_audio', type: 'audio', segments: capcutMicSegments });
+      }
+      if (capcutSysSegments.length > 0) {
+        capcutTracks.push({ id: 'track_sys_audio', type: 'audio', segments: capcutSysSegments });
+      }
 
-    const totalDurUs = screenChunks.reduce((acc, c) => acc + (c.duration_ms || 15000) * 1000, 0) || 42000000;
+      const capcutDraftContent = {
+        canvas_config: { height: 1080, ratio: 'original', width: 1920 },
+        color_space: 0,
+        duration: durUs,
+        fps: 60.0,
+        materials: {
+          videos: capcutVideos,
+          audios: capcutAudios,
+        },
+        tracks: capcutTracks,
+      };
 
-    const capcutDraftContent = {
-      canvas_config: { height: 1080, ratio: 'original', width: 1920 },
-      color_space: 0,
-      duration: totalDurUs,
-      fps: 60.0,
-      materials: {
-        videos: capcutVideos,
-        audios: capcutAudios,
-      },
-      tracks: capcutTracks
-    };
+      const capcutDraftMeta = {
+        draft_id: sessionMetadata?.sessionId || sessionMetadata?.id || `draft_${Date.now()}`,
+        draft_name: `ScreenStudio_${sessionMetadata?.sessionId || sessionMetadata?.id || 'Session'}`,
+        draft_root_path: resolvedTargetDir,
+        tm_draft_create: Date.now() * 1000,
+        tm_draft_modified: Date.now() * 1000,
+        draft_timeline_materials_size: capcutVideos.length + capcutAudios.length,
+      };
 
-    const capcutDraftMeta = {
-      draft_id: sessionMetadata?.sessionId || sessionMetadata?.id || `draft_${Date.now()}`,
-      draft_name: `ScreenStudio_${sessionMetadata?.sessionId || sessionMetadata?.id || 'Session'}`,
-      draft_root_path: targetDir,
-      tm_draft_create: Date.now() * 1000,
-      tm_draft_modified: Date.now() * 1000,
-      draft_timeline_materials_size: capcutVideos.length + capcutAudios.length,
-    };
+      fs.writeFileSync(path.join(resolvedTargetDir, 'draft_content.json'), JSON.stringify(capcutDraftContent, null, 2));
+      fs.writeFileSync(path.join(resolvedTargetDir, 'draft_meta_info.json'), JSON.stringify(capcutDraftMeta, null, 2));
 
-    fs.writeFileSync(path.join(targetDir, 'draft_content.json'), JSON.stringify(capcutDraftContent, null, 2));
-    fs.writeFileSync(path.join(targetDir, 'draft_meta_info.json'), JSON.stringify(capcutDraftMeta, null, 2));
-
-    const capcutReadme = `CapCut Studio Project Instructions:
+      const capcutReadme = `CapCut Studio Project Instructions:
 1. To open in CapCut Desktop:
    - You can copy this folder into your CapCut Drafts folder:
      • Windows: %LOCALAPPDATA%\\CapCut\\User Data\\Projects\\com.lveditor.draft\\
      • Mac: ~/Movies/CapCut/User Data/Projects/com.lveditor.draft/
-   - Or drag the media chunks directly into CapCut.
+   - Or drag the media files directly into CapCut.
 2. The project contains synchronized multi-track segments for Screen, Camera PiP, and Audio Stems.
 `;
-    fs.writeFileSync(path.join(targetDir, 'CAPCUT_README.txt'), capcutReadme);
+      fs.writeFileSync(path.join(resolvedTargetDir, 'CAPCUT_README.txt'), capcutReadme);
+    } else if (preset === 'mp4_bundle') {
+      if (hasCameraFile && telemetry.length > 0) {
+        fs.writeFileSync(path.join(resolvedTargetDir, 'telemetry_camera.json'), JSON.stringify(telemetry, null, 2));
+      }
+    }
 
-    return { success: true, targetDir };
+    return { success: true, targetDir: resolvedTargetDir };
   } catch (err) {
     console.error('Failed to export package:', err);
     return { success: false, error: err.message };
