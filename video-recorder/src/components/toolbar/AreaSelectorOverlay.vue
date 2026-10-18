@@ -474,47 +474,50 @@ onUnmounted(() => {
     class="fixed inset-0 z-50 bg-black/55 cursor-crosshair select-none font-sans">
     <!-- Top Instruction Banner -->
     <div data-area-controls="true"
-      class="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl bg-[#0e111a]/95 border border-white/15 shadow-2xl flex items-center gap-4 text-xs text-white">
-      <div class="flex items-center gap-2 text-rose-400 font-semibold">
+      class="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl bg-[#0e111a]/95 border border-white/15 shadow-2xl">
+      <div class="flex items-center gap-2 text-xs text-rose-400 font-semibold mb-1">
         <Crop class="w-4 h-4" />
         <span>Drag edges & corners to resize, or drag center to move</span>
       </div>
 
-      <div class="h-4 w-px bg-white/15" />
+      <div class=" flex items-center gap-4 text-xs text-white mb-1">
 
-      <!-- Draw New Area Action Button -->
-      <button @click="isRedrawMode = !isRedrawMode"
-        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition border"
-        :class="isRedrawMode ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-white/10 hover:bg-white/20 text-white/90 border-white/10'"
-        title="Toggle Redraw: Drag anywhere (even inside the box) to draw a new area">
-        <PlusCircle class="w-3.5 h-3.5" />
-        <span>{{ isRedrawMode ? 'Drawing Mode Active' : 'Draw New Area' }}</span>
-      </button>
+        <!-- Draw New Area Action Button -->
+        <button @click="isRedrawMode = !isRedrawMode"
+          class="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition border"
+          :class="isRedrawMode ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-white/10 hover:bg-white/20 text-white/90 border-white/10'"
+          title="Toggle Redraw: Drag anywhere (even inside the box) to draw a new area">
+          <PlusCircle class="w-3.5 h-3.5" />
+          <span>{{ isRedrawMode ? 'Drawing Mode Active' : 'Draw New Area' }}</span>
+        </button>
 
-      <div class="h-4 w-px bg-white/15" />
+        <div class="h-4 w-px bg-white/15" />
 
-      <!-- Ratio Selector & Quick Presets -->
-      <div class="flex items-center gap-2">
-        <span class="text-white/50 text-[11px] font-medium">Ratio:</span>
-        <div class="flex items-center gap-1 bg-white/10 p-0.5 rounded-lg border border-white/10">
-          <button v-for="cfg in ratioConfigs" :key="cfg.key" @click="selectRatio(cfg)"
-            class="px-2 py-0.5 rounded-md text-[11px] font-semibold transition"
-            :class="selectedRatio.key === cfg.key ? 'bg-rose-500 text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'">
-            {{ cfg.label }}
+        <!-- Ratio Selector & Quick Presets -->
+        <div class="flex items-center gap-2">
+          <span class="text-white/50 text-[11px] font-medium">Ratio:</span>
+          <div class="flex items-center gap-1 bg-white/10 p-0.5 rounded-lg border border-white/10">
+            <button v-for="cfg in ratioConfigs" :key="cfg.key" @click="selectRatio(cfg)"
+              class="px-2 py-0.5 rounded-md text-[11px] font-semibold transition"
+              :class="selectedRatio.key === cfg.key ? 'bg-rose-500 text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'">
+              {{ cfg.label }}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class=" flex items-center gap-4 text-xs text-white mb-1">
+
+        <!-- <div class="h-4 w-px bg-white/15" /> -->
+        <!-- Quick Resolution Presets -->
+        <div class="flex items-center gap-1.5">
+          <button v-for="preset in ratioConfigs" :key="preset.key" @click="applyPreset(preset)"
+            class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-mono transition"
+            :title="preset.label">
+            {{ preset.label }} ({{ preset.width }}×{{ preset.height }})
           </button>
         </div>
       </div>
 
-      <div class="h-4 w-px bg-white/15" />
-
-      <!-- Quick Resolution Presets -->
-      <div class="flex items-center gap-1.5">
-        <button v-for="preset in ratioConfigs" :key="preset.key" @click="applyPreset(preset)"
-          class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-mono transition"
-          :title="preset.label">
-          {{ preset.label }} ({{ preset.width }}×{{ preset.height }})
-        </button>
-      </div>
     </div>
 
     <!-- Active Selection Box -->
