@@ -122,6 +122,49 @@ const emit = defineEmits<{
       <span>{{ props.recordingState === 'recording' ? 'Pause' : 'Resume' }}</span>
     </button>
 
+    <!-- Segmented Capture Mode (Switch Screen / Window / Area) -->
+    <div class="flex items-center bg-black/35 p-1 rounded-full border border-white/10">
+      <button
+        @click="emit('selectSource', 'display')"
+        :class="[
+          'h-8 px-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'display'
+            ? 'bg-white/15 text-white shadow-sm border border-white/15'
+            : 'text-white/65 hover:text-white'
+        ]"
+        title="Switch to Display"
+      >
+        <Monitor class="w-3.5 h-3.5 text-sky-300" />
+        <span>Display</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'window')"
+        :class="[
+          'h-8 px-2 rounded-full text-xs font-medium flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'window'
+            ? 'bg-white/15 text-white shadow-sm border border-white/15'
+            : 'text-white/65 hover:text-white'
+        ]"
+        title="Switch to Window"
+      >
+        <AppWindow class="w-3.5 h-3.5 text-indigo-300" />
+        <span>Window</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'area')"
+        :class="[
+          'h-8 px-2 rounded-full text-xs font-medium flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'area'
+            ? 'bg-white/15 text-white shadow-sm border border-white/15'
+            : 'text-white/65 hover:text-white'
+        ]"
+        title="Switch to Area"
+      >
+        <Crop class="w-3.5 h-3.5 text-emerald-300" />
+        <span>Area</span>
+      </button>
+    </div>
+
     <!-- Camera Active Circular Pill + Picker -->
     <div
       :class="[

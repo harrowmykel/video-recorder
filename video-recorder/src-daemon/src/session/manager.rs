@@ -33,6 +33,18 @@ pub struct UpdateAudioRequest {
     pub sys_audio_muted: Option<bool>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UpdateCaptureSourceRequest {
+    pub source_mode: Option<String>,
+    pub display_id: Option<String>,
+    pub window_id: Option<String>,
+    pub x: Option<u32>,
+    pub y: Option<u32>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub fps: Option<u32>,
+}
+
 fn default_status_completed() -> String {
     "completed".to_string()
 }
@@ -344,6 +356,66 @@ impl SessionManager {
                 req.sys_audio_muted,
             )?;
         }
+        Ok(())
+    }
+
+    pub fn update_source(&mut self, req: UpdateCaptureSourceRequest) -> Result<()> {
+        if !self.is_recording() {
+            return Ok(());
+        }
+
+        let (default_w, default_h) = detect_screen_dimensions();
+        let mut x = req.x.unwrap_or(0);
+        let mut y = req.y.unwrap_or(0);
+        let mut width = req.width.unwrap_or(default_w);
+        let mut height = req.height.unwrap_or(default_h);
+        let fps = req.fps.unwrap_or(60);
+
+        let source_mode = req.source_mode.as_deref().unwrap_or("display");
+        if source_mode == "display" {
+            let displays = enumerate_displays();
+            let target_disp = if let Some(disp_id) = &req.display_id {
+                displays.iter().find(|d| &d.id == disp_id).or_else(|| displays.first())
+            } else {
+                displays.iter().find(|d| d.is_primary).or_else(|| displays.first())
+            };
+            if let Some(disp) = target_disp {
+                x = disp.x.max(0) as u32;
+                y = disp.y.max(0) as u32;
+                width = disp.width;
+                height = disp.height;
+            }
+        } else if source_mode == "window" {
+            if let Some(target_win_id) = &req.window_id {
+                if let Some(win) = enumerate_windows().into_iter().find(|w| &w.id == target_win_id) {
+                    x = win.x.max(0) as u32;
+                    y = win.y.max(0) as u32;
+                    width = win.width;
+                    height = win.height;
+                }
+            }
+        }
+
+        let source_id = if source_mode == "window" {
+            req.window_id.clone().unwrap_or_else(|| "window".to_string())
+        } else {
+            req.display_id.clone().unwrap_or_else(|| "primary".to_string())
+        };
+
+        if let Some(r) = &mut self.screen_recorder {
+            r.switch_source(
+                source_mode.to_string(),
+                source_id,
+                ScreenCaptureConfig {
+                    x,
+                    y,
+                    width,
+                    height,
+                    fps,
+                },
+            )?;
+        }
+        println!("[SessionManager] Switched screen capture source to {} ({:?})", source_mode, (x, y, width, height));
         Ok(())
     }
 

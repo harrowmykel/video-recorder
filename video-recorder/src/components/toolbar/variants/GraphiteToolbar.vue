@@ -117,6 +117,49 @@ const emit = defineEmits<{
       <span>{{ props.recordingState === 'recording' ? 'HOLD' : 'RUN' }}</span>
     </button>
 
+    <!-- Source Switcher mid-recording (DISP / WIN / AREA) -->
+    <div class="flex items-center gap-1 bg-[#090a0c] p-1 rounded border border-[#22262e]">
+      <button
+        @click="emit('selectSource', 'display')"
+        :class="[
+          'h-8 px-2 rounded-sm text-xs font-mono font-bold flex items-center gap-1 transition',
+          props.captureSourceMode === 'display'
+            ? 'tactile-key border-[#ff5500]/60 text-white'
+            : 'text-zinc-400 hover:text-zinc-200'
+        ]"
+        title="Switch to Display Capture"
+      >
+        <span v-if="props.captureSourceMode === 'display'" class="w-1.5 h-1.5 rounded-full bg-[#ff5500]"></span>
+        <span>DISP</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'window')"
+        :class="[
+          'h-8 px-2 rounded-sm text-xs font-mono font-bold flex items-center gap-1 transition',
+          props.captureSourceMode === 'window'
+            ? 'tactile-key border-[#ff5500]/60 text-white'
+            : 'text-zinc-400 hover:text-zinc-200'
+        ]"
+        title="Switch to Window Capture"
+      >
+        <span v-if="props.captureSourceMode === 'window'" class="w-1.5 h-1.5 rounded-full bg-[#ff5500]"></span>
+        <span>WIN</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'area')"
+        :class="[
+          'h-8 px-2 rounded-sm text-xs font-mono font-bold flex items-center gap-1 transition',
+          props.captureSourceMode === 'area'
+            ? 'tactile-key border-[#ff5500]/60 text-white'
+            : 'text-zinc-400 hover:text-zinc-200'
+        ]"
+        title="Switch to Area Capture"
+      >
+        <span v-if="props.captureSourceMode === 'area'" class="w-1.5 h-1.5 rounded-full bg-[#ff5500]"></span>
+        <span>AREA</span>
+      </button>
+    </div>
+
     <!-- Hardware Toggle Push-Keys (Camera, Mic, Sys Audio) -->
     <div class="flex items-center rounded tactile-key overflow-hidden">
       <button

@@ -365,6 +365,15 @@ impl ScreenRecorder {
 
         if let Some(chunks_dir) = &self.chunks_dir {
             let _ = std::fs::create_dir_all(chunks_dir);
+            let start_num = if let Ok(entries) = std::fs::read_dir(chunks_dir) {
+                entries.flatten().filter(|e| {
+                    let n = e.file_name().to_string_lossy().to_string();
+                    n.starts_with("screen_chunk_") && n.ends_with(".mp4")
+                }).count()
+            } else {
+                0
+            };
+
             cmd.args([
                 "-c:v", "libx264",
                 "-preset", "veryfast",
@@ -376,6 +385,7 @@ impl ScreenRecorder {
                 "-f", "segment",
                 "-segment_time", "15",
                 "-segment_format", "mp4",
+                "-segment_start_number", &start_num.to_string(),
                 "-reset_timestamps", "1",
                 "-movflags", "+faststart",
             ]);
@@ -417,6 +427,50 @@ impl ScreenRecorder {
                 .args(["-CONT", &child.id().to_string()])
                 .status();
         }
+    }
+
+    pub fn stop_current_chunk(&mut self) {
+        self.resume();
+        if let Some(mut child) = self.process.take() {
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(b"q\n");
+                let _ = stdin.flush();
+            }
+            #[cfg(unix)]
+            {
+                let _ = Command::new("kill")
+                    .args(["-INT", &child.id().to_string()])
+                    .status();
+            }
+
+            let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1500);
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_)) => break,
+                    Ok(None) => {
+                        if std::time::Instant::now() >= deadline {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(30));
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+    }
+
+    pub fn switch_source(
+        &mut self,
+        source_mode: String,
+        source_id: String,
+        config: ScreenCaptureConfig,
+    ) -> Result<()> {
+        self.stop_current_chunk();
+        self.source_mode = source_mode;
+        self.source_id = source_id;
+        self.start_with_config(config)
     }
 
     pub fn stop(&mut self) -> Result<PathBuf> {
@@ -496,7 +550,7 @@ impl ScreenRecorder {
                     }
                     let _ = std::fs::write(&concat_list_path, concat_content);
 
-                    let _ = Command::new("ffmpeg")
+                    let status = Command::new("ffmpeg")
                         .arg("-y")
                         .arg("-f")
                         .arg("concat")
@@ -509,6 +563,29 @@ impl ScreenRecorder {
                         .stdout(Stdio::null())
                         .stderr(Stdio::null())
                         .status();
+
+                    if status.is_err() || !status.unwrap().success() {
+                        let _ = Command::new("ffmpeg")
+                            .arg("-y")
+                            .arg("-f")
+                            .arg("concat")
+                            .arg("-safe")
+                            .arg("0")
+                            .arg("-i")
+                            .arg(&concat_list_path)
+                            .args([
+                                "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                "-c:v", "libx264",
+                                "-preset", "veryfast",
+                                "-crf", "18",
+                                "-pix_fmt", "yuv420p",
+                                "-movflags", "+faststart"
+                            ])
+                            .arg(&self.output_path)
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .status();
+                    }
 
                     let _ = std::fs::remove_file(&concat_list_path);
                 }

@@ -248,7 +248,7 @@ function createOverlayWindows() {
   openOrFocusSettingsWindow();
 
   // 1. Floating Toolbar Pill (Bottom-Center)
-  const tbWidth = 760;
+  const tbWidth = 860;
   const tbHeight = 84;
   windows.toolbar = createWindow('toolbar', {
     title: 'Recorder Controls',

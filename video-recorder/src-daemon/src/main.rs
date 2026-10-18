@@ -153,6 +153,24 @@ async fn main() {
             }
         });
 
+    // 5c. Update capture source route (dynamic display, window, or area switching mid-recording)
+    let sm_clone = session_manager.clone();
+    let update_source_route = warp::path("update_source")
+        .and(warp::post())
+        .and(warp::body::bytes())
+        .map(move |body_bytes: warp::hyper::body::Bytes| {
+            let req: crate::session::UpdateCaptureSourceRequest = if body_bytes.is_empty() {
+                crate::session::UpdateCaptureSourceRequest::default()
+            } else {
+                serde_json::from_slice(&body_bytes).unwrap_or_default()
+            };
+            let mut mgr = sm_clone.lock().unwrap();
+            match mgr.update_source(req) {
+                Ok(_) => warp::reply::json(&serde_json::json!({ "success": true })),
+                Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
+            }
+        });
+
     // 6. Stop recording route (spawned off-thread to avoid blocking async runtime)
     let sm_clone = session_manager.clone();
     let streamer_stop = camera_streamer.clone();
@@ -430,6 +448,7 @@ async fn main() {
         .or(pause_route)
         .or(resume_route)
         .or(update_audio_route)
+        .or(update_source_route)
         .or(stop_route)
         .or(upload_camera_route)
         .or(upload_camera_chunk_route)

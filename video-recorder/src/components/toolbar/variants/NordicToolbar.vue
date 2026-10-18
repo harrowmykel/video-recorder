@@ -119,6 +119,49 @@ const emit = defineEmits<{
       <span>{{ props.recordingState === 'recording' ? 'Pause' : 'Resume' }}</span>
     </button>
 
+    <!-- Mid-recording Segmented Control (Screen / Window / Area) -->
+    <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+      <button
+        @click="emit('selectSource', 'display')"
+        :class="[
+          'h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'display'
+            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+            : 'text-slate-600 dark:text-slate-400'
+        ]"
+        title="Switch to Screen Capture"
+      >
+        <Monitor class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+        <span>Screen</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'window')"
+        :class="[
+          'h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'window'
+            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+            : 'text-slate-600 dark:text-slate-400'
+        ]"
+        title="Switch to Window Capture"
+      >
+        <AppWindow class="w-3.5 h-3.5 text-indigo-500" />
+        <span>Window</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'area')"
+        :class="[
+          'h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'area'
+            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+            : 'text-slate-600 dark:text-slate-400'
+        ]"
+        title="Switch to Area Capture"
+      >
+        <Crop class="w-3.5 h-3.5 text-emerald-500" />
+        <span>Area</span>
+      </button>
+    </div>
+
     <!-- Camera Split Button -->
     <div class="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden">
       <button

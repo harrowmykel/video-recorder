@@ -125,6 +125,49 @@ const emit = defineEmits<{
       <span>{{ props.recordingState === 'recording' ? 'Pause' : 'Resume' }}</span>
     </button>
 
+    <!-- Capture Source Segment (Display / Window / Area) -->
+    <div class="flex items-center bg-black/40 p-1 rounded-xl border border-white/5">
+      <button
+        @click="emit('selectSource', 'display')"
+        :class="[
+          'h-8 px-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'display'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-white/50 hover:text-white'
+        ]"
+        title="Switch Capture to Display"
+      >
+        <Monitor class="w-3.5 h-3.5 text-rose-400" />
+        <span>Display</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'window')"
+        :class="[
+          'h-8 px-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'window'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-white/50 hover:text-white'
+        ]"
+        title="Switch Capture to Window"
+      >
+        <AppWindow class="w-3.5 h-3.5 text-indigo-400" />
+        <span>Window</span>
+      </button>
+      <button
+        @click="emit('selectSource', 'area')"
+        :class="[
+          'h-8 px-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition',
+          props.captureSourceMode === 'area'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-white/50 hover:text-white'
+        ]"
+        title="Switch Capture to Custom Area"
+      >
+        <Crop class="w-3.5 h-3.5 text-emerald-400" />
+        <span>Area</span>
+      </button>
+    </div>
+
     <!-- Camera Toggle + Device Picker Split Button -->
     <div class="flex items-center rounded-xl overflow-hidden border border-white/10 bg-white/5">
       <button

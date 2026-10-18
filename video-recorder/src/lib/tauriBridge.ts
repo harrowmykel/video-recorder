@@ -88,6 +88,10 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
         endpoint = '/update_audio';
         body = args || {};
         break;
+      case 'update_source':
+        endpoint = '/update_source';
+        body = args || {};
+        break;
       case 'stop_recording':
         endpoint = '/stop';
         break;
@@ -209,6 +213,19 @@ export async function updateAudioSettings(options: {
   sys_audio_muted?: boolean;
 }): Promise<{ success: boolean }> {
   return invokeCommand<{ success: boolean }>('update_audio', options as Record<string, unknown>);
+}
+
+export async function updateCaptureSource(options: {
+  source_mode?: string;
+  display_id?: string;
+  window_id?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+}): Promise<{ success: boolean }> {
+  return invokeCommand<{ success: boolean }>('update_source', options as Record<string, unknown>);
 }
 
 export async function uploadRecordedCameraTrack(blob: Blob): Promise<string | null> {

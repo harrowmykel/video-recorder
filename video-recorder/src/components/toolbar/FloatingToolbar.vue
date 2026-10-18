@@ -4,6 +4,7 @@ import type { RecordingState, CaptureSourceMode, DisplaySourceInfo, WindowSource
 import {
   invokeCommand,
   updateAudioSettings,
+  updateCaptureSource,
   moveOverlayWindow,
   resizeOverlayWindow,
   fetchCaptureSources,
@@ -65,6 +66,7 @@ const {
   selectedWindowId,
   selectedWindowTitle,
   captureArea,
+  isAreaSelectorOpen,
   selectedCameraId,
   selectedMicId,
   isMicMuted,
@@ -151,11 +153,11 @@ watch(
   [isToolbarCollapsed, activePopover, () => props.isCameraHidden],
   ([collapsed, popover, cameraHidden]) => {
    if (popover !== null) {
-      resizeOverlayWindow('toolbar', 760, 390);
+      resizeOverlayWindow('toolbar', 860, 390);
     } else if (collapsed) {
       resizeOverlayWindow('toolbar', cameraHidden ? 230 : 190, 58);
     } else {
-      resizeOverlayWindow('toolbar', 760, 88);
+      resizeOverlayWindow('toolbar', 860, 88);
     }
   },
   { immediate: true }
@@ -206,6 +208,29 @@ watch(
   }
 );
 
+// Synchronize capture source changes (screen, window, area) with daemon in real-time
+watch(
+  [captureSourceMode, selectedDisplayId, selectedWindowId, captureArea],
+  async ([mode, dispId, winId, area]) => {
+    if (recordingState.value === 'recording' || recordingState.value === 'paused') {
+      try {
+        await updateCaptureSource({
+          source_mode: mode,
+          display_id: dispId,
+          window_id: winId,
+          x: area.x,
+          y: area.y,
+          width: area.width,
+          height: area.height,
+        });
+      } catch (err) {
+        console.warn('[FloatingToolbar] updateCaptureSource failed:', err);
+      }
+    }
+  },
+  { deep: true }
+);
+
 watch(selectedMicId, (newMicId) => {
   stopMicMeter();
   startMicMeter(newMicId);
@@ -254,6 +279,7 @@ async function handleSelectSource(mode: CaptureSourceMode) {
   captureSourceMode.value = mode;
   if (mode === 'area') {
     activePopover.value = null;
+    isAreaSelectorOpen.value = true;
     emit('openAreaPicker');
     return;
   }
