@@ -17,6 +17,7 @@ import {
   getCameraTelemetry,
   buildRecordingSessionFromDaemonMeta,
   isNativeOverlayWindow,
+  closeDesktopStudioWindow,
 } from '@/lib/tauriBridge';
 
 const { initTheme } = useTheme();
@@ -54,6 +55,12 @@ const pathname = window.location.pathname.toLowerCase();
 const defaultTarget =
   pathname.includes('setting') || pathname.includes('app') ? 'settings' : 'preview-all';
 const targetWindow = shallowRef(urlParams.get('window') || defaultTarget);
+const initialSessionId = shallowRef(urlParams.get('session') || '');
+
+function handleCloseStudioWindow() {
+  recordingState.value = 'idle';
+  closeDesktopStudioWindow();
+}
 
 const audioVolume = shallowRef(0.35);
 
@@ -287,8 +294,8 @@ onUnmounted(() => {
     </template>
 
     <template v-else-if="targetWindow === 'studio'">
-      <StudioReviewModal v-if="recordingState === 'review'" :camera-telemetry="sessionCameraTelemetry"
-        @close="recordingState = 'idle'" />
+      <StudioReviewModal :camera-telemetry="sessionCameraTelemetry" :initial-session-id="initialSessionId || undefined"
+        @close="handleCloseStudioWindow" />
     </template>
 
     <template v-else-if="targetWindow === 'notes'">

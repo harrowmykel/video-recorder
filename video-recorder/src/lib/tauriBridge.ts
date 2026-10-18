@@ -526,10 +526,20 @@ export function openDesktopSettingsWindow() {
   }
 }
 
-export function openDesktopStudioWindow() {
+export function openDesktopStudioWindow(sessionId?: string) {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
-    window.__ELECTRON_OVERLAY__.send('open_studio_window');
-    window.__ELECTRON_OVERLAY__.send('overlay_event', { event: 'open_studio_window' });
+    window.__ELECTRON_OVERLAY__.send('open_studio_window', { sessionId });
+    window.__ELECTRON_OVERLAY__.send('overlay_event', { event: 'open_studio_window', payload: { sessionId } });
+  } else if (typeof window !== 'undefined') {
+    const url = `/?window=studio${sessionId ? `&session=${encodeURIComponent(sessionId)}` : ''}`;
+    window.open(url, '_blank', 'width=1280,height=880');
+  }
+}
+
+export function closeDesktopStudioWindow() {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('close_studio_window');
+    window.__ELECTRON_OVERLAY__.send('overlay_event', { event: 'close_studio_window' });
   }
 }
 

@@ -19,9 +19,8 @@ import {
   Mic,
   Layers,
 } from 'lucide-vue-next';
-import StudioReviewModal from '@/components/studio/StudioReviewModal.vue';
 import ExportDestinationModal from '@/components/studio/ExportDestinationModal.vue';
-import { deleteSession, openExportDirectory } from '@/lib/tauriBridge';
+import { deleteSession, openExportDirectory, openDesktopStudioWindow } from '@/lib/tauriBridge';
 import type { RecordingSession } from '@/types/studio';
 
 const props = defineProps<{
@@ -37,9 +36,6 @@ const emit = defineEmits<{
 const sessionSearchQuery = shallowRef('');
 const copiedSessionId = shallowRef<string | null>(null);
 const sessionActionNotice = shallowRef<string | null>(null);
-
-const reviewModalSession = shallowRef<RecordingSession | null>(null);
-const isReviewModalOpen = shallowRef(false);
 
 const exportModalSession = shallowRef<RecordingSession | null>(null);
 const isExportModalOpen = shallowRef(false);
@@ -118,8 +114,7 @@ async function handleDeleteSession(session: RecordingSession) {
 }
 
 function openSessionReview(session: RecordingSession) {
-  reviewModalSession.value = session;
-  isReviewModalOpen.value = true;
+  openDesktopStudioWindow(session.id);
 }
 
 function openSessionExport(session: RecordingSession) {
@@ -329,9 +324,6 @@ function openSessionExport(session: RecordingSession) {
       </div>
     </div>
 
-    <!-- Review Modal inside SessionsSection -->
-    <StudioReviewModal v-if="isReviewModalOpen" :initial-session-id="reviewModalSession?.id"
-      @close="isReviewModalOpen = false; emit('refresh');" />
 
     <!-- Export Modal inside SessionsSection -->
     <ExportDestinationModal :is-open="isExportModalOpen" :session-id="exportModalSession?.id"

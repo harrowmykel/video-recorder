@@ -180,7 +180,7 @@ function openOrFocusNotesWindow() {
   });
 }
 
-function openOrFocusStudioWindow(show = true) {
+function openOrFocusStudioWindow(show = true, sessionId = null) {
   const primaryDisplay = screen.getPrimaryDisplay();
   const workArea = primaryDisplay.workArea;
   const studioWidth = Math.min(1280, workArea.width - 40);
@@ -193,6 +193,12 @@ function openOrFocusStudioWindow(show = true) {
       }
       windows.studio.show();
       windows.studio.focus();
+    }
+    if (sessionId) {
+      windows.studio.webContents.send('overlay_event', {
+        event: 'select_session',
+        payload: { sessionId },
+      });
     }
     return windows.studio;
   }
@@ -211,6 +217,17 @@ function openOrFocusStudioWindow(show = true) {
     skipTaskbar: false,
     show,
   });
+
+  if (sessionId) {
+    windows.studio.webContents.once('did-finish-load', () => {
+      if (windows.studio && !windows.studio.isDestroyed()) {
+        windows.studio.webContents.send('overlay_event', {
+          event: 'select_session',
+          payload: { sessionId },
+        });
+      }
+    });
+  }
 
   windows.studio.on('close', (e) => {
     if (!isQuitting) {
@@ -415,8 +432,15 @@ ipcMain.on('open_settings_window', () => {
   openOrFocusSettingsWindow();
 });
 
-ipcMain.on('open_studio_window', () => {
-  openOrFocusStudioWindow();
+ipcMain.on('open_studio_window', (_event, data) => {
+  const sessionId = data?.sessionId || (typeof data === 'string' ? data : null);
+  openOrFocusStudioWindow(true, sessionId);
+});
+
+ipcMain.on('close_studio_window', () => {
+  if (windows.studio && !windows.studio.isDestroyed() && windows.studio.isVisible()) {
+    windows.studio.hide();
+  }
 });
 
 ipcMain.on('open_notes_window', () => {
@@ -440,7 +464,15 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
   }
 
   if (data.event === 'open_studio_window') {
-    openOrFocusStudioWindow();
+    const sessionId = data.payload?.sessionId || null;
+    openOrFocusStudioWindow(true, sessionId);
+    return;
+  }
+
+  if (data.event === 'close_studio_window') {
+    if (windows.studio && !windows.studio.isDestroyed() && windows.studio.isVisible()) {
+      windows.studio.hide();
+    }
     return;
   }
 

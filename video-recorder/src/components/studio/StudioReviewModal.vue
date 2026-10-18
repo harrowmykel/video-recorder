@@ -17,7 +17,6 @@ import {
   Film,
   RefreshCw,
   Trash2,
-  GripVertical,
 } from 'lucide-vue-next';
 import type { CameraTelemetryPoint, RecordingSession } from '@/types/studio';
 import {
@@ -25,7 +24,7 @@ import {
   openExportDirectory,
   subscribeToEvent,
   deleteSession,
-  isNativeOverlayWindow,
+  closeDesktopStudioWindow,
   STUDIO_PROJECTS_DIR,
 } from '@/lib/tauriBridge';
 
@@ -64,7 +63,7 @@ const hasCameraVideoLoaded = shallowRef(false);
 const statusNotice = shallowRef<string | null>(null);
 
 const sessions = ref<RecordingSession[]>([]);
-const selectedSessionId = shallowRef<string>('');
+const selectedSessionId = shallowRef<string>(props.initialSessionId || '');
 
 const screenVideoRef = useTemplateRef<HTMLVideoElement>('screenVideoRef');
 const cameraVideoRef = useTemplateRef<HTMLVideoElement>('cameraVideoRef');
@@ -74,6 +73,7 @@ const timelineRef = useTemplateRef<HTMLDivElement>('timelineRef');
 
 let fallbackPlayInterval: ReturnType<typeof setInterval> | null = null;
 let unsubscribeCameraUpload: (() => void) | null = null;
+let unsubscribeSelectSession: (() => void) | null = null;
 
 const activeSession = computed<RecordingSession | null>(() => {
   if (selectedSessionId.value) {
@@ -358,103 +358,44 @@ onMounted(() => {
       cameraVideoRef.value.load();
     }
   });
+  unsubscribeSelectSession = subscribeToEvent<{ sessionId?: string }>('select_session', (payload) => {
+    if (payload?.sessionId) {
+      selectedSessionId.value = payload.sessionId;
+    }
+  });
 });
 
-// Dragging logic for frameless window & modal repositioning
-let isPointerDown = false;
-let isDraggingWindow = false;
-let startScreenX = 0;
-let startScreenY = 0;
-let lastScreenX = 0;
-let lastScreenY = 0;
-
-const modalOffsetX = shallowRef(0);
-const modalOffsetY = shallowRef(0);
-
-const modalOffsetStyle = computed(() => {
-  if (!isNativeOverlayWindow() && (modalOffsetX.value || modalOffsetY.value)) {
-    return {
-      transform: `translate(${modalOffsetX.value}px, ${modalOffsetY.value}px)`,
-    };
+function handleClose() {
+  emit('close');
+  closeDesktopStudioWindow();
+  if (typeof window !== 'undefined' && window.opener) {
+    window.close();
   }
-  return {};
-});
-
-function onDragMouseDown(e: MouseEvent) {
-  if (isNativeOverlayWindow()) return;
-  const target = e.target as HTMLElement | null;
-  if (target?.closest('button, input, select, a, [data-no-drag]')) return;
-  isPointerDown = true;
-  isDraggingWindow = false;
-  startScreenX = e.screenX;
-  startScreenY = e.screenY;
-  lastScreenX = e.screenX;
-  lastScreenY = e.screenY;
-  window.addEventListener('mousemove', onDragMouseMove);
-  window.addEventListener('mouseup', onDragMouseUp);
-}
-
-function onDragMouseMove(e: MouseEvent) {
-  if (isNativeOverlayWindow() || !isPointerDown) return;
-  const totalDx = Math.abs(e.screenX - startScreenX);
-  const totalDy = Math.abs(e.screenY - startScreenY);
-  if (!isDraggingWindow && totalDx + totalDy > 3) {
-    isDraggingWindow = true;
-  }
-  if (!isDraggingWindow) return;
-  const dx = e.screenX - lastScreenX;
-  const dy = e.screenY - lastScreenY;
-  lastScreenX = e.screenX;
-  lastScreenY = e.screenY;
-
-  modalOffsetX.value += dx;
-  modalOffsetY.value += dy;
-}
-
-function onDragMouseUp() {
-  isPointerDown = false;
-  isDraggingWindow = false;
-  window.removeEventListener('mousemove', onDragMouseMove);
-  window.removeEventListener('mouseup', onDragMouseUp);
 }
 
 onUnmounted(() => {
   pausePlayback();
-  onDragMouseUp();
   if (unsubscribeCameraUpload) {
     unsubscribeCameraUpload();
     unsubscribeCameraUpload = null;
+  }
+  if (unsubscribeSelectSession) {
+    unsubscribeSelectSession();
+    unsubscribeSelectSession = null;
   }
 });
 </script>
 
 <template>
-  <div
-    :class="[
-      isNativeOverlayWindow()
-        ? 'w-full h-screen flex flex-col bg-[#0B0D13] select-none font-sans overflow-hidden'
-        : 'fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/85 backdrop-blur-xl select-none font-sans'
-    ]"
-  >
+  <div class="w-full h-screen flex flex-col bg-[#0B0D13] select-none font-sans overflow-hidden">
+    <!-- Top Window Navigation Bar -->
     <div
-      :style="isNativeOverlayWindow() ? {} : modalOffsetStyle"
-      :class="[
-        isNativeOverlayWindow()
-          ? 'w-full h-full flex flex-col overflow-hidden bg-[#0B0D13]'
-          : 'glass-panel w-full max-w-6xl h-[92vh] rounded-[28px] flex flex-col overflow-hidden border border-white/10 shadow-[0_32px_96px_rgba(0,0,0,0.95)]'
-      ]"
+      class="px-6 py-3.5 flex items-center justify-between border-b border-white/[0.08] bg-[#0E1017] select-none shrink-0"
     >
-      <!-- Top Window Navigation Bar (Native framed window or browser modal header) -->
-      <div
-        v-bind="isNativeOverlayWindow() ? {} : { onMousedown: onDragMouseDown }"
-        class="px-6 py-3.5 flex items-center justify-between border-b border-white/[0.08] bg-[#0E1017] select-none shrink-0"
-        :class="{ 'cursor-grab active:cursor-grabbing': !isNativeOverlayWindow() }"
-      >
-        <div class="flex items-center space-x-3.5">
-          <GripVertical v-if="!isNativeOverlayWindow()" class="w-4 h-4 text-white/30 shrink-0 pointer-events-none" />
-          <div class="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-studio-crimson shadow-[0_0_12px_rgba(255,59,48,0.2)]">
-            <Film class="w-4 h-4" />
-          </div>
+      <div class="flex items-center space-x-3.5">
+        <div class="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-studio-crimson shadow-[0_0_12px_rgba(255,59,48,0.2)]">
+          <Film class="w-4 h-4" />
+        </div>
           <div>
             <div class="flex items-center space-x-2">
               <h2 class="text-sm font-semibold tracking-wide text-white">Studio Review & Export</h2>
@@ -515,9 +456,9 @@ onUnmounted(() => {
 
         <!-- Close Button -->
         <button
-          @click="emit('close')"
+          @click="handleClose"
           class="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
-          title="Close Modal"
+          title="Close Window"
         >
           <X class="w-5 h-5" />
         </button>
@@ -795,5 +736,4 @@ onUnmounted(() => {
         @close="isExportModalOpen = false"
       />
     </div>
-  </div>
 </template>
