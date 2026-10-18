@@ -27,7 +27,7 @@ pub struct ModelManager {
 impl ModelManager {
     pub fn new() -> Result<Self> {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        let models_dir = PathBuf::from(home).join(".cache").join("studio_recorder").join("models");
+        let models_dir = PathBuf::from(home).join("Videos").join("studio").join(".cache").join("models");
         fs::create_dir_all(&models_dir)?;
         Ok(Self { models_dir })
     }
