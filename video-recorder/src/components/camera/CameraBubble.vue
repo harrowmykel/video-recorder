@@ -47,6 +47,7 @@ const {
   bgMode,
   bgImageUrl,
   bgGradient,
+  bgEngine,
   lastRecordedSession,
   setCustomBgImageFromFile,
   cycleBgMode,
@@ -71,9 +72,13 @@ const { isDaemonStreamActive, startSegmentationLoop, stopSegmentationLoop } = us
   bgGradient,
   isMirrored,
   hasCameraStream,
+  bgEngine,
 });
 
-const hasEffectiveStream = computed(() => hasCameraStream.value || isDaemonStreamActive.value);
+const hasEffectiveStream = computed(() => {
+  if (bgEngine.value === 'rust' && isDaemonStreamActive.value) return true;
+  return hasCameraStream.value;
+});
 
 async function startCameraStream(deviceId?: string) {
   if (mediaStream) {
@@ -119,6 +124,12 @@ watch(selectedCameraId, (newId) => {
     stopCanvasRecording();
   }
   startCameraStream(newId);
+});
+
+watch(bgEngine, (newEngine) => {
+  if (newEngine === 'js' && selectedCameraId.value !== 'none' && !hasCameraStream.value) {
+    startCameraStream(selectedCameraId.value);
+  }
 });
 
 // Record composited canvas stream across recording/pause/resume and upload on stop

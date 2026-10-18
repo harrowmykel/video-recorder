@@ -30,6 +30,7 @@ const {
   isCameraMirrored,
   bgMode,
   selectedBgModel,
+  bgEngine,
   bgImageUrl,
   bgPresets,
   setCustomBgImageFromFile,
@@ -254,17 +255,91 @@ watch(selectedBgModel, (newModel) => {
           </div>
         </div>
 
+        <!-- Real-Time Processing Engine: Rust Daemon vs JS MediaPipe -->
+        <div class="space-y-2 pt-3 border-t border-white/10">
+          <div class="flex items-center justify-between">
+            <label class="text-[10px] font-mono uppercase text-white/50 flex items-center gap-1.5">
+              <Zap class="w-3.5 h-3.5 text-amber-400" />
+              <span>Real-Time Engine</span>
+            </label>
+            <span class="text-[10px] font-mono text-white/40">
+              {{ bgEngine === 'rust' ? 'Rust Tract SIMD Active' : 'MediaPipe WebAssembly Active' }}
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Rust Option -->
+            <button
+              type="button"
+              @click="bgEngine = 'rust'"
+              :class="[
+                'p-3.5 rounded-2xl border text-left transition relative flex flex-col justify-between space-y-2 cursor-pointer',
+                bgEngine === 'rust'
+                  ? 'bg-rose-500/15 border-rose-400/60 shadow-lg shadow-rose-950/40 text-white'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/70 hover:text-white'
+              ]"
+            >
+              <div class="flex items-center justify-between w-full">
+                <div class="flex items-center gap-2">
+                  <div :class="['w-7 h-7 rounded-lg flex items-center justify-center', bgEngine === 'rust' ? 'bg-rose-500 text-white' : 'bg-white/10 text-white/60']">
+                    <Zap class="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div class="text-xs font-bold text-white">Rust (Optimized)</div>
+                    <div class="text-[10px] text-white/50">Native SIMD Capture Daemon</div>
+                  </div>
+                </div>
+                <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border text-rose-300 bg-rose-500/20 border-rose-400/30">
+                  Fastest
+                </span>
+              </div>
+              <p class="text-[11px] text-white/60 leading-relaxed">
+                Offloads neural matting to background Rust daemon using Tract ONNX with SIMD. Lowest CPU & browser overhead.
+              </p>
+            </button>
+
+            <!-- JS Option -->
+            <button
+              type="button"
+              @click="bgEngine = 'js'"
+              :class="[
+                'p-3.5 rounded-2xl border text-left transition relative flex flex-col justify-between space-y-2 cursor-pointer',
+                bgEngine === 'js'
+                  ? 'bg-indigo-500/15 border-indigo-400/60 shadow-lg shadow-indigo-950/40 text-white'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/70 hover:text-white'
+              ]"
+            >
+              <div class="flex items-center justify-between w-full">
+                <div class="flex items-center gap-2">
+                  <div :class="['w-7 h-7 rounded-lg flex items-center justify-center', bgEngine === 'js' ? 'bg-indigo-500 text-white' : 'bg-white/10 text-white/60']">
+                    <Sparkles class="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div class="text-xs font-bold text-white">JS (In-Browser)</div>
+                    <div class="text-[10px] text-white/50">MediaPipe WebAssembly & GPU</div>
+                  </div>
+                </div>
+                <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border text-indigo-300 bg-indigo-500/20 border-indigo-400/30">
+                  Browser GPU
+                </span>
+              </div>
+              <p class="text-[11px] text-white/60 leading-relaxed">
+                Client-side pipeline via Google MediaPipe Tasks Vision. Direct WebGL confidence mask composite and full custom backdrop support.
+              </p>
+            </button>
+          </div>
+        </div>
 
         <!-- AI Background Removal Model Picker -->
         <div class="space-y-2 pt-3 border-t border-white/10">
           <div class="flex items-center justify-between">
             <label class="text-[10px] font-mono uppercase text-white/50 flex items-center gap-1.5">
               <Cpu class="w-3.5 h-3.5 text-indigo-400" />
-              <span>AI Matting Model</span>
+              <span>{{ bgEngine === 'rust' ? 'Rust ONNX Matting Model' : 'In-Browser MediaPipe Model' }}</span>
             </label>
             <span class="text-[10px] font-mono text-indigo-400/80 flex items-center gap-1">
               <Sparkles class="w-3 h-3 text-indigo-400" />
-              <span>Neural Net</span>
+              <span>{{ bgEngine === 'rust' ? 'Tract SIMD' : 'WebGL Shaders' }}</span>
             </span>
           </div>
 

@@ -1,6 +1,6 @@
 import { shallowRef, watch, onUnmounted, type Ref } from 'vue';
 import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
-import type { BgRemovalMode } from '../types/studio';
+import type { BgRemovalMode, BgEngineType } from '../types/studio';
 import { resolveDaemonUrl, updateCameraBackgroundMode } from '@/lib/tauriBridge';
 
 export interface UseBackgroundSegmentationOptions {
@@ -11,6 +11,7 @@ export interface UseBackgroundSegmentationOptions {
   bgGradient: Ref<string>;
   isMirrored: Ref<boolean>;
   hasCameraStream: Ref<boolean>;
+  bgEngine?: Ref<BgEngineType>;
 }
 
 // Module-level MediaPipe singleton to avoid re-compiling WASM shaders across component lifecycles
@@ -77,6 +78,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     isMirrored,
     hasCameraStream,
   } = options;
+  const bgEngine = options.bgEngine ?? shallowRef<BgEngineType>('rust');
 
   const isBgImageLoaded = shallowRef(false);
   const segmentationBackend = shallowRef<'mediapipe' | 'heuristic'>('heuristic');
@@ -128,8 +130,13 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
 
   initDaemonStream();
 
-  watch(bgMode, (mode) => {
-    updateCameraBackgroundMode(mode);
+  watch([bgMode, bgEngine], ([mode, engine]) => {
+    if (engine === 'rust') {
+      updateCameraBackgroundMode(mode);
+    }
+    if (mode !== 'off' && (engine === 'js' || !isDaemonStreamActive.value)) {
+      triggerModelInit();
+    }
   }, { immediate: true });
 
   // Offscreen canvases for real-time foreground segmentation & alpha feathering
@@ -176,16 +183,6 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
   }
 
   watch(bgImageUrl, (url) => loadBgImage(url), { immediate: true });
-
-  watch(
-    bgMode,
-    (mode) => {
-      if (mode !== 'off') {
-        triggerModelInit();
-      }
-    },
-    { immediate: true }
-  );
 
   // Compute real-time foreground person alpha matte using border-sampled adaptive chroma/luma distance + portrait spatial prior
   function computeForegroundMask(video: HTMLVideoElement): HTMLCanvasElement | null {
@@ -282,32 +279,39 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
 
     try {
       segmenter.segmentForVideo(video, now, (result) => {
-        const confidenceMask = result.confidenceMasks?.[0];
-        if (!confidenceMask) return;
+        try {
+          // MediaPipe selfie_segmenter returns:
+          // index 0 = background confidence mask
+          // index 1 = person (foreground) confidence mask
+          const confidenceMask = result.confidenceMasks?.[1] ?? result.confidenceMasks?.[0];
+          if (!confidenceMask) return;
 
-        const mw = confidenceMask.width;
-        const mh = confidenceMask.height;
+          const mw = confidenceMask.width;
+          const mh = confidenceMask.height;
 
-        if (mpMaskCanvas.width !== mw || mpMaskCanvas.height !== mh) {
-          mpMaskCanvas.width = mw;
-          mpMaskCanvas.height = mh;
-          mpMaskImageData = mpMaskCtx.createImageData(mw, mh);
-          mpMaskData32 = new Uint32Array(mpMaskImageData.data.buffer);
+          if (mpMaskCanvas.width !== mw || mpMaskCanvas.height !== mh) {
+            mpMaskCanvas.width = mw;
+            mpMaskCanvas.height = mh;
+            mpMaskImageData = mpMaskCtx.createImageData(mw, mh);
+            mpMaskData32 = new Uint32Array(mpMaskImageData.data.buffer);
+          }
+
+          if (!mpMaskImageData || !mpMaskData32) return;
+
+          const floats = confidenceMask.getAsFloat32Array();
+          const totalPixels = mw * mh;
+
+          for (let i = 0; i < totalPixels; i++) {
+            const alpha = (floats[i] * 255) | 0;
+            // Little-endian 0xAABBGGRR: white RGB with mask alpha
+            mpMaskData32[i] = (alpha << 24) | 0x00ffffff;
+          }
+
+          mpMaskCtx.putImageData(mpMaskImageData, 0, 0);
+          producedMask = mpMaskCanvas;
+        } finally {
+          result.close?.();
         }
-
-        if (!mpMaskImageData || !mpMaskData32) return;
-
-        const floats = confidenceMask.getAsFloat32Array();
-        const totalPixels = mw * mh;
-
-        for (let i = 0; i < totalPixels; i++) {
-          const alpha = (floats[i] * 255) | 0;
-          // Little-endian 0xAABBGGRR: white RGB with mask alpha
-          mpMaskData32[i] = (alpha << 24) | 0x00ffffff;
-        }
-
-        mpMaskCtx.putImageData(mpMaskImageData, 0, 0);
-        producedMask = mpMaskCanvas;
       });
     } catch (err) {
       console.warn('[Segmentation] MediaPipe frame error, falling back to heuristic:', err);
@@ -317,9 +321,18 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     return producedMask;
   }
 
-  function drawCoverImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement | HTMLVideoElement, cw: number, ch: number) {
-    const iw = img instanceof HTMLVideoElement ? (img.videoWidth > 0 ? img.videoWidth : cw) : (img.naturalWidth || img.width || cw);
-    const ih = img instanceof HTMLVideoElement ? (img.videoHeight > 0 ? img.videoHeight : ch) : (img.naturalHeight || img.height || ch);
+  function drawCoverImage(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
+    cw: number,
+    ch: number
+  ) {
+    const iw = img instanceof HTMLVideoElement
+      ? (img.videoWidth > 0 ? img.videoWidth : cw)
+      : (img instanceof HTMLImageElement ? (img.naturalWidth || img.width || cw) : (img.width || cw));
+    const ih = img instanceof HTMLVideoElement
+      ? (img.videoHeight > 0 ? img.videoHeight : ch)
+      : (img instanceof HTMLImageElement ? (img.naturalHeight || img.height || ch) : (img.height || ch));
     const scale = Math.max(cw / iw, ch / ih);
     const sw = iw * scale;
     const sh = ih * scale;
@@ -365,7 +378,8 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
         const mode = bgMode.value;
 
         // Fast path: if Rust Core Daemon is actively streaming live AI cutout frames, render directly
-        if (isDaemonStreamActive.value && daemonStreamImg && daemonStreamImg.naturalWidth > 0) {
+        const isRustEngine = bgEngine.value === 'rust';
+        if (isRustEngine && isDaemonStreamActive.value && daemonStreamImg && daemonStreamImg.naturalWidth > 0) {
           ctx.save();
           if (isMirrored.value) {
             ctx.translate(cw, 0);
@@ -440,7 +454,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
               }
               // Soft feathering: subtle 1.5px blur for ML confidence mask, 6px for low-res heuristic mask
               fgCtx.filter = isMediaPipeActive ? 'blur(1.5px)' : 'blur(6px)';
-              fgCtx.drawImage(mask, 0, 0, cw, ch);
+              drawCoverImage(fgCtx, mask, cw, ch);
               fgCtx.filter = 'none';
               fgCtx.globalCompositeOperation = 'source-in';
               drawCoverImage(fgCtx, video, cw, ch);
@@ -509,7 +523,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
   }
 
   function startSegmentationLoop() {
-    if (bgMode.value !== 'off') {
+    if (bgMode.value !== 'off' && (bgEngine.value === 'js' || !isDaemonStreamActive.value)) {
       triggerModelInit();
     }
     if (animFrameId !== null) return;
@@ -536,6 +550,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     segmentationBackend,
     isModelLoading,
     isDaemonStreamActive,
+    bgEngine,
     startSegmentationLoop,
     stopSegmentationLoop,
   };
