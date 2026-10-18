@@ -126,7 +126,7 @@ This single command:
 1. Re-runs `npm run build` and `npm run daemon:build`.
 2. Packages the Electron shell and copies `src-daemon/target/release/recorder-daemon` into the app's `resources/bin/` folder.
 3. Automatically sets `--no-sandbox` in the `.desktop` launcher and flags to prevent Chromium SUID sandbox panics on Linux.
-4. Generates both an **`.AppImage`** and a compressed **`.tar.gz`** package.
+4. Generates the standalone **`.AppImage`** package.
 
 ---
 
@@ -137,7 +137,6 @@ After packaging completes, the generated release files are located in `release/`
 | Artifact | Size | Description |
 | :--- | :--- | :--- |
 | **`Screen Studio Recorder-0.1.0.AppImage`** | ~128 MB | Standalone, double-clickable single-file executable for any Linux distro. |
-| **`video-recorder-studio-0.1.0.tar.gz`** | ~122 MB | Ultra-compressed portable tarball containing the complete application directory. |
 | **`release/linux-unpacked/`** | ~275 MB | Unpacked binary directory for rapid testing and development. |
 
 ---
@@ -148,13 +147,6 @@ After packaging completes, the generated release files are located in `release/`
 ```bash
 chmod +x "release/Screen Studio Recorder-0.1.0.AppImage"
 "./release/Screen Studio Recorder-0.1.0.AppImage"
-```
-
-### Running the `.tar.gz` on Another Machine:
-```bash
-tar -xzf video-recorder-studio-0.1.0.tar.gz
-cd video-recorder-studio-0.1.0
-./video-recorder-studio --no-sandbox
 ```
 
 ### Running the Unpacked Directory:

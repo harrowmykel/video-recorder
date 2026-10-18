@@ -83,25 +83,6 @@ async function handleDone() {
   emit('close');
 }
 
-function buildTimestampedPath(baseVideosDir: string, presetSuffix?: string) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
-
-  const dateTime = `${year}-${month}-${day}_${hours}${minutes}${seconds}`;
-  const sid = props.sessionId || `session_${year}${month}${day}_${hours}${minutes}${seconds}`;
-
-  let normalizedBase = baseVideosDir.replace(/[\\/]+$/, '');
-  if (!normalizedBase.endsWith('record_studio')) {
-    normalizedBase = `${normalizedBase}/record_studio`;
-  }
-  const suffix = presetSuffix ? `_${presetSuffix}` : '';
-  return `${normalizedBase}/${dateTime}_${sid}${suffix}`;
-}
 
 async function buildDefaultExportPath(preset: ExportPresetType = exportPreset.value): Promise<string> {
   const exportsBase = await getDefaultExportsDirectory();

@@ -90,11 +90,11 @@ npm run package:dir
 ```
 * Generates `./release/linux-unpacked/` containing the `video-recorder-studio` executable and bundled `resources/bin/recorder-daemon`.
 
-### Package Distributable (.AppImage / .tar.gz)
+### Package Distributable (.AppImage)
 ```bash
 npm run package:dist
 ```
-* Generates standalone `.AppImage` and `.tar.gz` inside `./release/`.
+* Generates standalone `.AppImage` inside `./release/`.
 * 📖 **For full recreation instructions on a clean machine, see [RECREATE.md](RECREATE.md).**
 
 ---
