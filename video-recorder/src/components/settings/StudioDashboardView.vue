@@ -576,7 +576,7 @@ onMounted(() => {
           </div>
 
           <!-- Theme Switcher Grid -->
-          <div class="space-y-2 pt-1">
+          <!-- <div class="space-y-2 pt-1">
             <span class="text-[10px] font-mono uppercase text-white/50 block">Studio Visual Theme</span>
             <div class="grid grid-cols-2 gap-2">
               <button v-for="t in THEME_LIST" :key="t.id" @click="setTheme(t.id)" :class="[
@@ -589,7 +589,7 @@ onMounted(() => {
                 <div class="text-[10px] text-white/50 truncate mt-0.5">{{ t.badge }}</div>
               </button>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <div class="p-5 rounded-3xl bg-[#0e111a]/90 border border-white/10 shadow-xl space-y-4">
@@ -607,9 +607,9 @@ onMounted(() => {
           </div>
 
           <!-- Theme Cards Grid -->
-          <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-y-auto">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto">
             <div v-for="t in THEME_LIST" :key="t.id" @click="handleSelectTheme(t.id)" :class="[
-              'relative p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group',
+              'relative p-2 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between group',
               currentTheme === t.id
                 ? 'border-white/40 bg-white/10 ring-2 ring-offset-2 ring-offset-[#0e111a] shadow-xl'
                 : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]'
