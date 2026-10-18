@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::capture::{
     AudioRecorder, CameraRecorder, ScreenRecorder, ScreenCaptureConfig, TelemetryLogger,
-    detect_screen_dimensions, enumerate_windows,
+    detect_screen_dimensions, enumerate_displays, enumerate_windows,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -17,6 +17,7 @@ pub struct StartRecordingRequest {
     pub y: Option<u32>,
     pub width: Option<u32>,
     pub height: Option<u32>,
+    pub display_id: Option<String>,
     pub window_id: Option<String>,
     pub fps: Option<u32>,
     pub mic_muted: Option<bool>,
@@ -174,8 +175,22 @@ impl SessionManager {
         let mut height = req.height.unwrap_or(default_h);
         let fps = req.fps.unwrap_or(60);
 
-        // If source_mode == "window" and window_id is provided, look up its current geometry
-        if req.source_mode.as_deref() == Some("window") {
+        // If source_mode == "display" or not set, look up target display
+        if req.source_mode.as_deref() == Some("display") || req.source_mode.is_none() {
+            let displays = enumerate_displays();
+            let target_disp = if let Some(disp_id) = &req.display_id {
+                displays.iter().find(|d| &d.id == disp_id).or_else(|| displays.first())
+            } else {
+                displays.iter().find(|d| d.is_primary).or_else(|| displays.first())
+            };
+            if let Some(disp) = target_disp {
+                x = disp.x.max(0) as u32;
+                y = disp.y.max(0) as u32;
+                width = disp.width;
+                height = disp.height;
+            }
+        } else if req.source_mode.as_deref() == Some("window") {
+            // If source_mode == "window" and window_id is provided, look up its current geometry
             if let Some(target_win_id) = &req.window_id {
                 if let Some(win) = enumerate_windows().into_iter().find(|w| &w.id == target_win_id) {
                     x = win.x.max(0) as u32;
@@ -186,13 +201,19 @@ impl SessionManager {
             }
         }
 
+        let source_id = if req.source_mode.as_deref() == Some("window") {
+            req.window_id.clone()
+        } else {
+            req.display_id.clone()
+        };
+
         // 1. Start Screen Recorder (Chunked)
         let mut screen_rec = ScreenRecorder::new_chunked(
             screen_path.clone(),
             chunks_dir.clone(),
             screen_manifest.clone(),
             req.source_mode.clone(),
-            req.window_id.clone(),
+            source_id,
         );
         if let Err(e) = screen_rec.start_with_config(ScreenCaptureConfig {
             x,

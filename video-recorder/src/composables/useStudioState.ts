@@ -12,7 +12,7 @@ import type {
   CameraTelemetryPoint,
   BgPresetItem,
 } from '../types/studio';
-import { broadcastEvent, subscribeToEvent } from '../lib/tauriBridge';
+import { broadcastEvent, subscribeToEvent, fetchCaptureSources } from '../lib/tauriBridge';
 
 const STORAGE_KEY_SETTINGS = 'studio_recorder_settings_v1';
 
@@ -148,10 +148,12 @@ const captureSourceMode = shallowRef<CaptureSourceMode>('display');
 const selectedDisplayId = shallowRef<string>('primary');
 const selectedWindowId = shallowRef<string>('');
 const selectedWindowTitle = shallowRef<string>('Entire Screen');
-const captureArea = ref<CaptureAreaRect>({ x: 160, y: 120, width: 1280, height: 720 });
+const captureArea = ref<CaptureAreaRect>({ x: 0, y: 0, width: 1920, height: 1080 });
 const isAreaSelectorOpen = shallowRef(false);
 const isSourceModalOpen = shallowRef(false);
 const targetFps = shallowRef<number>(60);
+const countdownDuration = shallowRef<number>(3); // 0 = Immediate start (no countdown), 1-10s
+const autoHideCameraOnRecord = shallowRef<boolean>(false);
 
 // Audio & Camera Device State
 const selectedCameraId = shallowRef<string>('default');
@@ -171,9 +173,11 @@ const bgEngine = shallowRef<BgEngineType>('rust');
 const bgImageUrl = shallowRef<string>(STUDIO_BG_PRESETS[0].value);
 const bgGradient = shallowRef<string>('linear-gradient(135deg, #064e3b 0%, #0f172a 50%, #312e81 100%)');
 
-// Session & Telemetry State
+// Session, Processing & Telemetry State
 const lastRecordedSession = ref<RecordingSession | null>(null);
 const sessionCameraTelemetry = ref<CameraTelemetryPoint[]>([]);
+const isProcessingSession = shallowRef<boolean>(false);
+const processingStatusMessage = shallowRef<string>('');
 
 let isInitialized = false;
 let isSyncingFromBus = false;
@@ -190,6 +194,8 @@ function loadPersistedSettings() {
     if (data.selectedWindowTitle) selectedWindowTitle.value = data.selectedWindowTitle;
     if (data.captureArea) captureArea.value = data.captureArea;
     if (data.targetFps) targetFps.value = data.targetFps;
+    if (typeof data.countdownDuration === 'number') countdownDuration.value = data.countdownDuration;
+    if (typeof data.autoHideCameraOnRecord === 'boolean') autoHideCameraOnRecord.value = data.autoHideCameraOnRecord;
     if (data.selectedCameraId) selectedCameraId.value = data.selectedCameraId;
     if (data.selectedMicId) selectedMicId.value = data.selectedMicId;
     if (typeof data.isMicMuted === 'boolean') isMicMuted.value = data.isMicMuted;
@@ -218,6 +224,8 @@ function savePersistedSettings() {
       selectedWindowTitle: selectedWindowTitle.value,
       captureArea: captureArea.value,
       targetFps: targetFps.value,
+      countdownDuration: countdownDuration.value,
+      autoHideCameraOnRecord: autoHideCameraOnRecord.value,
       selectedCameraId: selectedCameraId.value,
       selectedMicId: selectedMicId.value,
       isMicMuted: isMicMuted.value,
@@ -235,6 +243,32 @@ function savePersistedSettings() {
     localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(payload));
   } catch (err) {
     console.warn('[useStudioState] Could not persist settings to localStorage:', err);
+  }
+}
+
+async function initDisplayDefaults() {
+  if (typeof window === 'undefined') return;
+  try {
+    const sources = await fetchCaptureSources();
+    if (sources.displays && sources.displays.length > 0) {
+      const primaryDisp = sources.displays.find((d) => d.isPrimary) || sources.displays[0];
+      if (primaryDisp) {
+        if (!selectedDisplayId.value || selectedDisplayId.value === 'primary') {
+          selectedDisplayId.value = primaryDisp.id;
+          selectedWindowTitle.value = primaryDisp.name;
+        }
+        if (captureSourceMode.value === 'display') {
+          captureArea.value = {
+            x: primaryDisp.x,
+            y: primaryDisp.y,
+            width: primaryDisp.width,
+            height: primaryDisp.height,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[useStudioState] Failed to init display defaults:', err);
   }
 }
 
@@ -256,6 +290,10 @@ function broadcastFullState() {
     isAreaSelectorOpen: isAreaSelectorOpen.value,
     isSourceModalOpen: isSourceModalOpen.value,
     targetFps: targetFps.value,
+    countdownDuration: countdownDuration.value,
+    autoHideCameraOnRecord: autoHideCameraOnRecord.value,
+    isProcessingSession: isProcessingSession.value,
+    processingStatusMessage: processingStatusMessage.value,
     selectedCameraId: selectedCameraId.value,
     selectedMicId: selectedMicId.value,
     isMicMuted: isMicMuted.value,
@@ -277,6 +315,7 @@ export function useStudioState() {
   if (!isInitialized && typeof window !== 'undefined') {
     isInitialized = true;
     loadPersistedSettings();
+    initDisplayDefaults();
 
     subscribeToEvent<Record<string, any>>('sync_state', (payload) => {
       if (!payload) return;
@@ -295,6 +334,10 @@ export function useStudioState() {
       if (payload.isAreaSelectorOpen !== undefined) isAreaSelectorOpen.value = payload.isAreaSelectorOpen;
       if (payload.isSourceModalOpen !== undefined) isSourceModalOpen.value = payload.isSourceModalOpen;
       if (payload.targetFps !== undefined) targetFps.value = payload.targetFps;
+      if (payload.countdownDuration !== undefined) countdownDuration.value = payload.countdownDuration;
+      if (payload.autoHideCameraOnRecord !== undefined) autoHideCameraOnRecord.value = payload.autoHideCameraOnRecord;
+      if (payload.isProcessingSession !== undefined) isProcessingSession.value = payload.isProcessingSession;
+      if (payload.processingStatusMessage !== undefined) processingStatusMessage.value = payload.processingStatusMessage;
       if (payload.selectedCameraId !== undefined) selectedCameraId.value = payload.selectedCameraId;
       if (payload.selectedMicId !== undefined) selectedMicId.value = payload.selectedMicId;
       if (payload.isMicMuted !== undefined) isMicMuted.value = payload.isMicMuted;
@@ -407,6 +450,10 @@ export function useStudioState() {
     isAreaSelectorOpen,
     isSourceModalOpen,
     targetFps,
+    countdownDuration,
+    autoHideCameraOnRecord,
+    isProcessingSession,
+    processingStatusMessage,
     selectedCameraId,
     isCameraDisabled,
     selectedMicId,

@@ -6,6 +6,8 @@ import {
   Link2,
   Eye,
   EyeOff,
+  Timer,
+  Shield,
 } from 'lucide-vue-next';
 import { useStudioState } from '@/composables/useStudioState';
 
@@ -13,6 +15,8 @@ const {
   isCameraHidden,
   isDockedToCamera,
   isToolbarCollapsed,
+  countdownDuration,
+  autoHideCameraOnRecord,
 } = useStudioState();
 </script>
 
@@ -24,13 +28,58 @@ const {
         <Palette class="w-4 h-4" />
       </div>
       <div>
-        <h3 class="text-sm font-bold text-white">4. Overlays & Docking</h3>
-        <p class="text-[11px] text-white/50">Toolbar and bubble overlay controls</p>
+        <h3 class="text-sm font-bold text-white">4. Overlays & Pre-Roll</h3>
+        <p class="text-[11px] text-white/50">Toolbar, countdown & capture isolation</p>
       </div>
+    </div>
+
+    <!-- Pre-Roll Countdown Slider (0 - 10 seconds) -->
+    <div class="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+      <div class="flex items-center justify-between text-xs text-white">
+        <span class="flex items-center gap-2 font-semibold">
+          <Timer class="w-4 h-4 text-rose-400" />
+          <span>Pre-Roll Countdown</span>
+        </span>
+        <span class="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-rose-300 font-semibold">
+          {{ countdownDuration === 0 ? 'IMMEDIATE (0s)' : `${countdownDuration}s COUNTDOWN` }}
+        </span>
+      </div>
+      <div class="flex items-center gap-3 pt-1">
+        <span class="text-[10px] font-mono text-white/40">0s</span>
+        <input
+          type="range"
+          min="0"
+          max="10"
+          step="1"
+          v-model.number="countdownDuration"
+          class="w-full accent-rose-500 cursor-pointer h-1.5 bg-white/15 rounded-lg appearance-none"
+        />
+        <span class="text-[10px] font-mono text-white/40">10s</span>
+      </div>
+      <p class="text-[10px] text-white/40 leading-relaxed">
+        {{ countdownDuration === 0 ? 'Recording starts instantly without waiting.' : `Shows a ${countdownDuration}-second visual leader with an instant "Start Now" skip button.` }}
+      </p>
     </div>
 
     <!-- Quick Overlay Window Actions -->
     <div class="grid grid-cols-1 gap-2.5">
+      <!-- Auto-hide camera on record (Linux Clean Screen Recording) -->
+      <button
+        @click="autoHideCameraOnRecord = !autoHideCameraOnRecord"
+        class="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-between text-xs text-white transition"
+      >
+        <span class="flex items-center gap-2 font-semibold">
+          <Shield class="w-4 h-4 text-emerald-400" />
+          <span>Hide Bubble during Screen Record</span>
+        </span>
+        <span
+          class="px-2 py-0.5 rounded text-[10px] font-mono"
+          :class="autoHideCameraOnRecord ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-white/50'"
+        >
+          {{ autoHideCameraOnRecord ? 'ENABLED' : 'DISABLED' }}
+        </span>
+      </button>
+
       <button @click="isToolbarCollapsed = !isToolbarCollapsed"
         class="w-full p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-between text-xs text-white transition">
         <span class="flex items-center gap-2 font-semibold">

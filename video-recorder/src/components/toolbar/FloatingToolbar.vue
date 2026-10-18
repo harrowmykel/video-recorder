@@ -70,6 +70,9 @@ const {
   bgMode,
   bgImageUrl,
   bgPresets,
+  countdownDuration,
+  isProcessingSession,
+  processingStatusMessage,
   lastRecordedSession,
   setCustomBgImageFromFile,
 } = useStudioState();
@@ -293,7 +296,37 @@ async function handleCustomBgUpload(e: Event) {
 
 function handleStart() {
   activePopover.value = null;
-  recordingState.value = 'countdown';
+  if (countdownDuration.value === 0) {
+    recordingState.value = 'recording';
+    const startArgs: any = {
+      source_mode: captureSourceMode.value,
+      mic_muted: isMicMuted.value,
+      sys_audio_muted: isSysAudioMuted.value,
+      camera_device: selectedCameraId.value,
+      mic_device: selectedMicId.value,
+    };
+    if (captureSourceMode.value === 'display') {
+      startArgs.display_id = selectedDisplayId.value;
+      if (captureArea.value.width > 0 && captureArea.value.height > 0) {
+        startArgs.x = captureArea.value.x;
+        startArgs.y = captureArea.value.y;
+        startArgs.width = captureArea.value.width;
+        startArgs.height = captureArea.value.height;
+      }
+    } else if (captureSourceMode.value === 'area') {
+      startArgs.x = captureArea.value.x;
+      startArgs.y = captureArea.value.y;
+      startArgs.width = captureArea.value.width;
+      startArgs.height = captureArea.value.height;
+    } else if (captureSourceMode.value === 'window') {
+      startArgs.window_id = selectedWindowId.value;
+    }
+    invokeCommand('start_recording', startArgs).catch((err) => {
+      console.warn('[FloatingToolbar] start_recording error:', err);
+    });
+  } else {
+    recordingState.value = 'countdown';
+  }
 }
 
 async function handlePause() {
@@ -307,6 +340,8 @@ async function handleResume() {
 }
 
 async function handleStop() {
+  isProcessingSession.value = true;
+  processingStatusMessage.value = 'Joining and finalizing recorded sections...';
   recordingState.value = 'review';
   try {
     const res = await invokeCommand<{ success?: boolean; metadata?: any }>('stop_recording');
@@ -315,6 +350,8 @@ async function handleStop() {
     }
   } catch (err) {
     console.warn('[FloatingToolbar] stop_recording error:', err);
+  } finally {
+    isProcessingSession.value = false;
   }
 }
 

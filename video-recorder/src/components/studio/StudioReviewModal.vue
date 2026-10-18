@@ -9,6 +9,9 @@ import {
   ZoomIn,
   Sparkles,
   Monitor,
+  Smartphone,
+  Ratio,
+  Maximize2,
   Video,
   X,
   Film,
@@ -40,7 +43,13 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-const { lastRecordedSession } = useStudioState();
+const { lastRecordedSession, isProcessingSession, processingStatusMessage } = useStudioState();
+
+type PreviewAspectRatio = '16:9' | '9:16' | 'original' | 'fullscreen';
+const previewRatio = shallowRef<PreviewAspectRatio>('16:9');
+const isPlayerFullscreen = shallowRef(false);
+const videoNaturalWidth = shallowRef(1920);
+const videoNaturalHeight = shallowRef(1080);
 
 const isExportModalOpen = shallowRef(false);
 const activeTab = shallowRef<'review' | 'batch_ai'>('review');
@@ -108,6 +117,13 @@ watch(() => props.initialSessionId, (newId) => {
   }
 });
 
+watch(lastRecordedSession, async (newSess) => {
+  if (newSess) {
+    await loadSessionsList();
+    selectedSessionId.value = newSess.id;
+  }
+});
+
 watch(activeSession, (sess) => {
   hasVideoLoaded.value = false;
   hasCameraVideoLoaded.value = false;
@@ -118,23 +134,60 @@ watch(activeSession, (sess) => {
   }
 });
 
+const viewportClass = computed(() => {
+  if (isPlayerFullscreen.value) {
+    return 'w-full h-full max-h-[75vh]';
+  }
+  switch (previewRatio.value) {
+    case '9:16':
+      return 'aspect-[9/16] h-[52vh] max-w-[29.25vh] mx-auto';
+    case 'original':
+      return 'max-h-[52vh] w-auto mx-auto';
+    case 'fullscreen':
+      return 'w-full h-full max-h-[75vh]';
+    case '16:9':
+    default:
+      return 'w-full aspect-video max-h-[52vh] mx-auto';
+  }
+});
+
+const viewportStyle = computed(() => {
+  if (previewRatio.value === 'original' && videoNaturalWidth.value && videoNaturalHeight.value) {
+    return {
+      aspectRatio: `${videoNaturalWidth.value} / ${videoNaturalHeight.value}`,
+    };
+  }
+  return {};
+});
+
+function toggleFullscreen() {
+  isPlayerFullscreen.value = !isPlayerFullscreen.value;
+  if (isPlayerFullscreen.value) {
+    previewRatio.value = 'fullscreen';
+  } else {
+    previewRatio.value = '16:9';
+  }
+}
+
 const pipStyle = computed(() => {
+  const isNarrow = previewRatio.value === '9:16';
+  const defaultSize = isNarrow ? 110 : 192;
   const telemetry = props.cameraTelemetry;
   if (!telemetry || !telemetry.length) {
     return {
-      bottom: '24px',
-      right: '24px',
-      width: '192px',
-      height: '192px',
+      bottom: '16px',
+      right: '16px',
+      width: `${defaultSize}px`,
+      height: `${defaultSize}px`,
     };
   }
 
   const sample = telemetry[0];
   const normX = typeof sample.normX === 'number' ? sample.normX : 0.8;
   const normY = typeof sample.normY === 'number' ? sample.normY : 0.72;
-  const leftPct = Math.min(80, Math.max(3, normX * 100));
-  const topPct = Math.min(75, Math.max(3, normY * 100));
-  const sizePx = sample.width ? Math.min(240, Math.max(120, Math.round(sample.width * 0.75))) : 192;
+  const leftPct = Math.min(isNarrow ? 65 : 80, Math.max(5, normX * 100));
+  const topPct = Math.min(isNarrow ? 70 : 75, Math.max(5, normY * 100));
+  const sizePx = sample.width ? Math.min(isNarrow ? 120 : 240, Math.max(isNarrow ? 80 : 120, Math.round(sample.width * (isNarrow ? 0.45 : 0.75)))) : defaultSize;
 
   return {
     left: `${leftPct.toFixed(1)}%`,
@@ -162,10 +215,14 @@ const progressPercent = computed(() => {
 
 function onScreenLoadedMetadata() {
   const v = screenVideoRef.value;
-  if (v && v.duration && isFinite(v.duration)) {
-    duration.value = v.duration;
-    hasVideoLoaded.value = true;
-  } else {
+  if (v) {
+    if (v.videoWidth && v.videoHeight) {
+      videoNaturalWidth.value = v.videoWidth;
+      videoNaturalHeight.value = v.videoHeight;
+    }
+    if (v.duration && isFinite(v.duration)) {
+      duration.value = v.duration;
+    }
     hasVideoLoaded.value = true;
   }
 }
@@ -466,7 +523,11 @@ onUnmounted(() => {
           <!-- Synchronized Video Viewport -->
           <div
             @click="togglePlay"
-            class="relative w-full aspect-video max-h-[52vh] rounded-2xl overflow-hidden bg-[#07080C] border border-white/10 shadow-2xl flex items-center justify-center group cursor-pointer"
+            :class="[
+              'relative rounded-2xl overflow-hidden bg-[#07080C] border border-white/10 shadow-2xl flex items-center justify-center group cursor-pointer transition-all duration-300',
+              viewportClass
+            ]"
+            :style="viewportStyle"
           >
             <!-- Real Screen Recording <video> Element -->
             <video
@@ -479,7 +540,7 @@ onUnmounted(() => {
               @ended="isPlaying = false"
               class="w-full h-full object-contain transition-transform duration-700"
               :class="[
-                hasVideoLoaded ? 'block' : 'hidden',
+                hasVideoLoaded && !isProcessingSession ? 'block' : 'hidden',
                 isAutoZoomActive ? 'scale-110 origin-[35%_40%]' : 'scale-100'
               ]"
             />
@@ -488,43 +549,35 @@ onUnmounted(() => {
             <audio v-if="activeSession?.micUrl" ref="micAudioRef" :src="activeSession.micUrl" />
             <audio v-if="activeSession?.sysAudioUrl" ref="sysAudioRef" :src="activeSession.sysAudioUrl" />
 
-            <!-- Fallback Clean Screen Track Preview when no video file is loaded yet -->
+            <!-- Animated Joining & Finalizing State when video is processing or loading -->
             <div
-              v-if="!hasVideoLoaded"
-              class="w-full h-full p-8 flex flex-col justify-between transition-all duration-700 bg-gradient-to-br from-[#12141D] to-[#0A0C14]"
-              :class="isAutoZoomActive ? 'scale-110 origin-[30%_35%]' : 'scale-100'"
+              v-if="isProcessingSession || !hasVideoLoaded"
+              class="w-full h-full p-8 flex flex-col items-center justify-center bg-gradient-to-br from-[#0c0e17] via-[#101424] to-[#080910] text-center select-none"
             >
-              <div class="flex items-center justify-between pb-4 border-b border-white/5 opacity-60">
-                <div class="flex items-center space-x-2">
-                  <div class="w-3 h-3 rounded-full bg-red-500/80" />
-                  <div class="w-3 h-3 rounded-full bg-yellow-500/80" />
-                  <div class="w-3 h-3 rounded-full bg-green-500/80" />
-                  <span class="text-xs font-mono text-gray-400 ml-2">{{ currentSessionId }}/screen_clean.mp4</span>
+              <!-- Glowing Animated Film / Video Loader -->
+              <div class="relative mb-5">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-500/15 border border-indigo-400/30 flex items-center justify-center shadow-[0_0_36px_rgba(99,102,241,0.35)]">
+                  <Film class="w-8 h-8 text-indigo-400 animate-pulse" />
                 </div>
-                <span class="text-xs font-mono text-gray-500">60 FPS • H.264 / ProRes</span>
+                <div class="absolute -inset-1.5 rounded-[22px] border-2 border-indigo-500/40 border-t-transparent animate-spin" />
               </div>
 
-              <div class="flex flex-col items-center justify-center my-auto">
-                <div class="w-20 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center mb-3 shadow-[0_0_32px_rgba(99,102,241,0.2)]">
-                  <Monitor class="w-10 h-10 text-indigo-400" />
-                </div>
-                <h3 class="text-base font-semibold text-white tracking-wide">
-                  Clean Desktop Track ({{ currentSessionId }})
-                </h3>
-                <p class="text-xs text-gray-400 font-mono mt-1">
-                  Click Play below to preview synchronized screen, camera PiP, and audio tracks
-                </p>
-              </div>
+              <h3 class="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                <span>{{ isProcessingSession ? 'Joining & Finalizing Recorded Sections' : 'Preparing Synchronized Preview' }}</span>
+              </h3>
+              <p class="text-[11px] text-indigo-200/70 font-mono mt-1 max-w-sm">
+                {{ processingStatusMessage || 'Merging multi-track screen segments, stitching camera video, and aligning audio stems...' }}
+              </p>
 
-              <div class="flex items-center justify-between text-xs font-mono text-gray-500 pt-3 border-t border-white/5">
-                <span>Display 1 • Primary</span>
-                <span>telemetry.json synchronized</span>
+              <div class="flex items-center gap-2 mt-3 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-gray-400">
+                <RefreshCw class="w-2.5 h-2.5 animate-spin text-indigo-400" />
+                <span>Please wait • Ready in a few moments</span>
               </div>
             </div>
 
             <!-- Picture-in-Picture Decoupled Camera Track Preview -->
             <div
-              v-if="isCameraPiPVisible && hasCameraTrack"
+              v-if="isCameraPiPVisible && hasCameraTrack && hasVideoLoaded && !isProcessingSession"
               class="absolute aspect-square rounded-[36px] border-2 border-red-500/80 bg-[#161822] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col items-center justify-center text-white transition-all duration-300"
               :style="pipStyle"
             >
@@ -549,7 +602,7 @@ onUnmounted(() => {
 
             <!-- Auto-Zoom Indicator Badge -->
             <div
-              v-if="isAutoZoomActive"
+              v-if="isAutoZoomActive && hasVideoLoaded && !isProcessingSession"
               class="absolute top-4 left-4 px-3.5 py-1.5 rounded-full bg-indigo-950/80 border border-indigo-400/40 text-xs font-semibold text-indigo-200 flex items-center space-x-2 backdrop-blur-md shadow-lg"
             >
               <ZoomIn class="w-3.5 h-3.5 text-indigo-300" />
@@ -564,6 +617,46 @@ onUnmounted(() => {
                 <span class="text-white font-semibold">{{ formatTime(currentTime) }}</span>
                 <span class="text-gray-500">/</span>
                 <span class="text-gray-400">{{ formatTime(duration) }}</span>
+              </div>
+
+              <!-- Aspect Ratio / Preview Size Selector Toolbar -->
+              <div class="flex items-center space-x-1 p-1 rounded-xl bg-black/60 border border-white/10 shadow-inner">
+                <button
+                  @click="previewRatio = '16:9'; isPlayerFullscreen = false;"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                  :class="previewRatio === '16:9' && !isPlayerFullscreen ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'"
+                  title="16:9 Widescreen (Standard Desktop / YouTube)"
+                >
+                  <Monitor class="w-3.5 h-3.5" />
+                  <span>16:9</span>
+                </button>
+                <button
+                  @click="previewRatio = '9:16'; isPlayerFullscreen = false;"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                  :class="previewRatio === '9:16' && !isPlayerFullscreen ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'"
+                  title="9:16 Vertical (Shorts, Reels, TikTok - video contained)"
+                >
+                  <Smartphone class="w-3.5 h-3.5" />
+                  <span>9:16</span>
+                </button>
+                <button
+                  @click="previewRatio = 'original'; isPlayerFullscreen = false;"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                  :class="previewRatio === 'original' && !isPlayerFullscreen ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'"
+                  title="Native Display Resolution"
+                >
+                  <Ratio class="w-3.5 h-3.5" />
+                  <span>Video Size</span>
+                </button>
+                <button
+                  @click="toggleFullscreen"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                  :class="isPlayerFullscreen ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'"
+                  title="Toggle Full Preview Size"
+                >
+                  <Maximize2 class="w-3.5 h-3.5" />
+                  <span>{{ isPlayerFullscreen ? 'Exit Full' : 'Full Screen' }}</span>
+                </button>
               </div>
 
               <div v-if="statusNotice" class="px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs">

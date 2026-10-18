@@ -42,6 +42,7 @@ export interface StartRecordingOptions {
   y?: number;
   width?: number;
   height?: number;
+  display_id?: string;
   window_id?: string;
   fps?: number;
   mic_muted?: boolean;
@@ -116,7 +117,7 @@ export interface BatchMattingJob {
   errorMessage?: string;
 }
 
-export type AnnotationTool = 'select' | 'pen' | 'arrow' | 'rect' | 'badge' | 'spotlight';
+export type AnnotationTool = 'select' | 'pen' | 'arrow' | 'rect' | 'circle' | 'badge' | 'spotlight';
 
 export interface AnnotationItem {
   id: string;

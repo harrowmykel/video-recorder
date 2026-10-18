@@ -26,11 +26,16 @@ const {
   isAnnotationActive,
   isLiveZoomActive,
   captureSourceMode,
+  selectedDisplayId,
   selectedWindowId,
   selectedWindowTitle,
   captureArea,
   isAreaSelectorOpen,
   targetFps,
+  countdownDuration,
+  autoHideCameraOnRecord,
+  isProcessingSession,
+  processingStatusMessage,
   selectedCameraId,
   selectedMicId,
   isMicMuted,
@@ -55,6 +60,9 @@ let unsubscribeShortcut: (() => void) | null = null;
 async function handleCountdownComplete() {
   if (recordingState.value === 'recording') return;
   recordingState.value = 'recording';
+  if (autoHideCameraOnRecord.value) {
+    isCameraHidden.value = true;
+  }
   sessionCameraTelemetry.value = [
     {
       timeMs: 0,
@@ -69,19 +77,31 @@ async function handleCountdownComplete() {
     },
   ];
   try {
-    await invokeCommand('start_recording', {
+    const startArgs: any = {
       source_mode: captureSourceMode.value,
-      x: captureArea.value.x,
-      y: captureArea.value.y,
-      width: captureArea.value.width,
-      height: captureArea.value.height,
-      window_id: selectedWindowId.value,
       fps: targetFps.value,
       mic_muted: isMicMuted.value,
       sys_audio_muted: isSysAudioMuted.value,
       camera_device: selectedCameraId.value,
       mic_device: selectedMicId.value,
-    });
+    };
+    if (captureSourceMode.value === 'display') {
+      startArgs.display_id = selectedDisplayId.value;
+      if (captureArea.value.width > 0 && captureArea.value.height > 0) {
+        startArgs.x = captureArea.value.x;
+        startArgs.y = captureArea.value.y;
+        startArgs.width = captureArea.value.width;
+        startArgs.height = captureArea.value.height;
+      }
+    } else if (captureSourceMode.value === 'area') {
+      startArgs.x = captureArea.value.x;
+      startArgs.y = captureArea.value.y;
+      startArgs.width = captureArea.value.width;
+      startArgs.height = captureArea.value.height;
+    } else if (captureSourceMode.value === 'window') {
+      startArgs.window_id = selectedWindowId.value;
+    }
+    await invokeCommand('start_recording', startArgs);
   } catch (err) {
     console.warn('Failed to start recording on backend:', err);
   }
@@ -112,8 +132,14 @@ async function executeShortcutAction(action: string) {
   switch (action) {
     case 'record':
       if (recordingState.value === 'idle') {
-        recordingState.value = 'countdown';
+        if (countdownDuration.value === 0) {
+          await handleCountdownComplete();
+        } else {
+          recordingState.value = 'countdown';
+        }
       } else if (recordingState.value === 'recording' || recordingState.value === 'paused') {
+        isProcessingSession.value = true;
+        processingStatusMessage.value = 'Joining and finalizing recorded sections...';
         recordingState.value = 'review';
         try {
           const res = await invokeCommand<{ success?: boolean; metadata?: any }>('stop_recording');
@@ -121,6 +147,9 @@ async function executeShortcutAction(action: string) {
             lastRecordedSession.value = await buildRecordingSessionFromDaemonMeta(res.metadata);
           }
         } catch { }
+        finally {
+          isProcessingSession.value = false;
+        }
         getCameraTelemetry().then((telemetry) => {
           if (telemetry && telemetry.length > 0) {
             sessionCameraTelemetry.value = telemetry;
@@ -246,7 +275,7 @@ onUnmounted(() => {
     </template>
 
     <template v-else-if="targetWindow === 'countdown'">
-      <CountdownOverlay v-if="recordingState === 'countdown'" @complete="handleCountdownComplete"
+      <CountdownOverlay v-if="recordingState === 'countdown'" :duration="countdownDuration" @complete="handleCountdownComplete"
         @cancel="handleCountdownCancel" />
     </template>
 
@@ -269,7 +298,7 @@ onUnmounted(() => {
           @close="isAreaSelectorOpen = false" />
 
         <!-- Countdown Overlay (Browser mode only; Electron uses dedicated 'countdown' window) -->
-        <CountdownOverlay v-if="!isNativeOverlay && recordingState === 'countdown'" @complete="handleCountdownComplete"
+        <CountdownOverlay v-if="!isNativeOverlay && recordingState === 'countdown'" :duration="countdownDuration" @complete="handleCountdownComplete"
           @cancel="handleCountdownCancel" />
 
         <!-- In-Recording Annotation Canvas Overlay (Browser mode only; Electron uses dedicated 'annotations' window) -->

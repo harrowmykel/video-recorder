@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, onUnmounted, watch, useTemplateRef, nextTick } from 'vue';
+import { ref, shallowRef, computed, onMounted, onUnmounted, watch, useTemplateRef, nextTick } from 'vue';
 import {
   Pen,
   ArrowRight,
   Square,
+  Circle,
   Sun,
   Trash2,
   X,
@@ -26,6 +27,24 @@ const autoFade = shallowRef<boolean>(true);
 const annotations = ref<AnnotationItem[]>([]);
 const isDrawing = shallowRef<boolean>(false);
 const spotlightPos = shallowRef<{ x: number; y: number } | null>(null);
+
+// Extensible shape cycle list: easy to add more shapes (e.g. 'triangle', 'star')
+const SHAPE_CYCLE: AnnotationTool[] = ['rect', 'circle'];
+const isShapeActive = computed(() => SHAPE_CYCLE.includes(currentTool.value));
+
+function cycleShapeTool() {
+  const currentIdx = SHAPE_CYCLE.indexOf(currentTool.value);
+  if (currentIdx === -1) {
+    // Activate first shape
+    currentTool.value = SHAPE_CYCLE[0];
+  } else if (currentIdx + 1 < SHAPE_CYCLE.length) {
+    // Advance to next shape
+    currentTool.value = SHAPE_CYCLE[currentIdx + 1];
+  } else {
+    // Deactivate shape, revert to default pen
+    currentTool.value = 'pen';
+  }
+}
 
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef');
 let activeItem: AnnotationItem | null = null;
@@ -139,6 +158,16 @@ function redraw() {
       const p1 = item.points[0];
       const p2 = item.points[item.points.length - 1];
       ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+    } else if (item.tool === 'circle' && item.points.length >= 2) {
+      const p1 = item.points[0];
+      const p2 = item.points[item.points.length - 1];
+      const rx = Math.abs(p2.x - p1.x) / 2;
+      const ry = Math.abs(p2.y - p1.y) / 2;
+      const cx = Math.min(p1.x, p2.x) + rx;
+      const cy = Math.min(p1.y, p2.y) + ry;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
+      ctx.stroke();
     } else if (item.tool === 'arrow' && item.points.length >= 2) {
       const from = item.points[0];
       const to = item.points[item.points.length - 1];
@@ -212,12 +241,13 @@ const colors = ['#EF4444', '#F59E0B', '#10B981', '#6366F1', '#FFFFFF'];
           <ArrowRight class="w-4 h-4" />
         </button>
         <button
-          @click="currentTool = 'rect'"
-          class="p-1.5 rounded-lg transition-colors"
-          :class="currentTool === 'rect' ? 'bg-studio-indigo text-white' : 'text-gray-400 hover:text-white'"
-          title="Rectangle"
+          @click="cycleShapeTool"
+          class="p-1.5 rounded-lg transition-colors flex items-center justify-center"
+          :class="isShapeActive ? 'bg-studio-indigo text-white ring-1 ring-white/30' : 'text-gray-400 hover:text-white'"
+          :title="currentTool === 'rect' ? 'Shape: Rectangle (Click for Circle)' : currentTool === 'circle' ? 'Shape: Circle (Click to Deactivate)' : 'Shape Tool (Rectangle / Circle)'"
         >
-          <Square class="w-4 h-4" />
+          <Circle v-if="currentTool === 'circle'" class="w-4 h-4" />
+          <Square v-else class="w-4 h-4" />
         </button>
         <button
           @click="currentTool = 'spotlight'"

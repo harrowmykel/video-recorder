@@ -81,6 +81,12 @@ function createWindow(label, options) {
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   }
 
+  if (options.excludeFromCapture) {
+    try {
+      win.setContentProtection(true);
+    } catch {}
+  }
+
   const targetUrl = getWindowUrl(label);
   win.loadURL(targetUrl);
 
@@ -154,6 +160,7 @@ function createOverlayWindows() {
     x: Math.round(workArea.x + (workArea.width - tbWidth) / 2),
     y: Math.round(workArea.y + workArea.height - tbHeight - 28),
     alwaysOnTop: true,
+    excludeFromCapture: true,
     skipTaskbar: false,
     show: true,
   });
@@ -168,6 +175,7 @@ function createOverlayWindows() {
     x: Math.round(workArea.x + workArea.width - camWidth - 36),
     y: Math.round(workArea.y + workArea.height - camHeight - 80),
     alwaysOnTop: true,
+    excludeFromCapture: true,
     skipTaskbar: true,
     show: true,
   });
@@ -180,6 +188,7 @@ function createOverlayWindows() {
     width: fullBounds.width,
     height: fullBounds.height,
     alwaysOnTop: true,
+    excludeFromCapture: true,
     skipTaskbar: true,
     show: false,
   });
@@ -192,6 +201,7 @@ function createOverlayWindows() {
     width: fullBounds.width,
     height: fullBounds.height,
     alwaysOnTop: true,
+    excludeFromCapture: true,
     skipTaskbar: true,
     show: false,
   });
@@ -357,7 +367,8 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
     }
 
     // 1. Camera visibility
-    const shouldHideCamera = Boolean(isCameraHidden || selectedCameraId === 'none');
+    const autoHide = Boolean(data.payload.autoHideCameraOnRecord && recordingState === 'recording');
+    const shouldHideCamera = Boolean(isCameraHidden || selectedCameraId === 'none' || autoHide);
     if (windows.camera && !windows.camera.isDestroyed()) {
       if (shouldHideCamera && windows.camera.isVisible()) {
         windows.camera.hide();

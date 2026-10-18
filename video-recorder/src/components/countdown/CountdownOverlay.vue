@@ -1,7 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { Play } from 'lucide-vue-next';
 import { playCountdownTone } from '@/lib/audioTone';
 import { useTheme } from '@/composables/useTheme';
+
+const props = withDefaults(
+  defineProps<{
+    duration?: number;
+  }>(),
+  {
+    duration: 3,
+  }
+);
 
 const emit = defineEmits<{
   (e: 'complete'): void;
@@ -10,46 +20,64 @@ const emit = defineEmits<{
 
 const { currentTheme, initTheme } = useTheme();
 
-const count = ref<number | 'ACTION'>(3);
+const count = ref<number | 'ACTION'>(Math.max(1, props.duration));
 let timeouts: ReturnType<typeof setTimeout>[] = [];
+
+const totalDuration = computed(() => Math.max(1, props.duration));
+const spatialDashOffset = computed(() => {
+  if (typeof count.value !== 'number') return 339;
+  const fraction = (totalDuration.value - count.value + 1) / totalDuration.value;
+  return Math.max(0, 339.29 * (1 - fraction));
+});
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     emit('cancel');
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    handleStartNow();
   }
+}
+
+function handleStartNow() {
+  timeouts.forEach(clearTimeout);
+  timeouts = [];
+  count.value = 'ACTION';
+  playCountdownTone('go');
+  emit('complete');
 }
 
 onMounted(() => {
   initTheme();
   window.addEventListener('keydown', handleKeydown);
 
+  const durationSec = Math.max(1, Math.round(props.duration));
+  count.value = durationSec;
   playCountdownTone('tick');
 
-  timeouts.push(
-    setTimeout(() => {
-      count.value = 2;
-      playCountdownTone('tick');
-    }, 1000)
-  );
+  for (let s = durationSec - 1; s >= 1; s--) {
+    const delay = (durationSec - s) * 1000;
+    timeouts.push(
+      setTimeout(() => {
+        count.value = s;
+        playCountdownTone('tick');
+      }, delay)
+    );
+  }
 
-  timeouts.push(
-    setTimeout(() => {
-      count.value = 1;
-      playCountdownTone('tick');
-    }, 2000)
-  );
-
+  // ACTION cue
   timeouts.push(
     setTimeout(() => {
       count.value = 'ACTION';
       playCountdownTone('go');
-    }, 3000)
+    }, durationSec * 1000)
   );
 
+  // Completion trigger
   timeouts.push(
     setTimeout(() => {
       emit('complete');
-    }, 3700)
+    }, durationSec * 1000 + 700)
   );
 });
 
@@ -72,7 +100,7 @@ onUnmounted(() => {
           <circle
             cx="60" cy="60" r="54" fill="none" stroke="#38bdf8" stroke-width="4"
             stroke-dasharray="339.29"
-            :stroke-dashoffset="count === 3 ? 113 : count === 2 ? 226 : 339"
+            :stroke-dashoffset="spatialDashOffset"
             stroke-linecap="round"
             class="transition-all duration-700"
           />
@@ -116,8 +144,18 @@ onUnmounted(() => {
       </div>
     </template>
 
-    <p class="mt-8 text-xs font-mono tracking-widest text-white/50 uppercase">
-      Click anywhere or press Esc to cancel
+    <!-- Skip Countdown / Start Now Button -->
+    <button
+      @click.stop="handleStartNow"
+      class="mt-6 px-6 py-2.5 rounded-2xl bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-semibold text-sm shadow-[0_0_24px_rgba(244,63,94,0.45)] border border-rose-400/40 flex items-center gap-2 transition"
+      title="Skip Countdown and Begin Recording Immediately"
+    >
+      <Play class="w-4 h-4 fill-white" />
+      <span>Start Now</span>
+    </button>
+
+    <p class="mt-4 text-xs font-mono tracking-widest text-white/50 uppercase">
+      Click background or press Esc to cancel • Space/Enter to Start Now
     </p>
   </div>
 </template>
