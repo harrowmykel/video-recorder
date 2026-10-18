@@ -31,14 +31,7 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*",
-      "src-daemon/target/release/recorder-daemon"
-    ],
-    "extraResources": [
-      {
-        "from": "src-daemon/target/release/recorder-daemon",
-        "to": "bin/recorder-daemon"
-      }
+      "electron/**/*"
     ],
     "linux": {
       "target": [
@@ -49,6 +42,25 @@
       "syncDesktopName": true,
       "executableArgs": [
         "--no-sandbox"
+      ],
+      "extraResources": [
+        {
+          "from": "src-daemon/target/release/recorder-daemon",
+          "to": "bin/recorder-daemon"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png",
+      "extraResources": [
+        {
+          "from": "src-daemon/target/release/recorder-daemon.exe",
+          "to": "bin/recorder-daemon.exe"
+        }
       ]
     }
   },
