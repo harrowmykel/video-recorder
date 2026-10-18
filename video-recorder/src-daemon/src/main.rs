@@ -217,11 +217,61 @@ async fn main() {
             }
         });
 
+    // 14. Upload individual camera chunk
+    let sm_clone = session_manager.clone();
+    let upload_camera_chunk_route = warp::path("upload_camera_chunk")
+        .and(warp::post())
+        .and(warp::header::optional::<u32>("x-chunk-index"))
+        .and(warp::header::optional::<String>("x-camera-metadata"))
+        .and(warp::body::bytes())
+        .and_then(move |chunk_idx: Option<u32>, meta: Option<String>, bytes: warp::hyper::body::Bytes| {
+            let sm = sm_clone.clone();
+            async move {
+                let idx = chunk_idx.unwrap_or(1);
+                let res = tokio::task::spawn_blocking(move || {
+                    let mgr = sm.lock().unwrap();
+                    mgr.save_uploaded_camera_chunk(idx, &bytes, meta.as_deref())
+                }).await.map_err(|_| warp::reject::reject())?;
+
+                let reply = match res {
+                    Ok(path) => warp::reply::json(&serde_json::json!({
+                        "success": true,
+                        "chunk_path": path.to_string_lossy()
+                    })),
+                    Err(e) => warp::reply::json(&serde_json::json!({
+                        "success": false,
+                        "error": e.to_string()
+                    })),
+                };
+                Ok::<_, warp::Rejection>(reply)
+            }
+        });
+
+    // 15. Delete session route
+    let sm_clone = session_manager.clone();
+    let delete_session_route = warp::path!("sessions" / String)
+        .and(warp::delete())
+        .and_then(move |session_id: String| {
+            let sm = sm_clone.clone();
+            async move {
+                let res = tokio::task::spawn_blocking(move || {
+                    let mut mgr = sm.lock().unwrap();
+                    mgr.delete_session(&session_id)
+                }).await.map_err(|_| warp::reject::reject())?;
+
+                let reply = match res {
+                    Ok(deleted) => warp::reply::json(&serde_json::json!({ "success": true, "deleted": deleted })),
+                    Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
+                };
+                Ok::<_, warp::Rejection>(reply)
+            }
+        });
+
     // Enable CORS for frontend dev server
     let cors = warp::cors()
         .allow_any_origin()
-        .allow_methods(vec!["GET", "POST", "OPTIONS"])
-        .allow_headers(vec!["Content-Type"]);
+        .allow_methods(vec!["GET", "POST", "DELETE", "OPTIONS"])
+        .allow_headers(vec!["Content-Type", "x-chunk-index", "x-camera-metadata"]);
 
     let routes = status_route
         .or(sources_route)
@@ -230,6 +280,8 @@ async fn main() {
         .or(resume_route)
         .or(stop_route)
         .or(upload_camera_route)
+        .or(upload_camera_chunk_route)
+        .or(delete_session_route)
         .or(sessions_route)
         .or(media_route)
         .or(discard_route)
@@ -237,6 +289,7 @@ async fn main() {
         .or(extract_route)
         .or(models_route)
         .with(cors);
+
 
     let start_port: u16 = std::env::var("DAEMON_PORT")
         .ok()

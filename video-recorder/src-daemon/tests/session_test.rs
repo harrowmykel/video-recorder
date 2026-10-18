@@ -33,4 +33,55 @@ mod tests {
         };
         assert!(is_camera_disabled);
     }
+
+    #[test]
+    fn test_uuid_session_naming() {
+        let u = uuid::Uuid::new_v4();
+        let session_id = format!("session_{}", u);
+        assert!(session_id.starts_with("session_"));
+        assert_eq!(session_id.len(), 8 + 36);
+    }
+
+    #[test]
+    fn test_manifest_ndjson_serialization() {
+        let screen_entry = serde_json::json!({
+            "chunk_id": "screen_chunk_0001",
+            "start_ms": 0,
+            "end_ms": 15000,
+            "duration_ms": 15000,
+            "type": "screen",
+            "file": "chunks/screen_chunk_0001.mp4",
+            "source_mode": "display",
+            "source_id": "primary",
+            "resolution": { "width": 1920, "height": 1080 },
+            "fps": 60,
+            "byte_size": 1024000
+        });
+
+        let line = serde_json::to_string(&screen_entry).unwrap();
+        assert!(line.contains("\"chunk_id\":\"screen_chunk_0001\""));
+        assert!(line.contains("\"start_ms\":0"));
+        assert!(line.contains("\"end_ms\":15000"));
+
+        let camera_entry = serde_json::json!({
+            "chunk_id": "camera_chunk_0001",
+            "start_ms": 0,
+            "end_ms": 15000,
+            "duration_ms": 15000,
+            "type": "camera",
+            "file": "chunks/camera_chunk_0001.webm",
+            "is_hidden": false,
+            "is_mirrored": false,
+            "position": { "x": 1520, "y": 780, "norm_x": 0.7917, "norm_y": 0.7222 },
+            "bubble": { "shape": "circle", "size_preset": "M", "width": 240, "height": 240, "custom_diameter": null },
+            "segmentation": { "bg_mode": "blur", "model": "mediapipe_fast", "custom_image": null },
+            "telemetry_keyframes": [],
+            "byte_size": 512000
+        });
+
+        let cam_line = serde_json::to_string(&camera_entry).unwrap();
+        assert!(cam_line.contains("\"bubble\":{\"custom_diameter\":null"));
+        assert!(cam_line.contains("\"shape\":\"circle\""));
+    }
 }
+

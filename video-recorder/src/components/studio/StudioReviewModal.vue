@@ -12,10 +12,12 @@ import {
   Video,
   X,
   Film,
-  RefreshCw
+  RefreshCw,
+  Trash2,
 } from 'lucide-vue-next';
 import type { CameraTelemetryPoint, RecordingSession } from '../../types/studio';
-import { fetchRecordedSessions, openExportDirectory, subscribeToEvent } from '../../lib/tauriBridge';
+import { fetchRecordedSessions, openExportDirectory, subscribeToEvent, deleteSession } from '../../lib/tauriBridge';
+
 import { useStudioState } from '../../composables/useStudioState';
 import DragDropBgRemover from './DragDropBgRemover.vue';
 import ExportDestinationModal from './ExportDestinationModal.vue';
@@ -249,7 +251,24 @@ async function handleOpenSessionAssets() {
   }
 }
 
+async function handleDeleteCurrentSession() {
+  const sid = selectedSessionId.value || currentSessionId.value;
+  if (!sid) return;
+  if (confirm(`Delete recording session "${sid}"? This will delete all media chunks from disk.`)) {
+    const success = await deleteSession(sid);
+    if (success) {
+      statusNotice.value = `Session ${sid} deleted from disk`;
+      setTimeout(() => {
+        statusNotice.value = null;
+      }, 3500);
+      selectedSessionId.value = '';
+      await loadSessionsList();
+    }
+  }
+}
+
 function formatTime(secs: number) {
+
   const m = Math.floor(secs / 60);
   const s = Math.floor(secs % 60);
   const ms = Math.floor((secs % 1) * 10);
@@ -296,10 +315,10 @@ onUnmounted(() => {
               <select
                 v-if="sessions.length > 0"
                 v-model="selectedSessionId"
-                class="bg-black/60 border border-white/15 rounded-lg px-2 py-0.5 text-xs font-mono text-gray-200 outline-none"
+                class="bg-black/60 border border-white/15 rounded-lg px-2 py-0.5 text-xs font-mono text-gray-200 outline-none max-w-xs truncate"
               >
                 <option v-for="s in sessions" :key="s.id" :value="s.id" class="bg-[#0e1017]">
-                  {{ s.id }}
+                  {{ s.id }} ({{ s.chunkCount ? s.chunkCount + ' chunks' : (s.durationMs / 1000).toFixed(0) + 's' }})
                 </option>
               </select>
               <span v-else class="text-xs text-gray-400 font-mono">{{ currentSessionId }}</span>
@@ -310,7 +329,16 @@ onUnmounted(() => {
               >
                 <RefreshCw class="w-3 h-3" />
               </button>
+              <button
+                v-if="sessions.length > 0"
+                @click="handleDeleteCurrentSession"
+                class="p-1 rounded hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 transition"
+                title="Delete this session from disk"
+              >
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
             </div>
+
           </div>
         </div>
 

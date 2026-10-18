@@ -36,6 +36,16 @@ pub struct SessionMetadata {
     pub mic_track: String,
     pub sys_audio_track: String,
     pub telemetry_file: String,
+    #[serde(default)]
+    pub screen_manifest: String,
+    #[serde(default)]
+    pub camera_manifest: String,
+    #[serde(default)]
+    pub mic_manifest: String,
+    #[serde(default)]
+    pub sys_audio_manifest: String,
+    #[serde(default)]
+    pub chunk_count: u32,
 }
 
 pub struct SessionManager {
@@ -105,16 +115,22 @@ impl SessionManager {
             let _ = self.stop();
         }
 
-        let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
-        let session_id = format!("session_{}", timestamp);
+        let session_id = format!("session_{}", uuid::Uuid::new_v4());
         let session_dir = base_dir.join(&session_id);
         std::fs::create_dir_all(&session_dir)?;
+
+        let chunks_dir = session_dir.join("chunks");
+        std::fs::create_dir_all(&chunks_dir)?;
 
         let screen_path = session_dir.join("screen_clean.mp4");
         let camera_path = session_dir.join("camera_raw.mp4");
         let mic_path = session_dir.join("audio_mic.wav");
         let sys_path = session_dir.join("audio_system.wav");
         let telemetry_path = session_dir.join("telemetry.json");
+
+        let screen_manifest = session_dir.join("screen_manifest.ndjson");
+        let mic_manifest = session_dir.join("mic_manifest.ndjson");
+        let sys_manifest = session_dir.join("sys_audio_manifest.ndjson");
 
         let (default_w, default_h) = detect_screen_dimensions();
         let mut x = req.x.unwrap_or(0);
@@ -135,8 +151,14 @@ impl SessionManager {
             }
         }
 
-        // 1. Start Screen Recorder
-        let mut screen_rec = ScreenRecorder::new(screen_path);
+        // 1. Start Screen Recorder (Chunked)
+        let mut screen_rec = ScreenRecorder::new_chunked(
+            screen_path,
+            chunks_dir.clone(),
+            screen_manifest,
+            req.source_mode.clone(),
+            req.window_id.clone(),
+        );
         if let Err(e) = screen_rec.start_with_config(ScreenCaptureConfig {
             x,
             y,
@@ -164,8 +186,14 @@ impl SessionManager {
             None
         };
 
-        // 3. Start Audio Recorder
-        let mut audio_rec = AudioRecorder::new(mic_path, sys_path);
+        // 3. Start Audio Recorder (Chunked)
+        let mut audio_rec = AudioRecorder::new_chunked(
+            mic_path,
+            sys_path,
+            chunks_dir.clone(),
+            mic_manifest,
+            sys_manifest,
+        );
         let mic_muted = req.mic_muted.unwrap_or(false);
         let sys_muted = req.sys_audio_muted.unwrap_or(false);
         if let Err(e) = audio_rec.start_with_options(mic_muted, sys_muted, req.mic_device.as_deref()) {
@@ -268,16 +296,81 @@ impl SessionManager {
             .map(|d| d.to_string_lossy().to_string())
             .unwrap_or_default();
 
+        let chunk_count = if let Some(dir) = &self.session_dir {
+            let chunks_d = dir.join("chunks");
+            std::fs::read_dir(&chunks_d).map(|entries| entries.count() as u32).unwrap_or(0)
+        } else {
+            0
+        };
+
+        // If camera chunks were uploaded directly to chunks/, stitch camera_alpha.webm for unified review
+        if let Some(dir) = &self.session_dir {
+            let chunks_d = dir.join("chunks");
+            let mut cam_chunks = Vec::new();
+            if let Ok(entries) = std::fs::read_dir(&chunks_d) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        if name.starts_with("camera_chunk_") && name.ends_with(".webm") {
+                            cam_chunks.push(path);
+                        }
+                    }
+                }
+            }
+            cam_chunks.sort();
+            if !cam_chunks.is_empty() {
+                let concat_list_path = chunks_d.join("camera_concat.txt");
+                let mut content = String::new();
+                for f in &cam_chunks {
+                    content.push_str(&format!("file '{}'\n", f.to_string_lossy()));
+                }
+                let _ = std::fs::write(&concat_list_path, content);
+                let unified_webm = dir.join("camera_alpha.webm");
+                let unified_mp4 = dir.join("camera_raw.mp4");
+                let _ = Command::new("ffmpeg")
+                    .arg("-y")
+                    .arg("-f").arg("concat")
+                    .arg("-safe").arg("0")
+                    .arg("-i").arg(&concat_list_path)
+                    .args(["-c", "copy"])
+                    .arg(&unified_webm)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+
+                let _ = Command::new("ffmpeg")
+                    .arg("-y")
+                    .arg("-i").arg(&unified_webm)
+                    .args([
+                        "-c:v", "libx264",
+                        "-preset", "veryfast",
+                        "-pix_fmt", "yuv420p",
+                        "-movflags", "+faststart",
+                    ])
+                    .arg(&unified_mp4)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+
+                let _ = std::fs::remove_file(&concat_list_path);
+            }
+        }
+
         let metadata = SessionMetadata {
             id: session_id,
             created_at: Local::now().to_rfc3339(),
             duration_ms,
-            session_dir: dir_str,
+            session_dir: dir_str.clone(),
             screen_track: screen_path,
             camera_raw_track: camera_path,
             mic_track: mic_path,
             sys_audio_track: sys_path,
             telemetry_file: telemetry_path,
+            screen_manifest: format!("{}/screen_manifest.ndjson", dir_str),
+            camera_manifest: format!("{}/camera_manifest.ndjson", dir_str),
+            mic_manifest: format!("{}/mic_manifest.ndjson", dir_str),
+            sys_audio_manifest: format!("{}/sys_audio_manifest.ndjson", dir_str),
+            chunk_count,
         };
 
         if let Some(dir) = &self.session_dir {
@@ -291,7 +384,62 @@ impl SessionManager {
         Ok(Some(metadata))
     }
 
+    pub fn save_uploaded_camera_chunk(
+        &self,
+        chunk_idx: u32,
+        bytes: &[u8],
+        metadata_json: Option<&str>,
+    ) -> Result<PathBuf> {
+        if bytes.is_empty() {
+            return Ok(PathBuf::new());
+        }
+        let target_dir = self
+            .session_dir
+            .as_ref()
+            .or(self.last_session_dir.as_ref())
+            .cloned()
+            .unwrap_or_else(default_recordings_base_dir);
+        let chunks_dir = target_dir.join("chunks");
+        std::fs::create_dir_all(&chunks_dir)?;
+
+        let filename = format!("camera_chunk_{:04}.webm", chunk_idx);
+        let chunk_path = chunks_dir.join(&filename);
+        std::fs::write(&chunk_path, bytes)?;
+
+        let manifest_path = target_dir.join("camera_manifest.ndjson");
+        if let Some(meta_str) = metadata_json {
+            if let Ok(mut entry) = serde_json::from_str::<serde_json::Value>(meta_str) {
+                if let Some(obj) = entry.as_object_mut() {
+                    obj.insert("file".to_string(), serde_json::json!(format!("chunks/{}", filename)));
+                    obj.insert("byte_size".to_string(), serde_json::json!(bytes.len()));
+                    let _ = crate::session::NdjsonWriter::append_record(&manifest_path, &obj);
+                }
+            }
+        }
+
+        Ok(chunk_path)
+    }
+
+    pub fn delete_session(&mut self, session_id: &str) -> Result<bool> {
+        let base_dir = default_recordings_base_dir();
+        let target_dir = base_dir.join(session_id);
+        if target_dir.exists() {
+            std::fs::remove_dir_all(&target_dir)?;
+            println!("[SessionManager] Deleted session directory: {:?}", target_dir);
+            if self.session_id.as_deref() == Some(session_id) {
+                self.session_id = None;
+                self.session_dir = None;
+            }
+            if self.last_metadata.as_ref().map(|m| m.id == session_id).unwrap_or(false) {
+                self.last_metadata = None;
+            }
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     pub fn save_uploaded_camera_track(&self, bytes: &[u8]) -> Result<PathBuf> {
+
         if bytes.is_empty() {
             return Ok(PathBuf::new());
         }
@@ -387,6 +535,13 @@ pub fn list_recorded_sessions(base_dir: &Path) -> Vec<SessionMetadata> {
                         String::new()
                     };
 
+                    let screen_manifest = path.join("screen_manifest.ndjson");
+                    let camera_manifest = path.join("camera_manifest.ndjson");
+                    let mic_manifest = path.join("mic_manifest.ndjson");
+                    let sys_manifest = path.join("sys_audio_manifest.ndjson");
+                    let chunks_d = path.join("chunks");
+                    let chunk_count = std::fs::read_dir(&chunks_d).map(|e| e.count() as u32).unwrap_or(0);
+
                     list.push(SessionMetadata {
                         id,
                         created_at: Local::now().to_rfc3339(),
@@ -397,6 +552,11 @@ pub fn list_recorded_sessions(base_dir: &Path) -> Vec<SessionMetadata> {
                         mic_track: path.join("audio_mic.wav").to_string_lossy().to_string(),
                         sys_audio_track: path.join("audio_system.wav").to_string_lossy().to_string(),
                         telemetry_file: path.join("telemetry.json").to_string_lossy().to_string(),
+                        screen_manifest: screen_manifest.to_string_lossy().to_string(),
+                        camera_manifest: camera_manifest.to_string_lossy().to_string(),
+                        mic_manifest: mic_manifest.to_string_lossy().to_string(),
+                        sys_audio_manifest: sys_manifest.to_string_lossy().to_string(),
+                        chunk_count,
                     });
                 }
             }

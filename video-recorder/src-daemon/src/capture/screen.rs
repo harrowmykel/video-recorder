@@ -248,6 +248,13 @@ pub struct ScreenRecorder {
     process: Option<Child>,
     output_path: PathBuf,
     temp_path: PathBuf,
+    chunks_dir: Option<PathBuf>,
+    manifest_path: Option<PathBuf>,
+    source_mode: String,
+    source_id: String,
+    screen_w: u32,
+    screen_h: u32,
+    screen_fps: u32,
 }
 
 impl ScreenRecorder {
@@ -257,6 +264,35 @@ impl ScreenRecorder {
             process: None,
             output_path,
             temp_path,
+            chunks_dir: None,
+            manifest_path: None,
+            source_mode: "display".to_string(),
+            source_id: "primary".to_string(),
+            screen_w: 1920,
+            screen_h: 1080,
+            screen_fps: 60,
+        }
+    }
+
+    pub fn new_chunked(
+        output_path: PathBuf,
+        chunks_dir: PathBuf,
+        manifest_path: PathBuf,
+        source_mode: Option<String>,
+        source_id: Option<String>,
+    ) -> Self {
+        let temp_path = output_path.with_extension("temp.mp4");
+        Self {
+            process: None,
+            output_path,
+            temp_path,
+            chunks_dir: Some(chunks_dir),
+            manifest_path: Some(manifest_path),
+            source_mode: source_mode.unwrap_or_else(|| "display".to_string()),
+            source_id: source_id.unwrap_or_else(|| "primary".to_string()),
+            screen_w: 1920,
+            screen_h: 1080,
+            screen_fps: 60,
         }
     }
 
@@ -279,6 +315,10 @@ impl ScreenRecorder {
         let clamped_w = raw_w.min(max_w.saturating_sub(x)).max(64) & !1;
         let clamped_h = raw_h.min(max_h.saturating_sub(y)).max(64) & !1;
         let fps = config.fps.clamp(15, 60);
+
+        self.screen_w = clamped_w;
+        self.screen_h = clamped_h;
+        self.screen_fps = fps;
 
         let mut cmd = Command::new("ffmpeg");
         cmd.arg("-y");
@@ -323,15 +363,35 @@ impl ScreenRecorder {
             ]);
         }
 
-        cmd.args([
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+frag_keyframe+empty_moov+default_base_moof",
-        ]);
+        if let Some(chunks_dir) = &self.chunks_dir {
+            let _ = std::fs::create_dir_all(chunks_dir);
+            cmd.args([
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "18",
+                "-pix_fmt", "yuv420p",
+                "-g", "60",
+                "-keyint_min", "60",
+                "-sc_threshold", "0",
+                "-f", "segment",
+                "-segment_time", "15",
+                "-segment_format", "mp4",
+                "-reset_timestamps", "1",
+                "-movflags", "+faststart",
+            ]);
+            let chunk_pattern = chunks_dir.join("screen_chunk_%04d.mp4");
+            cmd.arg(&chunk_pattern);
+        } else {
+            cmd.args([
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "18",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+frag_keyframe+empty_moov+default_base_moof",
+            ]);
+            cmd.arg(&self.temp_path);
+        }
 
-        cmd.arg(&self.temp_path);
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::null());
         cmd.stderr(Stdio::null());
@@ -389,7 +449,70 @@ impl ScreenRecorder {
                 }
             }
 
-            if self.temp_path.exists() {
+            if let Some(chunks_dir) = &self.chunks_dir {
+                let mut chunk_files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(chunks_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                            if name.starts_with("screen_chunk_") && name.ends_with(".mp4") {
+                                chunk_files.push(path);
+                            }
+                        }
+                    }
+                }
+                chunk_files.sort();
+
+                if let Some(manifest_path) = &self.manifest_path {
+                    for (idx, chunk_file) in chunk_files.iter().enumerate() {
+                        let file_size = std::fs::metadata(chunk_file).map(|m| m.len()).unwrap_or(0);
+                        let start_ms = (idx as u64) * 15000;
+                        let duration_ms = 15000;
+                        let entry = crate::session::ScreenChunkEntry {
+                            chunk_id: format!("screen_chunk_{:04}", idx + 1),
+                            start_ms,
+                            end_ms: start_ms + duration_ms,
+                            duration_ms,
+                            chunk_type: "screen".to_string(),
+                            file: format!("chunks/{}", chunk_file.file_name().unwrap().to_string_lossy()),
+                            source_mode: self.source_mode.clone(),
+                            source_id: self.source_id.clone(),
+                            resolution: crate::session::ScreenResolution {
+                                width: self.screen_w,
+                                height: self.screen_h,
+                            },
+                            fps: self.screen_fps,
+                            byte_size: file_size,
+                        };
+                        let _ = crate::session::NdjsonWriter::append_record(manifest_path, &entry);
+                    }
+                }
+
+                if !chunk_files.is_empty() {
+                    let concat_list_path = chunks_dir.join("screen_concat.txt");
+                    let mut concat_content = String::new();
+                    for f in &chunk_files {
+                        concat_content.push_str(&format!("file '{}'\n", f.to_string_lossy()));
+                    }
+                    let _ = std::fs::write(&concat_list_path, concat_content);
+
+                    let _ = Command::new("ffmpeg")
+                        .arg("-y")
+                        .arg("-f")
+                        .arg("concat")
+                        .arg("-safe")
+                        .arg("0")
+                        .arg("-i")
+                        .arg(&concat_list_path)
+                        .args(["-c", "copy", "-movflags", "+faststart"])
+                        .arg(&self.output_path)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status();
+
+                    let _ = std::fs::remove_file(&concat_list_path);
+                }
+            } else if self.temp_path.exists() {
                 let _ = Command::new("ffmpeg")
                     .arg("-y")
                     .arg("-i")
@@ -412,6 +535,16 @@ impl ScreenRecorder {
             let _ = child.kill();
             let _ = child.wait();
         }
+        if let Some(chunks_dir) = &self.chunks_dir {
+            if chunks_dir.exists() {
+                let _ = std::fs::remove_dir_all(chunks_dir);
+            }
+        }
+        if let Some(manifest_path) = &self.manifest_path {
+            if manifest_path.exists() {
+                let _ = std::fs::remove_file(manifest_path);
+            }
+        }
         if self.temp_path.exists() {
             let _ = std::fs::remove_file(&self.temp_path);
         }
@@ -420,6 +553,7 @@ impl ScreenRecorder {
         }
         Ok(())
     }
+
 }
 
 impl Drop for ScreenRecorder {

@@ -92,6 +92,11 @@ export interface RecordingSession {
   micUrl?: string;
   sysAudioUrl?: string;
   cameraTelemetry?: CameraTelemetryPoint[];
+  screenManifest?: string;
+  cameraManifest?: string;
+  micManifest?: string;
+  sysAudioManifest?: string;
+  chunkCount?: number;
 }
 
 export interface BatchMattingJob {

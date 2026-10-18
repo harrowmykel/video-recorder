@@ -23,7 +23,9 @@ import {
   exportSessionPackage,
   openExportDirectory,
   checkDirectoryNotEmpty,
+  deleteSession,
 } from '../../lib/tauriBridge';
+
 
 type ExportPresetType = 'premiere_xml' | 'capcut_draft' | 'mp4_bundle';
 
@@ -63,6 +65,21 @@ const isCopied = shallowRef(false);
 const openError = shallowRef<string | null>(null);
 const folderNotEmptyAlert = shallowRef<string | null>(null);
 const exportPreset = shallowRef<ExportPresetType>('premiere_xml');
+const deleteSessionOnDone = shallowRef(false);
+
+function handleExportAnother() {
+  isComplete.value = false;
+  hasSavedPackage.value = true;
+  openError.value = null;
+}
+
+async function handleDone() {
+  if (deleteSessionOnDone.value && props.sessionId) {
+    await deleteSession(props.sessionId);
+  }
+  emit('close');
+}
+
 
 function buildTimestampedPath(baseVideosDir: string, presetSuffix?: string) {
   const now = new Date();
@@ -485,32 +502,56 @@ async function handleOpenPath() {
 
       <!-- Modal Footer Actions -->
       <div class="px-6 py-4 flex items-center justify-between border-t border-white/[0.08] bg-[#12151F]">
-        <button
-          @click="emit('close')"
-          class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-gray-300 hover:text-white transition"
-        >
-          {{ isComplete ? 'Close' : 'Cancel' }}
-        </button>
-
-        <button
-          v-if="!isComplete"
-          @click="handleStartExport"
-          :disabled="isExporting || !exportPath.trim()"
-          class="btn-primary px-6 py-2 rounded-xl text-xs font-bold text-white flex items-center space-x-2 transition shadow-lg active:scale-95 disabled:opacity-50"
-        >
-          <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
-          <Download v-else class="w-4 h-4" />
-          <span>{{ isExporting ? 'Exporting Package...' : 'Confirm & Export' }}</span>
-        </button>
-
+        <div v-if="isComplete" class="flex items-center space-x-2">
+          <label class="flex items-center space-x-2 text-xs text-gray-400 hover:text-white cursor-pointer select-none">
+            <input
+              type="checkbox"
+              v-model="deleteSessionOnDone"
+              class="w-4 h-4 rounded bg-white/10 border-white/20 text-rose-500 focus:ring-rose-500/30 accent-rose-500 cursor-pointer"
+            />
+            <span :class="deleteSessionOnDone ? 'text-rose-300 font-medium' : 'text-gray-400'">
+              Delete session cache files on Done
+            </span>
+          </label>
+        </div>
         <button
           v-else
           @click="emit('close')"
-          class="px-6 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition shadow-lg active:scale-95"
+          class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-gray-300 hover:text-white transition"
         >
-          Done
+          Cancel
         </button>
+
+        <div class="flex items-center space-x-2.5">
+          <button
+            v-if="isComplete"
+            @click="handleExportAnother"
+            class="px-4 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-xs font-semibold text-gray-200 hover:text-white transition active:scale-95 shadow-sm"
+          >
+            Export Another Preset
+          </button>
+
+          <button
+            v-if="!isComplete"
+            @click="handleStartExport"
+            :disabled="isExporting || !exportPath.trim()"
+            class="btn-primary px-6 py-2 rounded-xl text-xs font-bold text-white flex items-center space-x-2 transition shadow-lg active:scale-95 disabled:opacity-50"
+          >
+            <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
+            <Download v-else class="w-4 h-4" />
+            <span>{{ isExporting ? 'Exporting Package...' : 'Confirm & Export' }}</span>
+          </button>
+
+          <button
+            v-else
+            @click="handleDone"
+            class="px-6 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition shadow-lg active:scale-95"
+          >
+            Done
+          </button>
+        </div>
       </div>
+
     </div>
   </div>
 </template>

@@ -5,8 +5,10 @@ import {
   moveOverlayWindow,
   resizeOverlayWindow,
   uploadRecordedCameraTrack,
+  uploadCameraChunk,
   broadcastEvent,
 } from '../../lib/tauriBridge';
+
 import { useTheme } from '../../composables/useTheme';
 import { useStudioState } from '../../composables/useStudioState';
 import { useBackgroundSegmentation } from '../../composables/useBackgroundSegmentation';
@@ -165,20 +167,93 @@ function resolveSupportedMimeType(): string | undefined {
   return candidates.find((c) => MediaRecorder.isTypeSupported(c));
 }
 
+let currentChunkBlobs: Blob[] = [];
+let chunkIndex = 1;
+let recordingStartEpoch = 0;
+let chunkStartEpoch = 0;
+let chunkIntervalTimer: ReturnType<typeof setInterval> | null = null;
+let chunkKeyframes: Array<{ offset_ms: number; x: number; y: number; norm_x: number; norm_y: number }> = [];
+
+async function flushCurrentChunk() {
+  if (currentChunkBlobs.length === 0) return;
+  const mimeType = resolveSupportedMimeType() || 'video/webm';
+  const chunkBlob = new Blob(currentChunkBlobs, { type: mimeType });
+  currentChunkBlobs = [];
+
+  const now = Date.now();
+  const startMs = Math.max(0, chunkStartEpoch - recordingStartEpoch);
+  const endMs = Math.max(startMs + 100, now - recordingStartEpoch);
+  const durationMs = endMs - startMs;
+  chunkStartEpoch = now;
+
+  const screenW = typeof window !== 'undefined' && window.screen?.width ? window.screen.width : 1920;
+  const screenH = typeof window !== 'undefined' && window.screen?.height ? window.screen.height : 1080;
+  const curX = typeof window !== 'undefined' ? window.screenX || 1520 : 1520;
+  const curY = typeof window !== 'undefined' ? window.screenY || 780 : 780;
+
+  const metadata = {
+    chunk_id: `camera_chunk_${String(chunkIndex).padStart(4, '0')}`,
+    start_ms: startMs,
+    end_ms: endMs,
+    duration_ms: durationMs,
+    type: 'camera',
+    is_hidden: props.isHidden,
+    is_mirrored: Boolean(isMirrored.value),
+    position: {
+      x: curX,
+      y: curY,
+      norm_x: Number((curX / screenW).toFixed(4)),
+      norm_y: Number((curY / screenH).toFixed(4)),
+    },
+    bubble: {
+      shape: shape.value,
+      size_preset: size.value,
+      width: dimensions.value.width,
+      height: dimensions.value.height,
+      custom_diameter: customDiameter.value,
+    },
+    segmentation: {
+      bg_mode: bgMode.value,
+      model: 'mediapipe_fast',
+      custom_image: bgImageUrl.value || null,
+    },
+    telemetry_keyframes: [...chunkKeyframes],
+  };
+  chunkKeyframes = [];
+
+  const thisIdx = chunkIndex;
+  chunkIndex++;
+  await uploadCameraChunk(chunkBlob, thisIdx, metadata);
+}
+
 function startCanvasRecording() {
   if (selectedCameraId.value === 'none') return;
   if (!canvasRef.value || typeof MediaRecorder === 'undefined') return;
   try {
     recordedChunks = [];
+    currentChunkBlobs = [];
+    chunkIndex = 1;
+    recordingStartEpoch = Date.now();
+    chunkStartEpoch = recordingStartEpoch;
+    chunkKeyframes = [];
+
     const stream = canvasRef.value.captureStream(30);
     const mimeType = resolveSupportedMimeType();
     mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     mediaRecorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size > 0) {
         recordedChunks.push(ev.data);
+        currentChunkBlobs.push(ev.data);
       }
     };
     mediaRecorder.onstop = async () => {
+      if (chunkIntervalTimer) {
+        clearInterval(chunkIntervalTimer);
+        chunkIntervalTimer = null;
+      }
+      if (currentChunkBlobs.length > 0) {
+        await flushCurrentChunk();
+      }
       if (recordedChunks.length > 0) {
         const blob = new Blob(recordedChunks, { type: mimeType || 'video/webm' });
         const uploadedPath = await uploadRecordedCameraTrack(blob);
@@ -198,14 +273,29 @@ function startCanvasRecording() {
         });
       }
       recordedChunks = [];
+      currentChunkBlobs = [];
     };
     mediaRecorder.start(250);
+
+    // 15-second chunk timer
+    chunkIntervalTimer = setInterval(async () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        try {
+          mediaRecorder.requestData();
+        } catch {}
+        await flushCurrentChunk();
+      }
+    }, 15000);
   } catch (err) {
     console.warn('[CameraBubble] MediaRecorder start failed:', err);
   }
 }
 
 function stopCanvasRecording() {
+  if (chunkIntervalTimer) {
+    clearInterval(chunkIntervalTimer);
+    chunkIntervalTimer = null;
+  }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     try {
       mediaRecorder.requestData();
@@ -216,6 +306,7 @@ function stopCanvasRecording() {
   }
   mediaRecorder = null;
 }
+
 
 let resizeStartScreenX = 0;
 let resizeStartScreenY = 0;
@@ -300,7 +391,20 @@ function onDragMouseMove(e: MouseEvent) {
   lastScreenX = e.screenX;
   lastScreenY = e.screenY;
   moveOverlayWindow('camera', dx, dy);
+
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    const screenW = typeof window !== 'undefined' && window.screen?.width ? window.screen.width : 1920;
+    const screenH = typeof window !== 'undefined' && window.screen?.height ? window.screen.height : 1080;
+    chunkKeyframes.push({
+      offset_ms: Math.max(0, Date.now() - chunkStartEpoch),
+      x: e.screenX,
+      y: e.screenY,
+      norm_x: Number((e.screenX / screenW).toFixed(4)),
+      norm_y: Number((e.screenY / screenH).toFixed(4)),
+    });
+  }
 }
+
 
 function onDragMouseUp() {
   isDraggingWindow = false;

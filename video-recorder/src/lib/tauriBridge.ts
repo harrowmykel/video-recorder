@@ -217,6 +217,56 @@ export async function uploadRecordedCameraTrack(blob: Blob): Promise<string | nu
   return null;
 }
 
+export async function uploadCameraChunk(
+  blob: Blob,
+  chunkIndex: number,
+  metadata?: Record<string, any>
+): Promise<string | null> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const headers: Record<string, string> = {
+      'x-chunk-index': String(chunkIndex),
+    };
+    if (metadata) {
+      headers['x-camera-metadata'] = JSON.stringify(metadata);
+    }
+    const resp = await fetch(`${daemonBase}/upload_camera_chunk`, {
+      method: 'POST',
+      headers,
+      body: blob,
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      return json?.chunk_path || null;
+    }
+  } catch (err) {
+    console.warn('[uploadCameraChunk] Failed to upload camera chunk:', err);
+  }
+  return null;
+}
+
+export async function deleteSession(sessionId: string): Promise<boolean> {
+  try {
+    if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+      try {
+        const res = await window.__ELECTRON_OVERLAY__.invoke('delete_session', sessionId);
+        if (res && res.success) return true;
+      } catch {}
+    }
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      return Boolean(json?.success && json?.deleted);
+    }
+  } catch (err) {
+    console.warn('[deleteSession] Failed to delete session:', err);
+  }
+  return false;
+}
+
 export async function buildRecordingSessionFromDaemonMeta(meta: any): Promise<RecordingSession> {
   const daemonBase = await resolveDaemonUrl();
   const id = meta?.id || `session_${Date.now()}`;
@@ -238,8 +288,14 @@ export async function buildRecordingSessionFromDaemonMeta(meta: any): Promise<Re
     cameraUrl: `${daemonBase}/media/${id}/camera_raw.mp4?t=${ts}`,
     micUrl: `${daemonBase}/media/${id}/audio_mic.wav?t=${ts}`,
     sysAudioUrl: `${daemonBase}/media/${id}/audio_system.wav?t=${ts}`,
+    screenManifest: meta?.screen_manifest,
+    cameraManifest: meta?.camera_manifest,
+    micManifest: meta?.mic_manifest,
+    sysAudioManifest: meta?.sys_audio_manifest,
+    chunkCount: meta?.chunk_count,
   };
 }
+
 
 export async function fetchRecordedSessions(): Promise<RecordingSession[]> {
   try {
