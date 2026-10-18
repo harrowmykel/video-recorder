@@ -16,10 +16,11 @@ const emit = defineEmits<{
 
 const {
   isCameraHidden,
-  selectedCameraId,
+  selectedCameraId
 } = useStudioState();
 
 const { cameras, refreshDevices } = useMediaDevices();
+
 </script>
 
 <template>
@@ -45,7 +46,7 @@ const { cameras, refreshDevices } = useMediaDevices();
     <!-- Camera Device List -->
     <div class="space-y-1.5">
       <label class="text-[10px] font-mono uppercase text-white/50 block">Active Camera Device</label>
-      <div class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+      <div class="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
         <!-- Dedicated No Camera (Screen Only) Option -->
         <button @click="selectedCameraId = 'none'; isCameraHidden = true" :class="[
           'w-full px-3.5 py-2.5 rounded-xl text-left text-xs flex items-center justify-between border transition',

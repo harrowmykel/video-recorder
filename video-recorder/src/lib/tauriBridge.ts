@@ -258,6 +258,78 @@ export async function uploadCameraChunk(
   return null;
 }
 
+export async function getCameraPreviewUrl(): Promise<string> {
+  const daemonBase = await resolveDaemonUrl();
+  return `${daemonBase}/camera/preview`;
+}
+
+export async function updateCameraBackgroundMode(bgMode: string, bgModel?: string): Promise<boolean> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const payload: Record<string, any> = { bg_mode: bgMode };
+    if (bgModel) payload.bg_model = bgModel;
+    const resp = await fetch(`${daemonBase}/camera/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return resp.ok;
+  } catch (err) {
+    console.warn('[updateCameraBackgroundMode] Failed to sync bg_mode with daemon:', err);
+    return false;
+  }
+}
+
+export interface DaemonModelInfo {
+  name: string;
+  model_type: string;
+  file_name: string;
+  size_mb: number;
+  download_url: string;
+  is_downloaded: boolean;
+}
+
+export async function fetchAvailableModels(): Promise<DaemonModelInfo[]> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/models`);
+    if (resp.ok) {
+      return await resp.json();
+    }
+  } catch (err) {
+    console.warn('[fetchAvailableModels] Failed to fetch models from daemon:', err);
+  }
+  return [];
+}
+
+export async function downloadModel(fileName: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/models/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_name: fileName }),
+    });
+    if (resp.ok) {
+      return await resp.json();
+    }
+    return { success: false, error: `HTTP ${resp.status}: ${resp.statusText}` };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
+export async function getCameraStreamStatus(): Promise<{ bg_mode: string; is_recording: boolean } | null> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/camera/status`);
+    if (resp.ok) {
+      return await resp.json();
+    }
+  } catch {}
+  return null;
+}
+
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
     if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
