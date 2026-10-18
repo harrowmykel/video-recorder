@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CaptureSourceColumn from '@/components/settings/activesection/settings/CaptureSourceColumn.vue';
-import CameraBackgroundColumn from '@/components/settings/activesection/settings/CameraBackgroundColumn.vue';
+import CameraColumn from '@/components/settings/activesection/settings/CameraColumn.vue';
 import AudioDevicesColumn from '@/components/settings/activesection/settings/AudioDevicesColumn.vue';
 import OverlayDockColumn from '@/components/settings/activesection/settings/OverlayDockColumn.vue';
 import ThemeAppearanceColumn from '@/components/settings/activesection/settings/ThemeAppearanceColumn.vue';
@@ -25,7 +25,7 @@ const emit = defineEmits<{
         <CaptureSourceColumn @open-area-picker="emit('openAreaPicker')" />
 
         <!-- Column 2: Camera Device & More Settings Link -->
-        <CameraBackgroundColumn @open-backgrounds="emit('openBackgrounds')" />
+        <CameraColumn @open-backgrounds="emit('openBackgrounds')" />
 
         <!-- Column 3: Audio & Microphone Devices -->
         <AudioDevicesColumn :audio-volume="props.audioVolume" />
