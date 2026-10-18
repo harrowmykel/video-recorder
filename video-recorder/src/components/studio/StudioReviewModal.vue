@@ -25,7 +25,6 @@ import {
   openExportDirectory,
   subscribeToEvent,
   deleteSession,
-  moveOverlayWindow,
   isNativeOverlayWindow,
   STUDIO_PROJECTS_DIR,
 } from '@/lib/tauriBridge';
@@ -382,6 +381,7 @@ const modalOffsetStyle = computed(() => {
 });
 
 function onDragMouseDown(e: MouseEvent) {
+  if (isNativeOverlayWindow()) return;
   const target = e.target as HTMLElement | null;
   if (target?.closest('button, input, select, a, [data-no-drag]')) return;
   isPointerDown = true;
@@ -395,7 +395,7 @@ function onDragMouseDown(e: MouseEvent) {
 }
 
 function onDragMouseMove(e: MouseEvent) {
-  if (!isPointerDown) return;
+  if (isNativeOverlayWindow() || !isPointerDown) return;
   const totalDx = Math.abs(e.screenX - startScreenX);
   const totalDy = Math.abs(e.screenY - startScreenY);
   if (!isDraggingWindow && totalDx + totalDy > 3) {
@@ -407,12 +407,8 @@ function onDragMouseMove(e: MouseEvent) {
   lastScreenX = e.screenX;
   lastScreenY = e.screenY;
 
-  if (isNativeOverlayWindow()) {
-    moveOverlayWindow('studio', dx, dy);
-  } else {
-    modalOffsetX.value += dx;
-    modalOffsetY.value += dy;
-  }
+  modalOffsetX.value += dx;
+  modalOffsetY.value += dy;
 }
 
 function onDragMouseUp() {
@@ -433,18 +429,29 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/85 backdrop-blur-xl select-none font-sans">
+  <div
+    :class="[
+      isNativeOverlayWindow()
+        ? 'w-full h-screen flex flex-col bg-[#0B0D13] select-none font-sans overflow-hidden'
+        : 'fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/85 backdrop-blur-xl select-none font-sans'
+    ]"
+  >
     <div
-      :style="modalOffsetStyle"
-      class="glass-panel w-full max-w-6xl h-[92vh] rounded-[28px] flex flex-col overflow-hidden border border-white/10 shadow-[0_32px_96px_rgba(0,0,0,0.95)]"
+      :style="isNativeOverlayWindow() ? {} : modalOffsetStyle"
+      :class="[
+        isNativeOverlayWindow()
+          ? 'w-full h-full flex flex-col overflow-hidden bg-[#0B0D13]'
+          : 'glass-panel w-full max-w-6xl h-[92vh] rounded-[28px] flex flex-col overflow-hidden border border-white/10 shadow-[0_32px_96px_rgba(0,0,0,0.95)]'
+      ]"
     >
-      <!-- Top Window Navigation Bar (Draggable) -->
+      <!-- Top Window Navigation Bar (Native framed window or browser modal header) -->
       <div
-        @mousedown="onDragMouseDown"
-        class="px-6 py-4 flex items-center justify-between border-b border-white/[0.08] bg-[#0E1017] cursor-grab active:cursor-grabbing select-none"
+        v-bind="isNativeOverlayWindow() ? {} : { onMousedown: onDragMouseDown }"
+        class="px-6 py-3.5 flex items-center justify-between border-b border-white/[0.08] bg-[#0E1017] select-none shrink-0"
+        :class="{ 'cursor-grab active:cursor-grabbing': !isNativeOverlayWindow() }"
       >
-        <div class="flex items-center space-x-3.5 pointer-events-none">
-          <GripVertical class="w-4 h-4 text-white/30 shrink-0" />
+        <div class="flex items-center space-x-3.5">
+          <GripVertical v-if="!isNativeOverlayWindow()" class="w-4 h-4 text-white/30 shrink-0 pointer-events-none" />
           <div class="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-studio-crimson shadow-[0_0_12px_rgba(255,59,48,0.2)]">
             <Film class="w-4 h-4" />
           </div>

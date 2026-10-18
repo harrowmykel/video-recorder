@@ -218,19 +218,88 @@ function createOverlayWindows() {
     show: false,
   });
 
-  // 6. Studio Review & Export Window (Hidden until recording finishes or opened)
-  const studioWidth = Math.min(1240, workArea.width - 40);
-  const studioHeight = Math.min(840, workArea.height - 40);
+let isQuitting = false;
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
+function openOrFocusStudioWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const workArea = primaryDisplay.workArea;
+  const studioWidth = Math.min(1280, workArea.width - 40);
+  const studioHeight = Math.min(880, workArea.height - 40);
+
+  if (windows.studio && !windows.studio.isDestroyed()) {
+    if (windows.studio.isMinimized()) {
+      windows.studio.restore();
+    }
+    windows.studio.show();
+    windows.studio.focus();
+    return;
+  }
+
   windows.studio = createWindow('studio', {
-    title: 'Screen & Camera Studio',
+    title: 'Screen Studio - Review & Export',
     width: studioWidth,
     height: studioHeight,
     x: Math.round(workArea.x + (workArea.width - studioWidth) / 2),
     y: Math.round(workArea.y + (workArea.height - studioHeight) / 2),
+    frame: true,
+    transparent: false,
+    hasShadow: true,
+    resizable: true,
     alwaysOnTop: false,
     skipTaskbar: false,
+    show: true,
+  });
+
+  windows.studio.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      windows.studio.hide();
+      Object.values(windows).forEach((win) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('overlay_event', {
+            event: 'sync_state',
+            payload: { recordingState: 'idle' },
+          });
+        }
+      });
+    }
+  });
+}
+
+  // 6. Studio Review & Export Window (Hidden until recording finishes or opened)
+  const studioWidth = Math.min(1280, workArea.width - 40);
+  const studioHeight = Math.min(880, workArea.height - 40);
+  windows.studio = createWindow('studio', {
+    title: 'Screen Studio - Review & Export',
+    width: studioWidth,
+    height: studioHeight,
+    x: Math.round(workArea.x + (workArea.width - studioWidth) / 2),
+    y: Math.round(workArea.y + (workArea.height - studioHeight) / 2),
+    frame: true,
+    transparent: false,
+    hasShadow: true,
     resizable: true,
+    alwaysOnTop: false,
+    skipTaskbar: false,
     show: false,
+  });
+
+  windows.studio.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      windows.studio.hide();
+      Object.values(windows).forEach((win) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('overlay_event', {
+            event: 'sync_state',
+            payload: { recordingState: 'idle' },
+          });
+        }
+      });
+    }
   });
 }
 
@@ -428,16 +497,11 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
       }
     }
 
-    // 6. Studio Review & Export Modal visibility
-    if (windows.studio && !windows.studio.isDestroyed()) {
-      if (recordingState === 'review') {
-        if (!windows.studio.isVisible()) {
-          windows.studio.show();
-          windows.studio.focus();
-        }
-      } else if (windows.studio.isVisible()) {
-        windows.studio.hide();
-      }
+    // 6. Studio Review & Export Window visibility
+    if (recordingState === 'review') {
+      openOrFocusStudioWindow();
+    } else if (windows.studio && !windows.studio.isDestroyed() && windows.studio.isVisible()) {
+      windows.studio.hide();
     }
   }
 });
