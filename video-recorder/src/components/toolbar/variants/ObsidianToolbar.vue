@@ -19,7 +19,7 @@ import {
   ChevronUp,
   Link2
 } from 'lucide-vue-next';
-import type { RecordingState, CaptureSourceMode } from '../../../types/studio';
+import type { RecordingState, CaptureSourceMode } from '@/types/studio';
 
 const props = defineProps<{
   recordingState: RecordingState;

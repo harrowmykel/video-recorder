@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useTemplateRef } from 'vue';
 import { Sparkles, Upload, Video, VideoOff } from 'lucide-vue-next';
-import CameraBubble from '../../camera/CameraBubble.vue';
-import { useStudioState } from '../../../composables/useStudioState.ts';
-import { useMediaDevices } from '../../../composables/useMediaDevices.ts';
+import CameraBubble from '@/components/camera/CameraBubble.vue';
+import { useStudioState } from '@/composables/useStudioState';
+import { useMediaDevices } from '@/composables/useMediaDevices';
 
 const props = defineProps<{
   audioVolume: number;

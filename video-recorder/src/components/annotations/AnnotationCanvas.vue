@@ -9,7 +9,7 @@ import {
   X,
   Clock
 } from 'lucide-vue-next';
-import { AnnotationTool, AnnotationItem } from '../../types/studio';
+import { AnnotationTool, AnnotationItem } from '@/types/studio';
 
 const props = defineProps<{
   isActive: boolean;

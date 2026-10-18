@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { shallowRef, ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from 'vue';
-import type { RecordingState, CaptureSourceMode, DisplaySourceInfo, WindowSourceInfo } from '../../types/studio';
+import type { RecordingState, CaptureSourceMode, DisplaySourceInfo, WindowSourceInfo } from '@/types/studio';
 import {
   invokeCommand,
   updateAudioSettings,
@@ -10,10 +10,10 @@ import {
   buildRecordingSessionFromDaemonMeta,
   openDesktopSettingsWindow,
   isNativeOverlayWindow,
-} from '../../lib/tauriBridge';
-import { useTheme } from '../../composables/useTheme';
-import { useStudioState } from '../../composables/useStudioState';
-import { useMediaDevices } from '../../composables/useMediaDevices';
+} from '@/lib/tauriBridge';
+import { useTheme } from '@/composables/useTheme';
+import { useStudioState } from '@/composables/useStudioState';
+import { useMediaDevices } from '@/composables/useMediaDevices';
 import {
   Video,
   Mic,
@@ -32,10 +32,10 @@ import {
 } from 'lucide-vue-next';
 
 // Theme Variants
-import ObsidianToolbar from './variants/ObsidianToolbar.vue';
-import SpatialToolbar from './variants/SpatialToolbar.vue';
-import GraphiteToolbar from './variants/GraphiteToolbar.vue';
-import NordicToolbar from './variants/NordicToolbar.vue';
+import ObsidianToolbar from '@/components/toolbar/variants/ObsidianToolbar.vue';
+import SpatialToolbar from '@/components/toolbar/variants/SpatialToolbar.vue';
+import GraphiteToolbar from '@/components/toolbar/variants/GraphiteToolbar.vue';
+import NordicToolbar from '@/components/toolbar/variants/NordicToolbar.vue';
 
 const recordingState = defineModel<RecordingState>('recordingState', { required: true });
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Mic, Check, RefreshCw } from 'lucide-vue-next';
-import { useStudioState } from '../../../../composables/useStudioState';
-import { useMediaDevices } from '../../../../composables/useMediaDevices';
+import { useStudioState } from '@/composables/useStudioState';
+import { useMediaDevices } from '@/composables/useMediaDevices';
 
 const props = defineProps<{
   audioVolume: number;

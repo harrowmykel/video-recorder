@@ -7,7 +7,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-vue-next';
-import { useStudioState } from '../../../../composables/useStudioState';
+import { useStudioState } from '@/composables/useStudioState';
 
 const {
   isCameraHidden,

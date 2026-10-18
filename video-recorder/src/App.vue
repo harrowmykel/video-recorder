@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { shallowRef, onMounted, onUnmounted } from 'vue';
-import FloatingToolbar from './components/toolbar/FloatingToolbar.vue';
-import CameraBubble from './components/camera/CameraBubble.vue';
-import CountdownOverlay from './components/countdown/CountdownOverlay.vue';
-import AnnotationCanvas from './components/annotations/AnnotationCanvas.vue';
-import AreaSelectorOverlay from './components/toolbar/AreaSelectorOverlay.vue';
-import StudioReviewModal from './components/studio/StudioReviewModal.vue';
-import StudioDashboardView from './components/settings/StudioDashboardView.vue';
-import { useTheme } from './composables/useTheme';
-import { useStudioState } from './composables/useStudioState';
+import FloatingToolbar from '@/components/toolbar/FloatingToolbar.vue';
+import CameraBubble from '@/components/camera/CameraBubble.vue';
+import CountdownOverlay from '@/components/countdown/CountdownOverlay.vue';
+import AnnotationCanvas from '@/components/annotations/AnnotationCanvas.vue';
+import AreaSelectorOverlay from '@/components/toolbar/AreaSelectorOverlay.vue';
+import StudioReviewModal from '@/components/studio/StudioReviewModal.vue';
+import StudioDashboardView from '@/components/settings/StudioDashboardView.vue';
+import { useTheme } from '@/composables/useTheme';
+import { useStudioState } from '@/composables/useStudioState';
 import {
   invokeCommand,
   subscribeToEvent,
   getCameraTelemetry,
   buildRecordingSessionFromDaemonMeta,
   isNativeOverlayWindow,
-} from './lib/tauriBridge';
+} from '@/lib/tauriBridge';
 
 const { initTheme } = useTheme();
 const isNativeOverlay = isNativeOverlayWindow();

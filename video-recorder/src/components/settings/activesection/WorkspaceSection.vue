@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Sparkles } from 'lucide-vue-next';
-import FloatingToolbar from '../toolbar/FloatingToolbar.vue';
-import CameraBubble from '../camera/CameraBubble.vue';
-import { useStudioState } from '../../../composables/useStudioState.ts';
+import FloatingToolbar from '@/components/toolbar/FloatingToolbar.vue';
+import CameraBubble from '@/components/camera/CameraBubble.vue';
+import { useStudioState } from '@/composables/useStudioState';
 
 const props = defineProps<{
   audioVolume: number;

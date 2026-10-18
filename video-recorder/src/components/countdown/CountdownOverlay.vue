@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { playCountdownTone } from '../../lib/audioTone';
-import { useTheme } from '../../composables/useTheme';
+import { playCountdownTone } from '@/lib/audioTone';
+import { useTheme } from '@/composables/useTheme';
 
 const emit = defineEmits<{
   (e: 'complete'): void;

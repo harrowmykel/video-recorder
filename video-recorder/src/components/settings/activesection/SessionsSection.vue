@@ -19,10 +19,10 @@ import {
   Mic,
   Layers,
 } from 'lucide-vue-next';
-import StudioReviewModal from '../studio/StudioReviewModal.vue';
-import ExportDestinationModal from '../studio/ExportDestinationModal.vue';
-import { deleteSession, openExportDirectory } from '../../../lib/tauriBridge.ts';
-import type { RecordingSession } from '../../../types/studio.ts';
+import StudioReviewModal from '@/components/studio/StudioReviewModal.vue';
+import ExportDestinationModal from '@/components/studio/ExportDestinationModal.vue';
+import { deleteSession, openExportDirectory } from '@/lib/tauriBridge';
+import type { RecordingSession } from '@/types/studio';
 
 const props = defineProps<{
   sessionsList: RecordingSession[];

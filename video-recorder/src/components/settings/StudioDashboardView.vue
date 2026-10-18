@@ -9,18 +9,18 @@ import {
   Sparkles,
   Film,
 } from 'lucide-vue-next';
-import WorkspaceSection from './activesection/WorkspaceSection.vue';
-import SettingsSection from './activesection/SettingsSection.vue';
-import BackgroundsSection from './activesection/BackgroundsSection.vue';
-import AiStudioSection from './activesection/AiStudioSection.vue';
-import SessionsSection from './activesection/SessionsSection.vue';
-import { useStudioState } from '../../composables/useStudioState';
+import WorkspaceSection from '@/components/settings/activesection/WorkspaceSection.vue';
+import SettingsSection from '@/components/settings/activesection/SettingsSection.vue';
+import BackgroundsSection from '@/components/settings/activesection/BackgroundsSection.vue';
+import AiStudioSection from '@/components/settings/activesection/AiStudioSection.vue';
+import SessionsSection from '@/components/settings/activesection/SessionsSection.vue';
+import { useStudioState } from '@/composables/useStudioState';
 import {
   fetchRecordedSessions,
   getDefaultVideosDirectory,
   isNativeOverlayWindow,
-} from '../../lib/tauriBridge';
-import type { RecordingSession } from '../../types/studio';
+} from '@/lib/tauriBridge';
+import type { RecordingSession } from '@/types/studio';
 
 const props = defineProps<{
   initialSection?: 'workspace' | 'settings' | 'backgrounds' | 'ai_studio' | 'sessions';

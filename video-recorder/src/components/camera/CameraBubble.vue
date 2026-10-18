@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import { shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from 'vue';
-import type { CameraShape, CameraSize } from '../../types/studio';
+import type { CameraShape, CameraSize } from '@/types/studio';
 import {
   moveOverlayWindow,
   resizeOverlayWindow,
   uploadRecordedCameraTrack,
   uploadCameraChunk,
   broadcastEvent,
-} from '../../lib/tauriBridge';
+} from '@/lib/tauriBridge';
 
-import { useTheme } from '../../composables/useTheme';
-import { useStudioState } from '../../composables/useStudioState';
-import { useBackgroundSegmentation } from '../../composables/useBackgroundSegmentation';
+import { useTheme } from '@/composables/useTheme';
+import { useStudioState } from '@/composables/useStudioState';
+import { useBackgroundSegmentation } from '@/composables/useBackgroundSegmentation';
 
 // Theme Variants
-import ObsidianCamera from './variants/ObsidianCamera.vue';
-import SpatialCamera from './variants/SpatialCamera.vue';
-import GraphiteCamera from './variants/GraphiteCamera.vue';
-import NordicCamera from './variants/NordicCamera.vue';
+import ObsidianCamera from '@/components/camera/variants/ObsidianCamera.vue';
+import SpatialCamera from '@/components/camera/variants/SpatialCamera.vue';
+import GraphiteCamera from '@/components/camera/variants/GraphiteCamera.vue';
+import NordicCamera from '@/components/camera/variants/NordicCamera.vue';
 
 const props = withDefaults(
   defineProps<{

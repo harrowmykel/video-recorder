@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, onMounted, onUnmounted } from 'vue';
 import { Check, X, Crop, Maximize2 } from 'lucide-vue-next';
-import type { CaptureAreaRect } from '../../types/studio';
+import type { CaptureAreaRect } from '@/types/studio';
 
 const props = defineProps<{
   isOpen: boolean;

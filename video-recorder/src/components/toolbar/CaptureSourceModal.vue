@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, watch } from 'vue';
 import { Monitor, AppWindow, Crop, RefreshCw, Check, X } from 'lucide-vue-next';
-import type { CaptureSourceMode, DisplaySourceInfo, WindowSourceInfo } from '../../types/studio';
-import { fetchCaptureSources } from '../../lib/tauriBridge';
-import { useStudioState } from '../../composables/useStudioState';
+import type { CaptureSourceMode, DisplaySourceInfo, WindowSourceInfo } from '@/types/studio';
+import { fetchCaptureSources } from '@/lib/tauriBridge';
+import { useStudioState } from '@/composables/useStudioState';
 
 const props = defineProps<{
   isOpen: boolean;

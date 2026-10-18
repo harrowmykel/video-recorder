@@ -10,8 +10,8 @@ import {
   Download,
   Film
 } from 'lucide-vue-next';
-import { BatchMattingJob, BgModelType } from '../../types/studio';
-import { invokeCommand, openExportDirectory } from '../../lib/tauriBridge';
+import { BatchMattingJob, BgModelType } from '@/types/studio';
+import { invokeCommand, openExportDirectory } from '@/lib/tauriBridge';
 
 const jobs = ref<BatchMattingJob[]>([
   {

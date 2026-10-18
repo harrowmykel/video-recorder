@@ -16,7 +16,7 @@ import {
   Trash2,
   GripVertical,
 } from 'lucide-vue-next';
-import type { CameraTelemetryPoint, RecordingSession } from '../../types/studio';
+import type { CameraTelemetryPoint, RecordingSession } from '@/types/studio';
 import {
   fetchRecordedSessions,
   openExportDirectory,
@@ -24,11 +24,11 @@ import {
   deleteSession,
   moveOverlayWindow,
   isNativeOverlayWindow,
-} from '../../lib/tauriBridge';
+} from '@/lib/tauriBridge';
 
-import { useStudioState } from '../../composables/useStudioState';
-import DragDropBgRemover from './DragDropBgRemover.vue';
-import ExportDestinationModal from './ExportDestinationModal.vue';
+import { useStudioState } from '@/composables/useStudioState';
+import DragDropBgRemover from '@/components/studio/DragDropBgRemover.vue';
+import ExportDestinationModal from '@/components/studio/ExportDestinationModal.vue';
 
 const props = defineProps<{
   cameraTelemetry?: CameraTelemetryPoint[];

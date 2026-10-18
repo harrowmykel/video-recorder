@@ -7,9 +7,9 @@ import {
   Check,
   RefreshCw,
 } from 'lucide-vue-next';
-import { useStudioState } from '../../../../composables/useStudioState';
-import { fetchCaptureSources } from '../../../../lib/tauriBridge';
-import type { DisplaySourceInfo, WindowSourceInfo } from '../../../../types/studio';
+import { useStudioState } from '@/composables/useStudioState';
+import { fetchCaptureSources } from '@/lib/tauriBridge';
+import type { DisplaySourceInfo, WindowSourceInfo } from '@/types/studio';
 
 const emit = defineEmits<{
   (e: 'openAreaPicker'): void;

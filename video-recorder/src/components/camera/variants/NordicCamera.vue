@@ -10,7 +10,7 @@ import {
   ImagePlus,
   EyeOff
 } from 'lucide-vue-next';
-import type { CameraShape, CameraSize, BgRemovalMode } from '../../../types/studio';
+import type { CameraShape, CameraSize, BgRemovalMode } from '@/types/studio';
 
 const props = defineProps<{
   hasCameraStream: boolean;

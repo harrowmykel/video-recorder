@@ -27,7 +27,7 @@ import {
   deleteSession,
   moveOverlayWindow,
   isNativeOverlayWindow,
-} from '../../lib/tauriBridge';
+} from '@/lib/tauriBridge';
 
 
 type ExportPresetType = 'premiere_xml' | 'capcut_draft' | 'mp4_bundle';

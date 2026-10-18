@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import CaptureSourceColumn from './settings/CaptureSourceColumn.vue';
-import CameraBackgroundColumn from './settings/CameraBackgroundColumn.vue';
-import AudioDevicesColumn from './settings/AudioDevicesColumn.vue';
-import OverlayDockColumn from './settings/OverlayDockColumn.vue';
-import ThemeAppearanceColumn from './settings/ThemeAppearanceColumn.vue';
+import CaptureSourceColumn from '@/components/settings/activesection/settings/CaptureSourceColumn.vue';
+import CameraBackgroundColumn from '@/components/settings/activesection/settings/CameraBackgroundColumn.vue';
+import AudioDevicesColumn from '@/components/settings/activesection/settings/AudioDevicesColumn.vue';
+import OverlayDockColumn from '@/components/settings/activesection/settings/OverlayDockColumn.vue';
+import ThemeAppearanceColumn from '@/components/settings/activesection/settings/ThemeAppearanceColumn.vue';
 
 const props = defineProps<{
   audioVolume: number;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import DragDropBgRemover from '../../studio/DragDropBgRemover.vue';
+import DragDropBgRemover from '@/components/studio/DragDropBgRemover.vue';
 </script>
 
 <template>
