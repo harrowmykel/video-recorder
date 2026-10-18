@@ -42,9 +42,9 @@
     ],
     "linux": {
       "target": [
-        "deb",
-        "AppImage",
-        "tar.gz"
+        // "deb",
+        // "tar.gz",
+        "AppImage"
       ],
       "category": "Video",
       "icon": "build/icon.png",
