@@ -5,12 +5,16 @@ import {
   ChevronDown,
   Cpu,
   Zap,
+  Download,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-vue-next';
 import CameraBubble from '@/components/camera/CameraBubble.vue';
 import { useStudioState } from '@/composables/useStudioState';
 import { useMediaDevices } from '@/composables/useMediaDevices';
 import type { BgModelType } from '@/types/studio';
-import { fetchAvailableModels, updateCameraBackgroundMode, type DaemonModelInfo } from '@/lib/tauriBridge';
+import { fetchAvailableModels, downloadModel, updateCameraBackgroundMode, type DaemonModelInfo } from '@/lib/tauriBridge';
 
 const props = defineProps<{
   audioVolume: number;
@@ -118,6 +122,27 @@ const isCurrentModelDownloaded = computed(() => {
   if (currentModel.value.id === 'mediapipe_fast') return true;
   return Boolean(dm?.is_downloaded);
 });
+
+const isDownloading = shallowRef(false);
+const downloadError = shallowRef<string | null>(null);
+
+async function handleDownloadModel() {
+  if (isDownloading.value || isCurrentModelDownloaded.value) return;
+  isDownloading.value = true;
+  downloadError.value = null;
+  try {
+    const res = await downloadModel(currentModel.value.fileName);
+    if (res.success) {
+      daemonModels.value = await fetchAvailableModels();
+    } else {
+      downloadError.value = res.error || 'Failed to download model';
+    }
+  } catch (err: any) {
+    downloadError.value = err?.message || 'Download network error';
+  } finally {
+    isDownloading.value = false;
+  }
+}
 
 watch(selectedBgModel, (newModel) => {
   updateCameraBackgroundMode(bgMode.value, newModel);
@@ -289,6 +314,34 @@ watch(selectedBgModel, (newModel) => {
                 <span>{{ isCurrentModelDownloaded ? 'Cached in studio/.cache' : 'Auto-downloads on demand' }}</span>
               </div>
               <span class="text-white/30">FP32 Tensor</span>
+            </div>
+          </div>
+
+          <!-- Download Action Button / Ready Indicator -->
+          <div class="pt-1">
+            <div v-if="isCurrentModelDownloaded"
+              class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-medium">
+              <div class="flex items-center gap-2">
+                <CheckCircle2 class="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Model downloaded & ready for real-time matting</span>
+              </div>
+              <span class="text-[10px] font-mono uppercase bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300 border border-emerald-500/30">Ready</span>
+            </div>
+
+            <div v-else class="space-y-1.5">
+              <button
+                @click="handleDownloadModel"
+                :disabled="isDownloading"
+                class="w-full py-2.5 px-4 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-500/20 group cursor-pointer disabled:cursor-not-allowed"
+              >
+                <Loader2 v-if="isDownloading" class="w-4 h-4 animate-spin text-white" />
+                <Download v-else class="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                <span>{{ isDownloading ? `Downloading ${currentModel.name} (${currentModel.size})...` : `Download ${currentModel.name} (${currentModel.size})` }}</span>
+              </button>
+              <p v-if="downloadError" class="text-[11px] text-rose-400 flex items-center gap-1.5">
+                <AlertCircle class="w-3.5 h-3.5 shrink-0" />
+                <span>{{ downloadError }}</span>
+              </p>
             </div>
           </div>
         </div>

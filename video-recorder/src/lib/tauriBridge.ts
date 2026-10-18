@@ -302,6 +302,23 @@ export async function fetchAvailableModels(): Promise<DaemonModelInfo[]> {
   return [];
 }
 
+export async function downloadModel(fileName: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/models/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_name: fileName }),
+    });
+    if (resp.ok) {
+      return await resp.json();
+    }
+    return { success: false, error: `HTTP ${resp.status}: ${resp.statusText}` };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
 export async function getCameraStreamStatus(): Promise<{ bg_mode: string; is_recording: boolean } | null> {
   try {
     const daemonBase = await resolveDaemonUrl();

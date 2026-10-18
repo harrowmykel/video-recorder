@@ -272,6 +272,34 @@ async fn main() {
             }
         });
 
+    #[derive(Deserialize)]
+    struct DownloadModelRequest {
+        file_name: String,
+    }
+
+    // 13b. Download AI Model on demand
+    let models_download_route = warp::path!("models" / "download")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and_then(|req: DownloadModelRequest| async move {
+            let res = tokio::task::spawn_blocking(move || {
+                let manager = ai::ModelManager::new()?;
+                manager.ensure_model_downloaded(&req.file_name)
+            }).await.map_err(|_| warp::reject::reject())?;
+
+            let reply = match res {
+                Ok(path) => warp::reply::json(&serde_json::json!({
+                    "success": true,
+                    "path": path.to_string_lossy()
+                })),
+                Err(e) => warp::reply::json(&serde_json::json!({
+                    "success": false,
+                    "error": e.to_string()
+                })),
+            };
+            Ok::<_, warp::Rejection>(reply)
+        });
+
     // 14. Upload individual camera chunk
     let sm_clone = session_manager.clone();
     let upload_camera_chunk_route = warp::path("upload_camera_chunk")
@@ -412,6 +440,7 @@ async fn main() {
         .or(toggle_zoom_route)
         .or(extract_route)
         .or(models_route)
+        .or(models_download_route)
         .or(camera_preview_route)
         .or(camera_config_route)
         .or(camera_status_route)

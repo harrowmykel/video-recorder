@@ -8,6 +8,7 @@ pub enum ModelType {
     SelfieSegmentationFast,
     RobustVideoMatting,
     BriaRmbg14,
+    BiRefNet,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +59,14 @@ impl ModelManager {
                 size_mb: 172.0,
                 download_url: "https://huggingface.co/briaai/RMBG-1.4/resolve/main/model.onnx".to_string(),
                 is_downloaded: self.models_dir.join("rmbg_1_4.onnx").exists(),
+            },
+            ModelInfo {
+                name: "BiRefNet Ultra (Cinema Quality)".to_string(),
+                model_type: ModelType::BiRefNet,
+                file_name: "birefnet_general.onnx".to_string(),
+                size_mb: 190.0,
+                download_url: "https://huggingface.co/ZhengPeng7/BiRefNet/resolve/main/birefnet_general.onnx".to_string(),
+                is_downloaded: self.models_dir.join("birefnet_general.onnx").exists(),
             },
         ]
     }
