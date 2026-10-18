@@ -289,8 +289,8 @@ onUnmounted(() => {
     </template>
 
     <template v-else-if="targetWindow === 'countdown'">
-      <CountdownOverlay v-if="recordingState === 'countdown'" :duration="countdownDuration" @complete="handleCountdownComplete"
-        @cancel="handleCountdownCancel" />
+      <CountdownOverlay v-if="recordingState === 'countdown'" :duration="countdownDuration"
+        @complete="handleCountdownComplete" @cancel="handleCountdownCancel" />
     </template>
 
     <template v-else-if="targetWindow === 'studio'">
@@ -316,8 +316,8 @@ onUnmounted(() => {
           @close="isAreaSelectorOpen = false" />
 
         <!-- Countdown Overlay (Browser mode only; Electron uses dedicated 'countdown' window) -->
-        <CountdownOverlay v-if="!isNativeOverlay && recordingState === 'countdown'" :duration="countdownDuration" @complete="handleCountdownComplete"
-          @cancel="handleCountdownCancel" />
+        <CountdownOverlay v-if="!isNativeOverlay && recordingState === 'countdown'" :duration="countdownDuration"
+          @complete="handleCountdownComplete" @cancel="handleCountdownCancel" />
 
         <!-- In-Recording Annotation Canvas Overlay (Browser mode only; Electron uses dedicated 'annotations' window) -->
         <AnnotationCanvas v-if="!isNativeOverlay" :is-active="isAnnotationActive" @close="isAnnotationActive = false" />
