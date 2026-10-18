@@ -24,6 +24,7 @@ import {
   deleteSession,
   moveOverlayWindow,
   isNativeOverlayWindow,
+  STUDIO_PROJECTS_DIR,
 } from '@/lib/tauriBridge';
 
 import { useStudioState } from '@/composables/useStudioState';
@@ -258,7 +259,7 @@ function handleTrimDeadAir() {
 async function handleOpenSessionAssets() {
   const sessionDir = activeSession.value?.sessionDir || '';
   const screenPath = activeSession.value?.screenPath || '';
-  const dir = sessionDir || (screenPath ? screenPath.replace(/\/[^/]+$/, '') : '~/Videos/studio/projects');
+  const dir = sessionDir || (screenPath ? screenPath.replace(/\/[^/]+$/, '') : STUDIO_PROJECTS_DIR);
   const res = await openExportDirectory(dir);
   if (!res.success) {
     navigator.clipboard?.writeText(dir).catch(() => {});

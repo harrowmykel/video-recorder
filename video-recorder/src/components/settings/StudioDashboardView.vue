@@ -19,6 +19,7 @@ import {
   fetchRecordedSessions,
   getDefaultVideosDirectory,
   isNativeOverlayWindow,
+  STUDIO_PROJECTS_DIR,
 } from '@/lib/tauriBridge';
 import type { RecordingSession } from '@/types/studio';
 
@@ -45,7 +46,7 @@ const activeSection = shallowRef<'workspace' | 'settings' | 'backgrounds' | 'ai_
 
 const sessionsList = ref<RecordingSession[]>([]);
 const isLoadingSessions = shallowRef(false);
-const projectsBaseDir = shallowRef('~/Videos/studio/projects');
+const projectsBaseDir = shallowRef(STUDIO_PROJECTS_DIR);
 
 async function loadSessions() {
   isLoadingSessions.value = true;

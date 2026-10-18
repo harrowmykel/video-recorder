@@ -93,20 +93,37 @@ impl Default for SessionManager {
     }
 }
 
-pub fn default_recordings_base_dir() -> PathBuf {
+pub fn default_studio_base_dir() -> PathBuf {
     let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
     if let Ok(home) = home {
-        let dir = PathBuf::from(home).join("Videos").join("studio").join("projects");
+        let dir = PathBuf::from(home).join("Videos").join("studio");
         if std::fs::create_dir_all(&dir).is_ok() {
             return dir;
         }
     }
     let fallback = std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
-        .join("studio")
-        .join("projects");
+        .join("studio");
     let _ = std::fs::create_dir_all(&fallback);
     fallback
+}
+
+pub fn default_recordings_base_dir() -> PathBuf {
+    let dir = default_studio_base_dir().join("projects");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+pub fn default_exports_base_dir() -> PathBuf {
+    let dir = default_studio_base_dir().join("exports");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+pub fn default_bg_remover_dir() -> PathBuf {
+    let dir = default_studio_base_dir().join("bg-remover");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
 }
 
 impl SessionManager {

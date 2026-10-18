@@ -137,5 +137,21 @@ mod tests {
             "/home/user/Videos/studio/exports/sess_premiere_xml_82f1b4a3-488b-47e2-880c-e2f472851532"
         );
     }
+
+    #[test]
+    fn test_studio_bg_remover_path_convention() {
+        let home = std::path::PathBuf::from("/home/user");
+        let bg_remover_dir = home.join("Videos").join("studio").join("bg-remover");
+        let video_name = "sample_clip";
+        let alpha_output = bg_remover_dir.join(format!("{}_alpha.webm", video_name));
+        assert_eq!(
+            bg_remover_dir.to_str().unwrap(),
+            "/home/user/Videos/studio/bg-remover"
+        );
+        assert_eq!(
+            alpha_output.to_str().unwrap(),
+            "/home/user/Videos/studio/bg-remover/sample_clip_alpha.webm"
+        );
+    }
 }
 

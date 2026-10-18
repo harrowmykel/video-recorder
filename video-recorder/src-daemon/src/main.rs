@@ -17,6 +17,7 @@ use ai::{process_video_background, OutputFormat};
 struct ExtractBgRequest {
     file_path: String,
     format: String,
+    output_dir: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -207,6 +208,7 @@ async fn main() {
         .and(warp::body::json())
         .and_then(|req: ExtractBgRequest| async move {
             let path = PathBuf::from(&req.file_path);
+            let out_dir = req.output_dir.map(PathBuf::from);
             let out_format = match req.format.as_str() {
                 "webm_alpha" => OutputFormat::WebmAlpha,
                 "luma_matte" => OutputFormat::LumaMatte,
@@ -214,7 +216,7 @@ async fn main() {
             };
 
             let res = tokio::task::spawn_blocking(move || {
-                process_video_background(&path, out_format)
+                process_video_background(&path, out_format, out_dir.as_deref())
             }).await.map_err(|_| warp::reject::reject())?;
 
             let reply = match res {

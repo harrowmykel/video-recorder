@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, onUnmounted, useTemplateRef } from 'vue';
+import { ref, shallowRef, onMounted, onUnmounted, useTemplateRef } from 'vue';
 import {
   UploadCloud,
   Sparkles,
@@ -8,23 +8,31 @@ import {
   Layers,
   Cpu,
   Download,
-  Film
+  Film,
+  FolderOpen
 } from 'lucide-vue-next';
 import { BatchMattingJob, BgModelType } from '@/types/studio';
-import { invokeCommand, openExportDirectory } from '@/lib/tauriBridge';
+import {
+  STUDIO_BG_REMOVER_DIR,
+  getDefaultBgRemoverDirectory,
+  invokeCommand,
+  openExportDirectory
+} from '@/lib/tauriBridge';
+
+const bgRemoverDir = shallowRef<string>(STUDIO_BG_REMOVER_DIR);
 
 const jobs = ref<BatchMattingJob[]>([
   {
     id: 'job_sample_1',
     fileName: 'podcast_camera_angle_raw.mp4',
-    filePath: '/recordings/podcast_camera_angle_raw.mp4',
+    filePath: `${STUDIO_BG_REMOVER_DIR}/podcast_camera_angle_raw.mp4`,
     fileSizeBytes: 64200000,
     status: 'completed',
     progressPct: 100,
     fps: 34,
     etaSeconds: 0,
     outputFormat: 'prores_4444',
-    outputPath: '/recordings/podcast_camera_angle_transparent.mov',
+    outputPath: `${STUDIO_BG_REMOVER_DIR}/podcast_camera_angle_transparent.mov`,
   },
 ]);
 
@@ -33,6 +41,17 @@ const selectedModel = shallowRef<BgModelType>('birefnet_hq');
 const defaultFormat = shallowRef<'prores_4444' | 'webm_alpha' | 'luma_matte'>('prores_4444');
 const activeIntervals = new Set<ReturnType<typeof setInterval>>();
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
+
+onMounted(async () => {
+  const dir = await getDefaultBgRemoverDirectory();
+  if (dir) {
+    bgRemoverDir.value = dir;
+    if (jobs.value[0]) {
+      jobs.value[0].filePath = `${dir}/podcast_camera_angle_raw.mp4`;
+      jobs.value[0].outputPath = `${dir}/podcast_camera_angle_transparent.mov`;
+    }
+  }
+});
 
 onUnmounted(() => {
   activeIntervals.forEach(clearInterval);
@@ -48,9 +67,14 @@ function handleDragLeave() {
   isDragging.value = false;
 }
 
-function enqueueFiles(files: File[]) {
+async function enqueueFiles(files: File[]) {
+  const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
   for (const file of files) {
-    const filePath = (file as unknown as { path?: string }).path || `/recordings/${file.name}`;
+    const filePath = (file as unknown as { path?: string }).path || `${targetDir}/${file.name}`;
+    const ext = defaultFormat.value === 'prores_4444' ? 'mov' : (defaultFormat.value === 'webm_alpha' ? 'webm' : 'mp4');
+    const stem = file.name.replace(/\.[^/.]+$/, '');
+    const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
+
     const newJob: BatchMattingJob = {
       id: `job_${Date.now()}_${Math.random()}`,
       fileName: file.name,
@@ -61,6 +85,7 @@ function enqueueFiles(files: File[]) {
       fps: 0,
       etaSeconds: 30,
       outputFormat: defaultFormat.value,
+      outputPath,
     };
     jobs.value.unshift(newJob);
 
@@ -68,6 +93,7 @@ function enqueueFiles(files: File[]) {
       file_path: filePath,
       format: defaultFormat.value,
       model: selectedModel.value,
+      output_dir: targetDir,
     })
       .then((res) => {
         if (res && res.output_path) {
@@ -78,7 +104,7 @@ function enqueueFiles(files: File[]) {
         console.log('Daemon extraction fallback simulation:', err);
       });
 
-    simulateProcessing(newJob.id);
+    simulateProcessing(newJob.id, outputPath);
   }
 }
 
@@ -86,17 +112,17 @@ async function handleDrop(e: DragEvent) {
   e.preventDefault();
   isDragging.value = false;
   if (!e.dataTransfer?.files) return;
-  enqueueFiles(Array.from(e.dataTransfer.files));
+  await enqueueFiles(Array.from(e.dataTransfer.files));
 }
 
-function handleFileInputChange(e: Event) {
+async function handleFileInputChange(e: Event) {
   const input = e.target as HTMLInputElement;
   if (input.files && input.files.length > 0) {
-    enqueueFiles(Array.from(input.files));
+    await enqueueFiles(Array.from(input.files));
   }
 }
 
-function simulateProcessing(jobId: string) {
+function simulateProcessing(jobId: string, expectedOutput?: string) {
   let progress = 0;
   const interval = setInterval(() => {
     progress += 12;
@@ -112,7 +138,7 @@ function simulateProcessing(jobId: string) {
       target.status = 'completed';
       target.progressPct = 100;
       if (!target.outputPath) {
-        target.outputPath = target.filePath.replace(/\.[^/.]+$/, '_transparent.mov');
+        target.outputPath = expectedOutput || `${bgRemoverDir.value}/${target.fileName.replace(/\.[^/.]+$/, '')}_alpha.mov`;
       }
     } else {
       target.status = 'processing';
@@ -138,11 +164,20 @@ function removeJob(id: string) {
 
 async function revealOutput(job: BatchMattingJob) {
   const path = job.outputPath || job.filePath;
-  const dir = path.replace(/\/[^/]+$/, '') || '/recordings';
+  const dir = job.outputPath ? job.outputPath.replace(/\/[^/]+$/, '') : bgRemoverDir.value;
   const res = await openExportDirectory(dir);
   if (!res.success) {
     navigator.clipboard?.writeText(path).catch(() => {});
     window.alert(`Transparent video output path (copied to clipboard):\n${path}`);
+  }
+}
+
+async function handleOpenBgRemoverFolder() {
+  const dir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
+  const res = await openExportDirectory(dir);
+  if (!res.success) {
+    navigator.clipboard?.writeText(dir).catch(() => {});
+    window.alert(`AI BG Remover folder path (copied to clipboard):\n${dir}`);
   }
 }
 </script>
@@ -157,11 +192,20 @@ async function revealOutput(job: BatchMattingJob) {
         </div>
         <div>
           <h3 class="text-sm font-semibold text-white tracking-wide">AI Background Matting & Export Suite</h3>
-          <p class="text-xs text-gray-400 font-mono mt-0.5">Extract subjects with hair-level precision • Export with alpha channel</p>
+          <p class="text-xs text-gray-400 font-mono mt-0.5">Extract subjects with hair-level precision • Output stored in [videos path]/studio/bg-remover</p>
         </div>
       </div>
 
       <div class="flex items-center space-x-3">
+        <!-- Open Output Folder Action -->
+        <button
+          @click="handleOpenBgRemoverFolder"
+          class="flex items-center space-x-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-semibold transition"
+          title="Open AI BG Remover folder"
+        >
+          <FolderOpen class="w-4 h-4 text-indigo-400" />
+          <span class="hidden sm:inline">Open Folder</span>
+        </button>
         <!-- Model Fidelity Selector -->
         <div class="flex items-center space-x-2 bg-black/60 px-3.5 py-2 rounded-xl border border-white/10 shadow-inner">
           <Cpu class="w-4 h-4 text-indigo-400" />

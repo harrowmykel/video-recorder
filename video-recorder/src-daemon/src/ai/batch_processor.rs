@@ -13,8 +13,14 @@ pub enum OutputFormat {
 pub fn process_video_background(
     input_path: &Path,
     output_format: OutputFormat,
+    output_dir: Option<&Path>,
 ) -> Result<PathBuf> {
-    let parent = input_path.parent().unwrap_or_else(|| Path::new("."));
+    let out_dir = match output_dir {
+        Some(dir) => dir.to_path_buf(),
+        None => crate::session::default_bg_remover_dir(),
+    };
+    std::fs::create_dir_all(&out_dir)?;
+
     let stem = input_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -22,7 +28,7 @@ pub fn process_video_background(
 
     let (output_path, args): (PathBuf, Vec<&str>) = match output_format {
         OutputFormat::ProRes4444 => {
-            let out = parent.join(format!("{}_alpha.mov", stem));
+            let out = out_dir.join(format!("{}_alpha.mov", stem));
             (
                 out,
                 vec![
@@ -33,7 +39,7 @@ pub fn process_video_background(
             )
         }
         OutputFormat::WebmAlpha => {
-            let out = parent.join(format!("{}_alpha.webm", stem));
+            let out = out_dir.join(format!("{}_alpha.webm", stem));
             (
                 out,
                 vec![
@@ -44,7 +50,7 @@ pub fn process_video_background(
             )
         }
         OutputFormat::LumaMatte => {
-            let out = parent.join(format!("{}_matte.mp4", stem));
+            let out = out_dir.join(format!("{}_matte.mp4", stem));
             (
                 out,
                 vec![

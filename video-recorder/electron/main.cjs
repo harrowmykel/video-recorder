@@ -468,42 +468,49 @@ ipcMain.handle('get_camera_telemetry', () => {
   return recordedCameraTelemetry;
 });
 
-ipcMain.handle('get_default_videos_dir', () => {
+function getStudioAppDataDir() {
   try {
     const baseVideos = app.getPath('videos');
-    const studioDir = path.join(baseVideos, 'studio', 'projects');
+    const studioDir = path.join(baseVideos, 'studio');
     if (!fs.existsSync(studioDir)) {
       fs.mkdirSync(studioDir, { recursive: true });
     }
     return studioDir;
   } catch {
-    const homeVideos = path.join(app.getPath('home'), 'Videos', 'studio', 'projects');
+    const homeStudio = path.join(app.getPath('home'), 'Videos', 'studio');
     try {
-      if (!fs.existsSync(homeVideos)) {
-        fs.mkdirSync(homeVideos, { recursive: true });
+      if (!fs.existsSync(homeStudio)) {
+        fs.mkdirSync(homeStudio, { recursive: true });
       }
     } catch {}
-    return homeVideos;
+    return homeStudio;
   }
+}
+
+function getStudioSubDir(sub) {
+  const dir = path.join(getStudioAppDataDir(), sub);
+  if (!fs.existsSync(dir)) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch {}
+  }
+  return dir;
+}
+
+ipcMain.handle('get_app_data_dir', () => {
+  return getStudioAppDataDir();
+});
+
+ipcMain.handle('get_default_videos_dir', () => {
+  return getStudioSubDir('projects');
 });
 
 ipcMain.handle('get_default_exports_dir', () => {
-  try {
-    const baseVideos = app.getPath('videos');
-    const exportsDir = path.join(baseVideos, 'studio', 'exports');
-    if (!fs.existsSync(exportsDir)) {
-      fs.mkdirSync(exportsDir, { recursive: true });
-    }
-    return exportsDir;
-  } catch {
-    const homeExports = path.join(app.getPath('home'), 'Videos', 'studio', 'exports');
-    try {
-      if (!fs.existsSync(homeExports)) {
-        fs.mkdirSync(homeExports, { recursive: true });
-      }
-    } catch {}
-    return homeExports;
-  }
+  return getStudioSubDir('exports');
+});
+
+ipcMain.handle('get_default_bg_remover_dir', () => {
+  return getStudioSubDir('bg-remover');
 });
 
 ipcMain.handle('check_directory_not_empty', (_event, targetDir) => {

@@ -446,6 +446,21 @@ export function quitOverlayApp() {
   }
 }
 
+export const APP_DATA = '~/Videos/studio';
+export const STUDIO_PROJECTS_DIR = `${APP_DATA}/projects`;
+export const STUDIO_EXPORTS_DIR = `${APP_DATA}/exports`;
+export const STUDIO_BG_REMOVER_DIR = `${APP_DATA}/bg-remover`;
+
+export async function getStudioAppDataDirectory(): Promise<string> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const dir = await window.__ELECTRON_OVERLAY__.invoke('get_app_data_dir');
+      if (dir) return dir;
+    } catch {}
+  }
+  return APP_DATA;
+}
+
 export async function getDefaultVideosDirectory(): Promise<string> {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
     try {
@@ -453,7 +468,7 @@ export async function getDefaultVideosDirectory(): Promise<string> {
       if (dir) return dir;
     } catch {}
   }
-  return '~/Videos/studio/projects';
+  return STUDIO_PROJECTS_DIR;
 }
 
 export async function getDefaultExportsDirectory(): Promise<string> {
@@ -463,7 +478,17 @@ export async function getDefaultExportsDirectory(): Promise<string> {
       if (dir) return dir;
     } catch {}
   }
-  return '~/Videos/studio/exports';
+  return STUDIO_EXPORTS_DIR;
+}
+
+export async function getDefaultBgRemoverDirectory(): Promise<string> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const dir = await window.__ELECTRON_OVERLAY__.invoke('get_default_bg_remover_dir');
+      if (dir) return dir;
+    } catch {}
+  }
+  return STUDIO_BG_REMOVER_DIR;
 }
 
 export async function openExportDirectory(targetPath: string): Promise<{ success: boolean; error?: string }> {
