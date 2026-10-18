@@ -287,6 +287,8 @@ function openSessionExport(session: RecordingSession) {
                 <span>{{ session.chunkCount }} chunks</span>
               </span>
 
+            </div>
+            <div class="flex items-center gap-2 flex-wrap text-xs">
               <!-- Location path preview -->
               <span class="text-[11px] text-gray-500 font-mono truncate max-w-xs cursor-pointer hover:text-gray-300"
                 @click="handleOpenSpecificSessionFolder(session)" :title="session.sessionDir || session.screenPath">
