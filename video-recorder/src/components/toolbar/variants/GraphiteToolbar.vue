@@ -171,7 +171,6 @@ const emit = defineEmits<{
       props.isAnnotationActive ? 'border-[#ff5500] text-[#ff5500]' : 'text-zinc-300'
     ]">
       <PenTool class="w-3.5 h-3.5" />
-      <span>DRAW</span>
     </button>
 
     <!-- Session Notes Toggle -->
@@ -179,13 +178,12 @@ const emit = defineEmits<{
       class="h-9 px-2.5 rounded tactile-key text-xs font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1.5 transition"
       title="Session Notes (Markdown WYSIWYG)">
       <FileText class="w-3.5 h-3.5" />
-      <span>NOTE</span>
     </button>
 
     <button @click="emit('stopRecord')"
       class="h-9 px-3.5 rounded bg-zinc-100 hover:bg-white text-black font-mono font-bold text-xs flex items-center gap-1.5">
       <span class="w-2.5 h-2.5 bg-[#ff2a2a]"></span>
-      <span>CUT / STOP</span>
+      <span>STOP</span>
     </button>
 
     <button @click="emit('toggleCollapse')"

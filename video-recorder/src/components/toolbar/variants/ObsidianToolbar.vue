@@ -185,7 +185,6 @@ const emit = defineEmits<{
         : 'obsidian-btn text-white/80'
     ]">
       <PenTool class="w-3.5 h-3.5" />
-      <span>Draw</span>
     </button>
 
     <!-- Session Notes Toggle -->
@@ -193,7 +192,6 @@ const emit = defineEmits<{
       class="h-9 px-3 rounded-xl text-xs font-medium flex items-center gap-1.5 transition obsidian-btn text-white/80 hover:text-white"
       title="Open Session Notes (Markdown WYSIWYG)">
       <FileText class="w-3.5 h-3.5 text-amber-400" />
-      <span>Note</span>
     </button>
 
     <!-- Finish / Complete -->

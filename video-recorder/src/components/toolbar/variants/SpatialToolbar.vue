@@ -189,7 +189,7 @@ const emit = defineEmits<{
     <button @click="emit('stopRecord')"
       class="h-9 px-4 rounded-full bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 shadow-md transition">
       <span class="w-2.5 h-2.5 rounded-sm bg-rose-600"></span>
-      <span>Finish</span>
+      <span>STOP </span>
     </button>
 
     <button @click="emit('toggleCollapse')"
