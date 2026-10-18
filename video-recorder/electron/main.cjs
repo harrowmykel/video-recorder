@@ -6,10 +6,11 @@ const fs = require('fs');
 let daemonProcess = null;
 
 function startDaemonIfAvailable() {
+  const exeExt = process.platform === 'win32' ? '.exe' : '';
   const possiblePaths = [
-    path.join(process.resourcesPath || '', 'bin/recorder-daemon'),
-    path.join(__dirname, '../src-daemon/target/release/recorder-daemon'),
-    path.join(__dirname, '../src-daemon/target/debug/recorder-daemon'),
+    path.join(process.resourcesPath || '', `bin/recorder-daemon${exeExt}`),
+    path.join(__dirname, `../src-daemon/target/release/recorder-daemon${exeExt}`),
+    path.join(__dirname, `../src-daemon/target/debug/recorder-daemon${exeExt}`),
   ];
 
   for (const binPath of possiblePaths) {

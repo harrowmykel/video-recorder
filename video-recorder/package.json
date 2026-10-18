@@ -11,9 +11,9 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "overlay": "electron --no-sandbox electron/main.cjs",
-    "daemon:build": "export PATH=\"$HOME/.cargo/bin:$PATH\"; cargo build --release --manifest-path src-daemon/Cargo.toml",
-    "daemon:stop": "pkill -f recorder-daemon 2>/dev/null || true",
-    "daemon:start": "pkill -f recorder-daemon 2>/dev/null || true; if [ -f ./src-daemon/target/release/recorder-daemon ]; then ./src-daemon/target/release/recorder-daemon; else ./src-daemon/target/debug/recorder-daemon; fi",
+    "daemon:build": "node scripts/build-daemon.cjs",
+    "daemon:stop": "node scripts/stop-daemon.cjs",
+    "daemon:start": "node scripts/start-daemon.cjs",
     "package:dir": "npm run build && npm run daemon:build && electron-builder --dir",
     "package:dist": "npm run build && npm run daemon:build && electron-builder"
   },
