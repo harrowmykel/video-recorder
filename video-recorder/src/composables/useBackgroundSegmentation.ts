@@ -1,4 +1,5 @@
 import { shallowRef, watch, onUnmounted, type Ref } from 'vue';
+import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
 import type { BgRemovalMode } from '../types/studio';
 
 export interface UseBackgroundSegmentationOptions {
@@ -9,6 +10,60 @@ export interface UseBackgroundSegmentationOptions {
   bgGradient: Ref<string>;
   isMirrored: Ref<boolean>;
   hasCameraStream: Ref<boolean>;
+}
+
+// Module-level MediaPipe singleton to avoid re-compiling WASM shaders across component lifecycles
+let sharedSegmenter: ImageSegmenter | null = null;
+let segmenterInitPromise: Promise<ImageSegmenter | null> | null = null;
+let segmenterInitFailed = false;
+
+async function getOrInitSegmenter(): Promise<ImageSegmenter | null> {
+  if (sharedSegmenter) return sharedSegmenter;
+  if (segmenterInitFailed) return null;
+  if (segmenterInitPromise) return segmenterInitPromise;
+
+  segmenterInitPromise = (async () => {
+    try {
+      const base = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL : './';
+      const cleanBase = base.endsWith('/') ? base : `${base}/`;
+      const localWasmPath = new URL(`${cleanBase}mediapipe-wasm`, window.location.href).href.replace(/\/+$/, '');
+      const localModelPath = new URL(`${cleanBase}models/selfie_segmenter.tflite`, window.location.href).href;
+
+      let vision;
+      let modelPath = localModelPath;
+
+      try {
+        vision = await FilesetResolver.forVisionTasks(localWasmPath);
+        const check = await fetch(localModelPath, { method: 'HEAD' });
+        if (!check.ok) throw new Error(`Local model status: ${check.status}`);
+      } catch (localErr) {
+        console.warn('[Segmentation] Local MediaPipe assets unreachable, trying CDN fallback...', localErr);
+        vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm');
+        modelPath = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+      }
+
+      const segmenter = await ImageSegmenter.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: modelPath,
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        outputCategoryMask: false,
+        outputConfidenceMasks: true,
+      });
+
+      sharedSegmenter = segmenter;
+      return segmenter;
+    } catch (err) {
+      console.warn('[Segmentation] MediaPipe initialization failed, running CPU heuristic fallback:', err);
+      segmenterInitFailed = true;
+      return null;
+    } finally {
+      segmenterInitPromise = null;
+    }
+  })();
+
+  return segmenterInitPromise;
 }
 
 export function useBackgroundSegmentation(options: UseBackgroundSegmentationOptions) {
@@ -23,15 +78,45 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
   } = options;
 
   const isBgImageLoaded = shallowRef(false);
+  const segmentationBackend = shallowRef<'mediapipe' | 'heuristic'>('heuristic');
+  const isModelLoading = shallowRef(false);
   let loadedBgImage: HTMLImageElement | null = null;
+  let activeImageRequestId = 0;
   let animFrameId: number | null = null;
 
-  // Offscreen canvases for real-time foreground segmentation & alpha feathering
+  // MediaPipe mask buffer and canvas
+  const mpMaskCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  const mpMaskCtx = mpMaskCanvas ? mpMaskCanvas.getContext('2d', { willReadFrequently: true }) : null;
+  let mpMaskImageData: ImageData | null = null;
+  let mpMaskData32: Uint32Array | null = null;
+  let lastMpTimestamp = -1;
+
+  function triggerModelInit() {
+    if (!sharedSegmenter && !isModelLoading.value && !segmenterInitFailed) {
+      isModelLoading.value = true;
+      getOrInitSegmenter().then((seg) => {
+        if (seg) {
+          segmentationBackend.value = 'mediapipe';
+        }
+      }).finally(() => {
+        isModelLoading.value = false;
+      });
+    }
+  }
+
+  // Offscreen canvases for fallback foreground segmentation & alpha feathering
   const maskWidth = 160;
   const maskHeight = 120;
   const sampleCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
   const maskCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
   const fgCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+
+  const sCtx = sampleCanvas ? sampleCanvas.getContext('2d', { willReadFrequently: true }) : null;
+  const mCtx = maskCanvas ? maskCanvas.getContext('2d', { willReadFrequently: true }) : null;
+  const fgCtx = fgCanvas ? fgCanvas.getContext('2d') : null;
+
+  let cachedTargetCanvas: HTMLCanvasElement | null = null;
+  let cachedTargetCtx: CanvasRenderingContext2D | null = null;
 
   if (sampleCanvas && maskCanvas) {
     sampleCanvas.width = maskWidth;
@@ -41,6 +126,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
   }
 
   function loadBgImage(url: string) {
+    const requestId = ++activeImageRequestId;
     if (!url || typeof Image === 'undefined') {
       isBgImageLoaded.value = false;
       loadedBgImage = null;
@@ -49,23 +135,33 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
+      if (requestId !== activeImageRequestId) return;
       loadedBgImage = img;
       isBgImageLoaded.value = true;
     };
     img.onerror = () => {
+      if (requestId !== activeImageRequestId) return;
       isBgImageLoaded.value = false;
+      loadedBgImage = null;
     };
     img.src = url;
   }
 
   watch(bgImageUrl, (url) => loadBgImage(url), { immediate: true });
 
+  watch(
+    bgMode,
+    (mode) => {
+      if (mode !== 'off') {
+        triggerModelInit();
+      }
+    },
+    { immediate: true }
+  );
+
   // Compute real-time foreground person alpha matte using border-sampled adaptive chroma/luma distance + portrait spatial prior
   function computeForegroundMask(video: HTMLVideoElement): HTMLCanvasElement | null {
-    if (!sampleCanvas || !maskCanvas) return null;
-    const sCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
-    const mCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-    if (!sCtx || !mCtx) return null;
+    if (!sampleCanvas || !maskCanvas || !sCtx || !mCtx) return null;
 
     sCtx.drawImage(video, 0, 0, maskWidth, maskHeight);
     const frame = sCtx.getImageData(0, 0, maskWidth, maskHeight);
@@ -144,9 +240,58 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     return maskCanvas;
   }
 
+  function computeMediaPipeMask(video: HTMLVideoElement, segmenter: ImageSegmenter): HTMLCanvasElement | null {
+    if (!mpMaskCanvas || !mpMaskCtx) return null;
+    if (video.videoWidth === 0 || video.videoHeight === 0 || video.readyState < 2) return null;
+
+    let now = Math.floor(performance.now());
+    if (now <= lastMpTimestamp) {
+      now = lastMpTimestamp + 1;
+    }
+    lastMpTimestamp = now;
+
+    let producedMask: HTMLCanvasElement | null = null;
+
+    try {
+      segmenter.segmentForVideo(video, now, (result) => {
+        const confidenceMask = result.confidenceMasks?.[0];
+        if (!confidenceMask) return;
+
+        const mw = confidenceMask.width;
+        const mh = confidenceMask.height;
+
+        if (mpMaskCanvas.width !== mw || mpMaskCanvas.height !== mh) {
+          mpMaskCanvas.width = mw;
+          mpMaskCanvas.height = mh;
+          mpMaskImageData = mpMaskCtx.createImageData(mw, mh);
+          mpMaskData32 = new Uint32Array(mpMaskImageData.data.buffer);
+        }
+
+        if (!mpMaskImageData || !mpMaskData32) return;
+
+        const floats = confidenceMask.getAsFloat32Array();
+        const totalPixels = mw * mh;
+
+        for (let i = 0; i < totalPixels; i++) {
+          const alpha = (floats[i] * 255) | 0;
+          // Little-endian 0xAABBGGRR: white RGB with mask alpha
+          mpMaskData32[i] = (alpha << 24) | 0x00ffffff;
+        }
+
+        mpMaskCtx.putImageData(mpMaskImageData, 0, 0);
+        producedMask = mpMaskCanvas;
+      });
+    } catch (err) {
+      console.warn('[Segmentation] MediaPipe frame error, falling back to heuristic:', err);
+      return null;
+    }
+
+    return producedMask;
+  }
+
   function drawCoverImage(ctx: CanvasRenderingContext2D, img: HTMLImageElement | HTMLVideoElement, cw: number, ch: number) {
-    const iw = img instanceof HTMLVideoElement ? img.videoWidth || cw : img.width || cw;
-    const ih = img instanceof HTMLVideoElement ? img.videoHeight || ch : img.height || ch;
+    const iw = img instanceof HTMLVideoElement ? (img.videoWidth > 0 ? img.videoWidth : cw) : (img.naturalWidth || img.width || cw);
+    const ih = img instanceof HTMLVideoElement ? (img.videoHeight > 0 ? img.videoHeight : ch) : (img.naturalHeight || img.height || ch);
     const scale = Math.max(cw / iw, ch / ih);
     const sw = iw * scale;
     const sh = ih * scale;
@@ -179,7 +324,11 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     const video = videoRef.value;
 
     if (canvas) {
-      const ctx = canvas.getContext('2d');
+      if (!cachedTargetCtx || cachedTargetCanvas !== canvas) {
+        cachedTargetCanvas = canvas;
+        cachedTargetCtx = canvas.getContext('2d');
+      }
+      const ctx = cachedTargetCtx;
       if (ctx) {
         const cw = canvas.width || 480;
         const ch = canvas.height || 480;
@@ -216,30 +365,46 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
             // Note: for 'transparent', we leave the background layer completely clear (alpha = 0)
 
             // 2. Composite the segmented foreground subject with feathered edges
-            const mask = computeForegroundMask(video);
-            if (mask && fgCanvas) {
+            let mask: HTMLCanvasElement | null = null;
+            let isMediaPipeActive = false;
+
+            if (sharedSegmenter) {
+              mask = computeMediaPipeMask(video, sharedSegmenter);
+              if (mask) {
+                isMediaPipeActive = true;
+              }
+            }
+
+            // Seamless fallback to CPU heuristic if MediaPipe is not ready or failed
+            if (!mask) {
+              mask = computeForegroundMask(video);
+              isMediaPipeActive = false;
+            }
+
+            if (segmentationBackend.value !== (isMediaPipeActive ? 'mediapipe' : 'heuristic')) {
+              segmentationBackend.value = isMediaPipeActive ? 'mediapipe' : 'heuristic';
+            }
+
+            if (mask && fgCanvas && fgCtx) {
               if (fgCanvas.width !== cw || fgCanvas.height !== ch) {
                 fgCanvas.width = cw;
                 fgCanvas.height = ch;
               }
-              const fgCtx = fgCanvas.getContext('2d');
-              if (fgCtx) {
-                fgCtx.clearRect(0, 0, cw, ch);
-                fgCtx.save();
-                if (isMirrored.value) {
-                  fgCtx.translate(cw, 0);
-                  fgCtx.scale(-1, 1);
-                }
-                // Draw soft feathered alpha mask
-                fgCtx.filter = 'blur(6px)';
-                fgCtx.drawImage(mask, 0, 0, cw, ch);
-                fgCtx.filter = 'none';
-                fgCtx.globalCompositeOperation = 'source-in';
-                drawCoverImage(fgCtx, video, cw, ch);
-                fgCtx.restore();
-
-                ctx.drawImage(fgCanvas, 0, 0, cw, ch);
+              fgCtx.clearRect(0, 0, cw, ch);
+              fgCtx.save();
+              if (isMirrored.value) {
+                fgCtx.translate(cw, 0);
+                fgCtx.scale(-1, 1);
               }
+              // Soft feathering: subtle 1.5px blur for ML confidence mask, 6px for low-res heuristic mask
+              fgCtx.filter = isMediaPipeActive ? 'blur(1.5px)' : 'blur(6px)';
+              fgCtx.drawImage(mask, 0, 0, cw, ch);
+              fgCtx.filter = 'none';
+              fgCtx.globalCompositeOperation = 'source-in';
+              drawCoverImage(fgCtx, video, cw, ch);
+              fgCtx.restore();
+
+              ctx.drawImage(fgCanvas, 0, 0, cw, ch);
             }
           }
         } else {
@@ -302,6 +467,9 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
   }
 
   function startSegmentationLoop() {
+    if (bgMode.value !== 'off') {
+      triggerModelInit();
+    }
     if (animFrameId !== null) return;
     animFrameId = requestAnimationFrame(renderFrame);
   }
@@ -319,6 +487,8 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
 
   return {
     isBgImageLoaded,
+    segmentationBackend,
+    isModelLoading,
     startSegmentationLoop,
     stopSegmentationLoop,
   };
