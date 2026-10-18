@@ -236,6 +236,7 @@ const savedBgImages = ref<SavedBgImage[]>([]);
 const isLoadingSavedBgImages = shallowRef<boolean>(false);
 
 // Session, Processing & Telemetry State
+const currentSessionId = ref<string | null>(null);
 const lastRecordedSession = ref<RecordingSession | null>(null);
 const sessionCameraTelemetry = ref<CameraTelemetryPoint[]>([]);
 const isProcessingSession = shallowRef<boolean>(false);
@@ -372,6 +373,7 @@ function broadcastFullState() {
     bgImageUrl: bgImageUrl.value,
     bgGradient: bgGradient.value,
     bgColor: bgColor.value,
+    currentSessionId: currentSessionId.value,
     lastRecordedSession: lastRecordedSession.value ? { ...lastRecordedSession.value } : null,
   });
 }
@@ -417,6 +419,7 @@ export function useStudioState() {
       if (payload.bgImageUrl !== undefined) bgImageUrl.value = payload.bgImageUrl;
       if (payload.bgGradient !== undefined) bgGradient.value = payload.bgGradient;
       if (payload.bgColor !== undefined) bgColor.value = payload.bgColor;
+      if (payload.currentSessionId !== undefined) currentSessionId.value = payload.currentSessionId;
       if (payload.lastRecordedSession !== undefined) lastRecordedSession.value = payload.lastRecordedSession;
 
       setTimeout(() => {
@@ -575,6 +578,7 @@ export function useStudioState() {
     bgColor,
     savedBgImages,
     isLoadingSavedBgImages,
+    currentSessionId,
     lastRecordedSession,
     sessionCameraTelemetry,
     bgPresets: STUDIO_BG_PRESETS,

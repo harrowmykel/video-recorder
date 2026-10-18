@@ -101,6 +101,8 @@ export interface RecordingSession {
   chunkCount?: number;
   status?: string;
   sessionDir?: string;
+  notesPath?: string;
+  hasNotes?: boolean;
 }
 
 export interface BatchMattingJob {

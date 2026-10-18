@@ -509,6 +509,103 @@ export function openDesktopSettingsWindow() {
   }
 }
 
+export function openDesktopStudioWindow() {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('open_studio_window');
+    window.__ELECTRON_OVERLAY__.send('overlay_event', { event: 'open_studio_window' });
+  }
+}
+
+export function openDesktopNotesWindow() {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('open_notes_window');
+    window.__ELECTRON_OVERLAY__.send('overlay_event', { event: 'open_notes_window' });
+  } else {
+    broadcastEvent('open_notes_modal', {});
+  }
+}
+
+export function toggleDesktopNotesWindow() {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
+    window.__ELECTRON_OVERLAY__.send('toggle_notes_window');
+    window.__ELECTRON_OVERLAY__.send('overlay_event', { event: 'toggle_notes_window' });
+  } else {
+    broadcastEvent('toggle_notes_modal', {});
+  }
+}
+
+export async function getActiveSessionInfo(): Promise<{
+  sessionId: string | null;
+  sessionDir: string;
+  isRecording: boolean;
+}> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('get_active_session_info');
+      if (res) return res;
+    } catch {}
+  }
+  return {
+    sessionId: null,
+    sessionDir: '~/Videos/studio/projects/draft_notes',
+    isRecording: false,
+  };
+}
+
+export async function loadSessionNotes(
+  sessionId?: string,
+  sessionDir?: string
+): Promise<{ success: boolean; content: string; filePath: string; sessionId?: string; exists: boolean }> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('load_session_notes', { sessionId, sessionDir });
+      if (res) return res;
+    } catch (e: any) {
+      console.warn('[loadSessionNotes] invoke failed:', e);
+    }
+  }
+
+  // Browser / fallback mode
+  const key = `studio_notes_${sessionId || 'draft'}`;
+  const content = localStorage.getItem(key) || '';
+  return {
+    success: true,
+    content,
+    filePath: `~/Videos/studio/projects/${sessionId || 'draft_notes'}/notes.md`,
+    sessionId,
+    exists: Boolean(content),
+  };
+}
+
+export async function saveSessionNotes(
+  content: string,
+  sessionId?: string,
+  sessionDir?: string
+): Promise<{ success: boolean; filePath?: string; sessionId?: string; savedAt?: number; error?: string }> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('save_session_notes', {
+        content,
+        sessionId,
+        sessionDir,
+      });
+      if (res) return res;
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  // Browser / fallback mode
+  const key = `studio_notes_${sessionId || 'draft'}`;
+  localStorage.setItem(key, content);
+  return {
+    success: true,
+    filePath: `~/Videos/studio/projects/${sessionId || 'draft_notes'}/notes.md`,
+    sessionId,
+    savedAt: Date.now(),
+  };
+}
+
 export function quitOverlayApp() {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__) {
     window.__ELECTRON_OVERLAY__.send('quit_app');

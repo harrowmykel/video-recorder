@@ -7,11 +7,13 @@ import AnnotationCanvas from '@/components/annotations/AnnotationCanvas.vue';
 import AreaSelectorOverlay from '@/components/toolbar/AreaSelectorOverlay.vue';
 import StudioReviewModal from '@/components/studio/StudioReviewModal.vue';
 import StudioDashboardView from '@/components/settings/StudioDashboardView.vue';
+import SessionNotesWindow from '@/components/notes/SessionNotesWindow.vue';
 import { useTheme } from '@/composables/useTheme';
 import { useStudioState } from '@/composables/useStudioState';
 import {
   invokeCommand,
   subscribeToEvent,
+  broadcastEvent,
   getCameraTelemetry,
   buildRecordingSessionFromDaemonMeta,
   isNativeOverlayWindow,
@@ -21,6 +23,7 @@ const { initTheme } = useTheme();
 const isNativeOverlay = isNativeOverlayWindow();
 const {
   recordingState,
+  currentSessionId,
   isCameraHidden,
   isDockedToCamera,
   isAnnotationActive,
@@ -101,7 +104,11 @@ async function handleCountdownComplete() {
     } else if (captureSourceMode.value === 'window') {
       startArgs.window_id = selectedWindowId.value;
     }
-    await invokeCommand('start_recording', startArgs);
+    const res = await invokeCommand<{ success?: boolean; session_id?: string }>('start_recording', startArgs);
+    if (res?.session_id) {
+      currentSessionId.value = res.session_id;
+      broadcastEvent('session_started', { sessionId: res.session_id });
+    }
   } catch (err) {
     console.warn('Failed to start recording on backend:', err);
   }
@@ -282,6 +289,10 @@ onUnmounted(() => {
     <template v-else-if="targetWindow === 'studio'">
       <StudioReviewModal v-if="recordingState === 'review'" :camera-telemetry="sessionCameraTelemetry"
         @close="recordingState = 'idle'" />
+    </template>
+
+    <template v-else-if="targetWindow === 'notes'">
+      <SessionNotesWindow />
     </template>
 
     <!-- Comprehensive Interactive Workspace, Settings & App Dashboard (localhost:1420 /, /app, /settings) -->

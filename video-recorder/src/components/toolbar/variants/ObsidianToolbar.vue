@@ -10,6 +10,7 @@ import {
   Volume2,
   VolumeX,
   PenTool,
+  FileText,
   Pause,
   Play,
   Minimize2,
@@ -49,6 +50,7 @@ const emit = defineEmits<{
   (e: 'openMicMenu'): void;
   (e: 'toggleSysAudio'): void;
   (e: 'toggleAnnotation'): void;
+  (e: 'openNotes'): void;
   (e: 'toggleLiveZoom'): void;
   (e: 'toggleDock'): void;
   (e: 'toggleCollapse'): void;
@@ -202,6 +204,16 @@ const emit = defineEmits<{
       <span>Draw</span>
     </button>
 
+    <!-- Session Notes Toggle -->
+    <button
+      @click="emit('openNotes')"
+      class="h-9 px-3 rounded-xl text-xs font-medium flex items-center gap-1.5 transition obsidian-btn text-white/80 hover:text-white"
+      title="Open Session Notes (Markdown WYSIWYG)"
+    >
+      <FileText class="w-3.5 h-3.5 text-amber-400" />
+      <span>Note</span>
+    </button>
+
     <!-- Finish / Complete -->
     <button
       @click="emit('stopRecord')"
@@ -350,6 +362,15 @@ const emit = defineEmits<{
       title="Dock / Undock Toolbar to Camera Bubble"
     >
       <Link2 class="w-3.5 h-3.5" />
+    </button>
+
+    <!-- Session Notes Button (Idle State) -->
+    <button
+      @click="emit('openNotes')"
+      class="w-9 h-9 rounded-xl obsidian-btn text-amber-400 hover:text-amber-300 flex items-center justify-center transition"
+      title="Session Notes (Markdown WYSIWYG)"
+    >
+      <FileText class="w-4 h-4" />
     </button>
 
     <!-- Theme / Settings Button -->

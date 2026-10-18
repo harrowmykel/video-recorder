@@ -9,6 +9,8 @@ import {
   fetchCaptureSources,
   buildRecordingSessionFromDaemonMeta,
   openDesktopSettingsWindow,
+  openDesktopNotesWindow,
+  broadcastEvent,
   isNativeOverlayWindow,
 } from '@/lib/tauriBridge';
 import { useTheme } from '@/composables/useTheme';
@@ -76,6 +78,7 @@ const {
   countdownDuration,
   isProcessingSession,
   processingStatusMessage,
+  currentSessionId,
   lastRecordedSession,
   setCustomBgImageFromFile,
 } = useStudioState();
@@ -327,9 +330,16 @@ function handleStart() {
     } else if (captureSourceMode.value === 'window') {
       startArgs.window_id = selectedWindowId.value;
     }
-    invokeCommand('start_recording', startArgs).catch((err) => {
-      console.warn('[FloatingToolbar] start_recording error:', err);
-    });
+    invokeCommand<{ success?: boolean; session_id?: string }>('start_recording', startArgs)
+      .then((res) => {
+        if (res?.session_id) {
+          currentSessionId.value = res.session_id;
+          broadcastEvent('session_started', { sessionId: res.session_id });
+        }
+      })
+      .catch((err) => {
+        console.warn('[FloatingToolbar] start_recording error:', err);
+      });
   } else {
     recordingState.value = 'countdown';
   }
@@ -366,8 +376,13 @@ function handleOpenSettings() {
   if (!isNativeOverlayWindow()) {
     return;
   }
-    openDesktopSettingsWindow();
-    emit('openSettingsModal');
+  openDesktopSettingsWindow();
+  emit('openSettingsModal');
+}
+
+function handleOpenNotes() {
+  activePopover.value = null;
+  openDesktopNotesWindow();
 }
 
 const activeToolbarVariant = computed(() => {
@@ -749,6 +764,7 @@ const activeToolbarVariant = computed(() => {
       @open-mic-menu="handleToggleMicPopover"
       @toggle-sys-audio="isSysAudioMuted = !isSysAudioMuted"
       @toggle-annotation="emit('toggleAnnotation')"
+      @open-notes="handleOpenNotes"
       @toggle-live-zoom="emit('toggleLiveZoom')"
       @toggle-dock="emit('toggleDock')"
       @toggle-collapse="activePopover = null; isToolbarCollapsed = !isToolbarCollapsed"

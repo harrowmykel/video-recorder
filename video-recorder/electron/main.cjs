@@ -42,9 +42,17 @@ let windows = {
   area: null,
   studio: null,
   settings: null,
+  notes: null,
 };
 
+let activeSessionId = null;
+let activeSessionDir = null;
 let isDockedToCamera = false;
+let isQuitting = false;
+
+app.on('before-quit', () => {
+  isQuitting = true;
+});
 
 function getPackagedFileUrl(windowName) {
   return `file://${path.join(__dirname, '../dist/index.html')}?window=${windowName}`;
@@ -133,6 +141,95 @@ function openOrFocusSettingsWindow() {
   });
 }
 
+function openOrFocusNotesWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const workArea = primaryDisplay.workArea;
+  if (windows.notes && !windows.notes.isDestroyed()) {
+    if (windows.notes.isMinimized()) {
+      windows.notes.restore();
+    }
+    windows.notes.show();
+    windows.notes.focus();
+    return;
+  }
+  const notesWidth = 560;
+  const notesHeight = 680;
+  const posX = Math.round(workArea.x + workArea.width - notesWidth - 36);
+  const posY = Math.round(workArea.y + 48);
+
+  windows.notes = createWindow('notes', {
+    title: 'Session Notes',
+    frame: true,
+    transparent: false,
+    hasShadow: true,
+    resizable: true,
+    width: notesWidth,
+    height: notesHeight,
+    x: posX,
+    y: posY,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    show: true,
+  });
+
+  windows.notes.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      windows.notes.hide();
+    }
+  });
+}
+
+function openOrFocusStudioWindow(show = true) {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const workArea = primaryDisplay.workArea;
+  const studioWidth = Math.min(1280, workArea.width - 40);
+  const studioHeight = Math.min(880, workArea.height - 40);
+
+  if (windows.studio && !windows.studio.isDestroyed()) {
+    if (show) {
+      if (windows.studio.isMinimized()) {
+        windows.studio.restore();
+      }
+      windows.studio.show();
+      windows.studio.focus();
+    }
+    return windows.studio;
+  }
+
+  windows.studio = createWindow('studio', {
+    title: 'Screen Studio - Review & Export',
+    width: studioWidth,
+    height: studioHeight,
+    x: Math.round(workArea.x + (workArea.width - studioWidth) / 2),
+    y: Math.round(workArea.y + (workArea.height - studioHeight) / 2),
+    frame: true,
+    transparent: false,
+    hasShadow: true,
+    resizable: true,
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    show,
+  });
+
+  windows.studio.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      windows.studio.hide();
+      Object.values(windows).forEach((win) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('overlay_event', {
+            event: 'sync_state',
+            payload: { recordingState: 'idle' },
+          });
+        }
+      });
+    }
+  });
+
+  return windows.studio;
+}
+
 function snapToolbarToCamera() {
   if (!windows.toolbar || !windows.camera) return;
   const camBounds = windows.camera.getBounds();
@@ -218,89 +315,8 @@ function createOverlayWindows() {
     show: false,
   });
 
-let isQuitting = false;
-app.on('before-quit', () => {
-  isQuitting = true;
-});
-
-function openOrFocusStudioWindow() {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const workArea = primaryDisplay.workArea;
-  const studioWidth = Math.min(1280, workArea.width - 40);
-  const studioHeight = Math.min(880, workArea.height - 40);
-
-  if (windows.studio && !windows.studio.isDestroyed()) {
-    if (windows.studio.isMinimized()) {
-      windows.studio.restore();
-    }
-    windows.studio.show();
-    windows.studio.focus();
-    return;
-  }
-
-  windows.studio = createWindow('studio', {
-    title: 'Screen Studio - Review & Export',
-    width: studioWidth,
-    height: studioHeight,
-    x: Math.round(workArea.x + (workArea.width - studioWidth) / 2),
-    y: Math.round(workArea.y + (workArea.height - studioHeight) / 2),
-    frame: true,
-    transparent: false,
-    hasShadow: true,
-    resizable: true,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    show: true,
-  });
-
-  windows.studio.on('close', (e) => {
-    if (!isQuitting) {
-      e.preventDefault();
-      windows.studio.hide();
-      Object.values(windows).forEach((win) => {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('overlay_event', {
-            event: 'sync_state',
-            payload: { recordingState: 'idle' },
-          });
-        }
-      });
-    }
-  });
-}
-
   // 6. Studio Review & Export Window (Hidden until recording finishes or opened)
-  const studioWidth = Math.min(1280, workArea.width - 40);
-  const studioHeight = Math.min(880, workArea.height - 40);
-  windows.studio = createWindow('studio', {
-    title: 'Screen Studio - Review & Export',
-    width: studioWidth,
-    height: studioHeight,
-    x: Math.round(workArea.x + (workArea.width - studioWidth) / 2),
-    y: Math.round(workArea.y + (workArea.height - studioHeight) / 2),
-    frame: true,
-    transparent: false,
-    hasShadow: true,
-    resizable: true,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    show: false,
-  });
-
-  windows.studio.on('close', (e) => {
-    if (!isQuitting) {
-      e.preventDefault();
-      windows.studio.hide();
-      Object.values(windows).forEach((win) => {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('overlay_event', {
-            event: 'sync_state',
-            payload: { recordingState: 'idle' },
-          });
-        }
-      });
-    }
-  });
+  openOrFocusStudioWindow(false);
 }
 
 function registerGlobalShortcuts() {
@@ -399,12 +415,52 @@ ipcMain.on('open_settings_window', () => {
   openOrFocusSettingsWindow();
 });
 
+ipcMain.on('open_studio_window', () => {
+  openOrFocusStudioWindow();
+});
+
+ipcMain.on('open_notes_window', () => {
+  openOrFocusNotesWindow();
+});
+
+ipcMain.on('toggle_notes_window', () => {
+  if (windows.notes && !windows.notes.isDestroyed() && windows.notes.isVisible()) {
+    windows.notes.hide();
+  } else {
+    openOrFocusNotesWindow();
+  }
+});
+
 ipcMain.on('overlay_event', (senderEvent, data) => {
   if (!data || !data.event) return;
 
   if (data.event === 'open_settings_window') {
     openOrFocusSettingsWindow();
     return;
+  }
+
+  if (data.event === 'open_studio_window') {
+    openOrFocusStudioWindow();
+    return;
+  }
+
+  if (data.event === 'open_notes_window') {
+    openOrFocusNotesWindow();
+    return;
+  }
+
+  if (data.event === 'toggle_notes_window') {
+    if (windows.notes && !windows.notes.isDestroyed() && windows.notes.isVisible()) {
+      windows.notes.hide();
+    } else {
+      openOrFocusNotesWindow();
+    }
+    return;
+  }
+
+  if (data.event === 'session_started' && data.payload?.sessionId) {
+    activeSessionId = data.payload.sessionId;
+    activeSessionDir = path.join(getStudioSubDir('projects'), activeSessionId);
   }
 
   // Broadcast to all other windows
@@ -508,6 +564,77 @@ ipcMain.on('overlay_event', (senderEvent, data) => {
 
 ipcMain.on('quit_app', () => {
   app.quit();
+});
+
+ipcMain.handle('get_active_session_info', () => {
+  const currentDir = activeSessionDir || (activeSessionId ? path.join(getStudioSubDir('projects'), activeSessionId) : path.join(getStudioSubDir('projects'), 'draft_notes'));
+  return {
+    sessionId: activeSessionId,
+    sessionDir: currentDir,
+    isRecording: isActivelyRecording,
+  };
+});
+
+ipcMain.handle('load_session_notes', async (_event, payload = {}) => {
+  try {
+    const targetSessionId = payload?.sessionId || activeSessionId;
+    let targetDir = payload?.sessionDir;
+    if (!targetDir) {
+      if (targetSessionId) {
+        targetDir = path.join(getStudioSubDir('projects'), targetSessionId);
+      } else {
+        targetDir = path.join(getStudioSubDir('projects'), 'draft_notes');
+      }
+    }
+    const resolvedDir = targetDir.startsWith('~/')
+      ? path.join(app.getPath('home'), targetDir.slice(2))
+      : targetDir;
+    const filePath = path.join(resolvedDir, 'notes.md');
+    if (fs.existsSync(filePath)) {
+      const content = await fs.promises.readFile(filePath, 'utf8');
+      return { success: true, content, filePath, sessionId: targetSessionId, exists: true };
+    }
+    return { success: true, content: '', filePath, sessionId: targetSessionId, exists: false };
+  } catch (err) {
+    return { success: false, error: err.message, content: '', exists: false };
+  }
+});
+
+ipcMain.handle('save_session_notes', async (_event, { sessionId, sessionDir, content = '' }) => {
+  try {
+    const targetSessionId = sessionId || activeSessionId;
+    let targetDir = sessionDir;
+    if (!targetDir) {
+      if (targetSessionId) {
+        targetDir = path.join(getStudioSubDir('projects'), targetSessionId);
+      } else {
+        targetDir = path.join(getStudioSubDir('projects'), 'draft_notes');
+      }
+    }
+    const resolvedDir = targetDir.startsWith('~/')
+      ? path.join(app.getPath('home'), targetDir.slice(2))
+      : targetDir;
+    if (!fs.existsSync(resolvedDir)) {
+      fs.mkdirSync(resolvedDir, { recursive: true });
+    }
+    const filePath = path.join(resolvedDir, 'notes.md');
+    await fs.promises.writeFile(filePath, content, 'utf8');
+
+    // Also update metadata.json if present in this session folder
+    const metaPath = path.join(resolvedDir, 'metadata.json');
+    if (fs.existsSync(metaPath)) {
+      try {
+        const meta = JSON.parse(await fs.promises.readFile(metaPath, 'utf8'));
+        meta.notes_file = 'notes.md';
+        meta.has_notes = Boolean(content.trim());
+        await fs.promises.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+      } catch {}
+    }
+
+    return { success: true, filePath, sessionId: targetSessionId, savedAt: Date.now() };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('select_directory', async (_event, defaultPath) => {
@@ -819,6 +946,7 @@ ipcMain.handle('list_sessions', async () => {
         const micPath = meta?.mic_track || path.join(sessionDir, 'audio_mic.wav');
         const sysPath = meta?.sys_audio_track || path.join(sessionDir, 'audio_system.wav');
         const telemetryPath = meta?.telemetry_file || path.join(sessionDir, 'telemetry.json');
+        const notesPath = path.join(sessionDir, 'notes.md');
 
         seenIds.add(sessionId);
         sessions.push({
@@ -831,6 +959,8 @@ ipcMain.handle('list_sessions', async () => {
           mic_track: fs.existsSync(micPath) ? micPath : '',
           sys_audio_track: fs.existsSync(sysPath) ? sysPath : '',
           telemetry_file: fs.existsSync(telemetryPath) ? telemetryPath : '',
+          notes_file: fs.existsSync(notesPath) ? notesPath : '',
+          has_notes: fs.existsSync(notesPath),
           screen_manifest: path.join(sessionDir, 'screen_manifest.ndjson'),
           camera_manifest: path.join(sessionDir, 'camera_manifest.ndjson'),
           mic_manifest: path.join(sessionDir, 'mic_manifest.ndjson'),
@@ -897,6 +1027,7 @@ ipcMain.handle('export_session_package', async (_event, { targetDir, sessionMeta
       { name: 'camera_alpha.webm', explicit: sessionMetadata?.cameraAlphaPath },
       { name: 'audio_mic.wav', explicit: sessionMetadata?.micAudioPath },
       { name: 'audio_system.wav', explicit: sessionMetadata?.sysAudioPath },
+      { name: 'notes.md', explicit: sessionMetadata?.notesPath || sessionMetadata?.notes_file },
     ];
 
     for (const track of mediaTracks) {

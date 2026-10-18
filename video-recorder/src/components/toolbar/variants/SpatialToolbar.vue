@@ -10,6 +10,7 @@ import {
   Volume2,
   VolumeX,
   PenTool,
+  FileText,
   Pause,
   Play,
   Minimize2,
@@ -48,6 +49,7 @@ const emit = defineEmits<{
   (e: 'openMicMenu'): void;
   (e: 'toggleSysAudio'): void;
   (e: 'toggleAnnotation'): void;
+  (e: 'openNotes'): void;
   (e: 'toggleLiveZoom'): void;
   (e: 'toggleDock'): void;
   (e: 'toggleCollapse'): void;
@@ -202,6 +204,15 @@ const emit = defineEmits<{
       <PenTool class="w-3.5 h-3.5" />
     </button>
 
+    <!-- Session Notes Toggle -->
+    <button
+      @click="emit('openNotes')"
+      class="w-9 h-9 rounded-full spatial-pill-btn text-amber-300 hover:text-amber-200 flex items-center justify-center transition"
+      title="Session Notes (Markdown WYSIWYG)"
+    >
+      <FileText class="w-3.5 h-3.5" />
+    </button>
+
     <button
       @click="emit('stopRecord')"
       class="h-9 px-4 rounded-full bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 shadow-md transition"
@@ -336,6 +347,15 @@ const emit = defineEmits<{
       title="System Audio"
     >
       <component :is="props.isSysAudioMuted ? VolumeX : Volume2" class="w-4 h-4" />
+    </button>
+
+    <!-- Session Notes Button (Idle State) -->
+    <button
+      @click="emit('openNotes')"
+      class="w-9 h-9 rounded-full spatial-pill-btn text-amber-300 hover:text-amber-200 flex items-center justify-center transition"
+      title="Session Notes (Markdown WYSIWYG)"
+    >
+      <FileText class="w-4 h-4" />
     </button>
 
     <!-- Theme / Settings Button -->
