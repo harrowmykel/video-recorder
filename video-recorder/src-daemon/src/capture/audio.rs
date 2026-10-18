@@ -11,6 +11,9 @@ pub struct AudioRecorder {
     chunks_dir: Option<PathBuf>,
     mic_manifest_path: Option<PathBuf>,
     sys_manifest_path: Option<PathBuf>,
+    current_mic_device: Option<String>,
+    mic_muted: bool,
+    sys_audio_muted: bool,
 }
 
 impl AudioRecorder {
@@ -23,6 +26,9 @@ impl AudioRecorder {
             chunks_dir: None,
             mic_manifest_path: None,
             sys_manifest_path: None,
+            current_mic_device: None,
+            mic_muted: false,
+            sys_audio_muted: false,
         }
     }
 
@@ -41,11 +47,123 @@ impl AudioRecorder {
             chunks_dir: Some(chunks_dir),
             mic_manifest_path: Some(mic_manifest_path),
             sys_manifest_path: Some(sys_manifest_path),
+            current_mic_device: None,
+            mic_muted: false,
+            sys_audio_muted: false,
         }
     }
 
     pub fn start(&mut self) -> Result<()> {
         self.start_with_options(false, false, None)
+    }
+
+    fn count_chunks(&self, prefix: &str, suffix: &str) -> usize {
+        if let Some(chunks_dir) = &self.chunks_dir {
+            if let Ok(entries) = std::fs::read_dir(chunks_dir) {
+                return entries
+                    .flatten()
+                    .filter(|e| {
+                        if let Some(name) = e.file_name().to_str() {
+                            name.starts_with(prefix) && name.ends_with(suffix)
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+            }
+        }
+        0
+    }
+
+    fn spawn_mic_recorder(&mut self, start_number: usize) -> Result<()> {
+        let mut mic_cmd = Command::new("ffmpeg");
+        mic_cmd.arg("-y");
+
+        #[cfg(target_os = "linux")]
+        {
+            let dev = self.current_mic_device.as_deref().filter(|d| !d.is_empty()).unwrap_or("default");
+            mic_cmd.args(["-f", "pulse", "-i", dev]);
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            let dev = self.current_mic_device.as_deref().filter(|d| !d.is_empty()).unwrap_or("audio=Microphone");
+            mic_cmd.args(["-f", "dshow", "-i", dev]);
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let dev = self.current_mic_device.as_deref().filter(|d| !d.is_empty()).unwrap_or(":0");
+            mic_cmd.args(["-f", "avfoundation", "-i", dev]);
+        }
+
+        mic_cmd.args(["-c:a", "pcm_s16le", "-ar", "48000"]);
+
+        if let Some(chunks_dir) = &self.chunks_dir {
+            mic_cmd.args([
+                "-f", "segment",
+                "-segment_time", "15",
+                "-segment_start_number", &start_number.to_string(),
+                "-segment_format", "wav",
+            ]);
+            let pattern = chunks_dir.join("mic_chunk_%04d.wav");
+            mic_cmd.arg(&pattern);
+        } else {
+            mic_cmd.arg(&self.mic_path);
+        }
+
+        mic_cmd.stdin(Stdio::piped());
+        mic_cmd.stdout(Stdio::null());
+        mic_cmd.stderr(Stdio::null());
+
+        if let Ok(child) = mic_cmd.spawn() {
+            self.mic_process = Some(child);
+        }
+        Ok(())
+    }
+
+    fn spawn_sys_recorder(&mut self, start_number: usize) -> Result<()> {
+        let mut sys_cmd = Command::new("ffmpeg");
+        sys_cmd.arg("-y");
+
+        #[cfg(target_os = "linux")]
+        {
+            sys_cmd.args(["-f", "pulse", "-i", "default.monitor"]);
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            sys_cmd.args(["-f", "dshow", "-i", "audio=Stereo Mix"]);
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            sys_cmd.args(["-f", "avfoundation", "-i", ":1"]);
+        }
+
+        sys_cmd.args(["-c:a", "pcm_s16le", "-ar", "48000"]);
+
+        if let Some(chunks_dir) = &self.chunks_dir {
+            sys_cmd.args([
+                "-f", "segment",
+                "-segment_time", "15",
+                "-segment_start_number", &start_number.to_string(),
+                "-segment_format", "wav",
+            ]);
+            let pattern = chunks_dir.join("sys_chunk_%04d.wav");
+            sys_cmd.arg(&pattern);
+        } else {
+            sys_cmd.arg(&self.sys_path);
+        }
+
+        sys_cmd.stdin(Stdio::piped());
+        sys_cmd.stdout(Stdio::null());
+        sys_cmd.stderr(Stdio::null());
+
+        if let Ok(child) = sys_cmd.spawn() {
+            self.sys_process = Some(child);
+        }
+        Ok(())
     }
 
     pub fn start_with_options(
@@ -54,84 +172,74 @@ impl AudioRecorder {
         sys_audio_muted: bool,
         mic_device: Option<&str>,
     ) -> Result<()> {
+        self.mic_muted = mic_muted;
+        self.sys_audio_muted = sys_audio_muted;
+        self.current_mic_device = mic_device.map(|s| s.to_string());
+
         if let Some(chunks_dir) = &self.chunks_dir {
             let _ = std::fs::create_dir_all(chunks_dir);
         }
 
-        if !mic_muted {
-            let mut mic_cmd = Command::new("ffmpeg");
-            mic_cmd.arg("-y");
-
-            #[cfg(target_os = "linux")]
-            {
-                let dev = mic_device.filter(|d| !d.is_empty()).unwrap_or("default");
-                mic_cmd.args(["-f", "pulse", "-i", dev]);
-            }
-
-            #[cfg(target_os = "windows")]
-            {
-                mic_cmd.args(["-f", "dshow", "-i", "audio=Microphone"]);
-            }
-
-            #[cfg(target_os = "macos")]
-            {
-                mic_cmd.args(["-f", "avfoundation", "-i", ":0"]);
-            }
-
-            mic_cmd.args(["-c:a", "pcm_s16le", "-ar", "48000"]);
-
-            if let Some(chunks_dir) = &self.chunks_dir {
-                mic_cmd.args(["-f", "segment", "-segment_time", "15", "-segment_format", "wav"]);
-                let pattern = chunks_dir.join("mic_chunk_%04d.wav");
-                mic_cmd.arg(&pattern);
-            } else {
-                mic_cmd.arg(&self.mic_path);
-            }
-
-            mic_cmd.stdin(Stdio::piped());
-            mic_cmd.stdout(Stdio::null());
-            mic_cmd.stderr(Stdio::null());
-
-            if let Ok(child) = mic_cmd.spawn() {
-                self.mic_process = Some(child);
-            }
+        if !self.mic_muted {
+            self.spawn_mic_recorder(0)?;
         }
 
-        if !sys_audio_muted {
-            let mut sys_cmd = Command::new("ffmpeg");
-            sys_cmd.arg("-y");
+        if !self.sys_audio_muted {
+            self.spawn_sys_recorder(0)?;
+        }
 
-            #[cfg(target_os = "linux")]
-            {
-                sys_cmd.args(["-f", "pulse", "-i", "default.monitor"]);
+        Ok(())
+    }
+
+    pub fn update_audio(
+        &mut self,
+        new_device: Option<&str>,
+        mic_muted: Option<bool>,
+        sys_muted: Option<bool>,
+    ) -> Result<()> {
+        let device_changed = match new_device {
+            Some(d) => self.current_mic_device.as_deref() != Some(d),
+            None => false,
+        };
+        if let Some(d) = new_device {
+            self.current_mic_device = Some(d.to_string());
+        }
+
+        if let Some(muted) = mic_muted {
+            if muted && !self.mic_muted {
+                self.mic_muted = true;
+                if let Some(child) = self.mic_process.take() {
+                    Self::stop_child_gracefully(child);
+                }
+            } else if !muted && self.mic_muted {
+                self.mic_muted = false;
+                let start_num = self.count_chunks("mic_chunk_", ".wav");
+                let _ = self.spawn_mic_recorder(start_num);
+            } else if !self.mic_muted && device_changed {
+                if let Some(child) = self.mic_process.take() {
+                    Self::stop_child_gracefully(child);
+                }
+                let start_num = self.count_chunks("mic_chunk_", ".wav");
+                let _ = self.spawn_mic_recorder(start_num);
             }
-
-            #[cfg(target_os = "windows")]
-            {
-                sys_cmd.args(["-f", "dshow", "-i", "audio=Stereo Mix"]);
+        } else if device_changed && !self.mic_muted {
+            if let Some(child) = self.mic_process.take() {
+                Self::stop_child_gracefully(child);
             }
+            let start_num = self.count_chunks("mic_chunk_", ".wav");
+            let _ = self.spawn_mic_recorder(start_num);
+        }
 
-            #[cfg(target_os = "macos")]
-            {
-                sys_cmd.args(["-f", "avfoundation", "-i", ":1"]);
-            }
-
-            sys_cmd.args(["-c:a", "pcm_s16le", "-ar", "48000"]);
-
-            if let Some(chunks_dir) = &self.chunks_dir {
-                sys_cmd.args(["-f", "segment", "-segment_time", "15", "-segment_format", "wav"]);
-                let pattern = chunks_dir.join("sys_chunk_%04d.wav");
-                sys_cmd.arg(&pattern);
-            } else {
-                sys_cmd.arg(&self.sys_path);
-            }
-
-            sys_cmd.stdin(Stdio::piped());
-            sys_cmd.stdout(Stdio::null());
-            sys_cmd.stderr(Stdio::null());
-
-            if let Ok(child) = sys_cmd.spawn() {
-                self.sys_process = Some(child);
+        if let Some(muted) = sys_muted {
+            if muted && !self.sys_audio_muted {
+                self.sys_audio_muted = true;
+                if let Some(child) = self.sys_process.take() {
+                    Self::stop_child_gracefully(child);
+                }
+            } else if !muted && self.sys_audio_muted {
+                self.sys_audio_muted = false;
+                let start_num = self.count_chunks("sys_chunk_", ".wav");
+                let _ = self.spawn_sys_recorder(start_num);
             }
         }
 
@@ -215,18 +323,27 @@ impl AudioRecorder {
             mic_files.sort();
 
             if let Some(manifest_path) = &self.mic_manifest_path {
+                let mut accumulated_mic_ms = 0u64;
                 for (idx, file) in mic_files.iter().enumerate() {
                     let file_size = std::fs::metadata(file).map(|m| m.len()).unwrap_or(0);
-                    let start_ms = (idx as u64) * 15000;
-                    let duration_ms = 15000;
+                    let data_bytes = file_size.saturating_sub(44);
+                    let duration_ms = if data_bytes > 0 {
+                        ((data_bytes as f64 / 96000.0) * 1000.0).round() as u64
+                    } else {
+                        15000
+                    };
+                    let start_ms = accumulated_mic_ms;
+                    let end_ms = start_ms + duration_ms;
+                    accumulated_mic_ms = end_ms;
+
                     let entry = crate::session::AudioChunkEntry {
                         chunk_id: format!("mic_chunk_{:04}", idx + 1),
                         start_ms,
-                        end_ms: start_ms + duration_ms,
+                        end_ms,
                         duration_ms,
                         chunk_type: "audio_mic".to_string(),
                         file: format!("chunks/{}", file.file_name().unwrap().to_string_lossy()),
-                        device: "default".to_string(),
+                        device: self.current_mic_device.clone().unwrap_or_else(|| "default".to_string()),
                         sample_rate: 48000,
                         channels: 1,
                         peak_level: 0.70,
@@ -272,14 +389,23 @@ impl AudioRecorder {
             sys_files.sort();
 
             if let Some(manifest_path) = &self.sys_manifest_path {
+                let mut accumulated_sys_ms = 0u64;
                 for (idx, file) in sys_files.iter().enumerate() {
                     let file_size = std::fs::metadata(file).map(|m| m.len()).unwrap_or(0);
-                    let start_ms = (idx as u64) * 15000;
-                    let duration_ms = 15000;
+                    let data_bytes = file_size.saturating_sub(44);
+                    let duration_ms = if data_bytes > 0 {
+                        ((data_bytes as f64 / 192000.0) * 1000.0).round() as u64
+                    } else {
+                        15000
+                    };
+                    let start_ms = accumulated_sys_ms;
+                    let end_ms = start_ms + duration_ms;
+                    accumulated_sys_ms = end_ms;
+
                     let entry = crate::session::AudioChunkEntry {
                         chunk_id: format!("sys_chunk_{:04}", idx + 1),
                         start_ms,
-                        end_ms: start_ms + duration_ms,
+                        end_ms,
                         duration_ms,
                         chunk_type: "audio_system".to_string(),
                         file: format!("chunks/{}", file.file_name().unwrap().to_string_lossy()),

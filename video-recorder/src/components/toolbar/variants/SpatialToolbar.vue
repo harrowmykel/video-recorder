@@ -120,20 +120,73 @@ const emit = defineEmits<{
       <span>{{ props.recordingState === 'recording' ? 'Pause' : 'Resume' }}</span>
     </button>
 
-    <button
-      @click="emit('toggleCamera')"
+    <!-- Camera Active Circular Pill + Picker -->
+    <div
       :class="[
-        'h-9 px-3 rounded-full text-xs font-medium flex items-center gap-1.5 transition',
-        props.isCameraDisabled
-          ? 'bg-rose-500/25 border border-rose-400/40 text-rose-200'
-          : props.isCameraHidden
-            ? 'bg-sky-400/25 border border-sky-300/40 text-sky-200'
-            : 'spatial-pill-btn text-white/80'
+        'flex items-center rounded-full p-0.5 pr-1.5 gap-1 transition',
+        !props.isCameraHidden
+          ? 'bg-sky-500/20 border border-sky-400/30'
+          : 'bg-sky-500/10 border border-sky-400/25'
       ]"
-      :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
     >
-      <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" :class="props.isCameraDisabled ? 'text-rose-300' : 'text-sky-300'" />
-      <span>{{ props.isCameraDisabled ? 'No Cam' : (props.isCameraHidden ? 'Show Cam' : 'Cam') }}</span>
+      <button
+        @click="emit('toggleCamera')"
+        :class="[
+          'w-8 h-8 rounded-full flex items-center justify-center shadow transition',
+          props.isCameraDisabled
+            ? 'bg-rose-500 text-white'
+            : !props.isCameraHidden ? 'bg-sky-400 text-slate-950' : 'bg-white/10 text-sky-300 hover:bg-white/20'
+        ]"
+        :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
+      >
+        <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" />
+      </button>
+      <button
+        @click="props.isCameraDisabled ? emit('toggleCamera') : (props.isCameraHidden ? emit('toggleCamera') : emit('openCameraMenu'))"
+        class="px-1 text-sky-100 hover:text-white flex items-center gap-0.5 text-[11px] font-semibold"
+        :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Choose Camera & Background')"
+      >
+        <span>{{ props.isCameraDisabled ? 'No Cam' : (props.isCameraHidden ? 'Show Cam' : 'Cam') }}</span>
+        <ChevronUp
+          @click.stop="emit('openCameraMenu')"
+          class="w-3 h-3"
+          title="Choose Camera & Background"
+        />
+      </button>
+    </div>
+
+    <!-- Mic Active Pill + Picker -->
+    <div
+      :class="[
+        'flex items-center rounded-full p-0.5 pr-2 gap-1.5 transition',
+        !props.isMicMuted
+          ? 'bg-emerald-500/15 border border-emerald-400/30'
+          : 'bg-white/5 border border-white/10 opacity-60'
+      ]"
+    >
+      <button
+        @click="emit('toggleMic')"
+        class="w-8 h-8 rounded-full bg-emerald-400 text-slate-950 flex items-center justify-center shadow"
+        title="Toggle Microphone"
+      >
+        <component :is="props.isMicMuted ? MicOff : Mic" class="w-3.5 h-3.5" />
+      </button>
+      <button
+        @click="emit('openMicMenu')"
+        class="text-white/80 hover:text-white flex items-center gap-0.5"
+        title="Choose Microphone"
+      >
+        <ChevronUp class="w-3 h-3" />
+      </button>
+    </div>
+
+    <!-- System Audio Circular Button -->
+    <button
+      @click="emit('toggleSysAudio')"
+      class="w-9 h-9 rounded-full spatial-pill-btn text-white/80 flex items-center justify-center transition"
+      title="System Audio"
+    >
+      <component :is="props.isSysAudioMuted ? VolumeX : Volume2" class="w-4 h-4" />
     </button>
 
     <button

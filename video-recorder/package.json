@@ -42,8 +42,8 @@
     ],
     "linux": {
       "target": [
-        // "deb",
-        // "tar.gz",
+        "deb",
+        "tar.gz",
         "AppImage"
       ],
       "category": "Video",
@@ -53,6 +53,19 @@
         "--no-sandbox"
       ]
     }
+  },
+  "build.linux": {
+    "target": [
+      "deb",
+      "tar.gz",
+      "AppImage"
+    ],
+    "category": "Video",
+    "icon": "build/icon.png",
+    "syncDesktopName": true,
+    "executableArgs": [
+      "--no-sandbox"
+    ]
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

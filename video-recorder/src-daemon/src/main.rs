@@ -102,6 +102,24 @@ async fn main() {
             warp::reply::json(&serde_json::json!({ "success": true, "is_paused": mgr.is_paused() }))
         });
 
+    // 5b. Update audio route (dynamic mic switching & mute toggles)
+    let sm_clone = session_manager.clone();
+    let update_audio_route = warp::path("update_audio")
+        .and(warp::post())
+        .and(warp::body::bytes())
+        .map(move |body_bytes: warp::hyper::body::Bytes| {
+            let req: crate::session::UpdateAudioRequest = if body_bytes.is_empty() {
+                crate::session::UpdateAudioRequest::default()
+            } else {
+                serde_json::from_slice(&body_bytes).unwrap_or_default()
+            };
+            let mut mgr = sm_clone.lock().unwrap();
+            match mgr.update_audio(req) {
+                Ok(_) => warp::reply::json(&serde_json::json!({ "success": true })),
+                Err(e) => warp::reply::json(&serde_json::json!({ "success": false, "error": e.to_string() })),
+            }
+        });
+
     // 6. Stop recording route (spawned off-thread to avoid blocking async runtime)
     let sm_clone = session_manager.clone();
     let stop_route = warp::path("stop")
@@ -278,6 +296,7 @@ async fn main() {
         .or(start_route)
         .or(pause_route)
         .or(resume_route)
+        .or(update_audio_route)
         .or(stop_route)
         .or(upload_camera_route)
         .or(upload_camera_chunk_route)

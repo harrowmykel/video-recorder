@@ -85,6 +85,10 @@ export async function invokeCommand<T>(cmd: string, args?: Record<string, unknow
       case 'resume_recording':
         endpoint = '/resume';
         break;
+      case 'update_audio':
+        endpoint = '/update_audio';
+        body = args || {};
+        break;
       case 'stop_recording':
         endpoint = '/stop';
         break;
@@ -198,6 +202,14 @@ export async function fetchCaptureSources(): Promise<{
       { id: 'win_terminal', title: 'Terminal — bash', appName: 'Terminal', x: 200, y: 120, width: 960, height: 640 },
     ],
   };
+}
+
+export async function updateAudioSettings(options: {
+  mic_device?: string;
+  mic_muted?: boolean;
+  sys_audio_muted?: boolean;
+}): Promise<{ success: boolean }> {
+  return invokeCommand<{ success: boolean }>('update_audio', options as Record<string, unknown>);
 }
 
 export async function uploadRecordedCameraTrack(blob: Blob): Promise<string | null> {

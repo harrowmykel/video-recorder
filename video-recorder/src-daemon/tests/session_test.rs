@@ -83,5 +83,14 @@ mod tests {
         assert!(cam_line.contains("\"bubble\":{\"custom_diameter\":null"));
         assert!(cam_line.contains("\"shape\":\"circle\""));
     }
+
+    #[test]
+    fn test_update_audio_request_deserialization() {
+        let json_payload = r#"{"mic_device":"usb_mic_card","mic_muted":true,"sys_audio_muted":false}"#;
+        let parsed: serde_json::Value = serde_json::from_str(json_payload).unwrap();
+        assert_eq!(parsed.get("mic_device").and_then(|v| v.as_str()), Some("usb_mic_card"));
+        assert_eq!(parsed.get("mic_muted").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(parsed.get("sys_audio_muted").and_then(|v| v.as_bool()), Some(false));
+    }
 }
 

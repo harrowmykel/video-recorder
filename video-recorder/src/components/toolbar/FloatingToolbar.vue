@@ -3,6 +3,7 @@ import { shallowRef, ref, computed, watch, onMounted, onUnmounted, useTemplateRe
 import type { RecordingState, CaptureSourceMode, DisplaySourceInfo, WindowSourceInfo } from '../../types/studio';
 import {
   invokeCommand,
+  updateAudioSettings,
   moveOverlayWindow,
   resizeOverlayWindow,
   fetchCaptureSources,
@@ -16,6 +17,7 @@ import { useMediaDevices } from '../../composables/useMediaDevices';
 import {
   Video,
   Mic,
+  MicOff,
   Check,
   Sparkles,
   Upload,
@@ -179,6 +181,29 @@ watch(
   },
   { immediate: true }
 );
+
+// Synchronize mic device hot-swap and mute state with daemon in real-time
+watch(
+  [selectedMicId, isMicMuted, isSysAudioMuted],
+  async ([micId, micMuted, sysMuted]) => {
+    if (recordingState.value === 'recording' || recordingState.value === 'paused') {
+      try {
+        await updateAudioSettings({
+          mic_device: micId,
+          mic_muted: micMuted,
+          sys_audio_muted: sysMuted,
+        });
+      } catch (err) {
+        console.warn('[FloatingToolbar] updateAudioSettings failed:', err);
+      }
+    }
+  }
+);
+
+watch(selectedMicId, (newMicId) => {
+  stopMicMeter();
+  startMicMeter(newMicId);
+});
 
 onMounted(() => {
   initTheme();
@@ -489,14 +514,29 @@ const activeToolbarVariant = computed(() => {
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2 text-xs font-bold">
           <Mic class="w-4 h-4 text-emerald-400" />
-          <span>Choose Microphone Input</span>
+          <span>Microphone Input</span>
         </div>
-        <button
-          @click="activePopover = null"
-          class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
-        >
-          <X class="w-3.5 h-3.5" />
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button
+            @click="isMicMuted = !isMicMuted"
+            :class="[
+              'px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition',
+              isMicMuted
+                ? 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-400/40 text-rose-300'
+                : 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-300'
+            ]"
+            :title="isMicMuted ? 'Unmute Microphone' : 'Mute Microphone'"
+          >
+            <component :is="isMicMuted ? MicOff : Mic" class="w-3 h-3" />
+            <span>{{ isMicMuted ? 'Muted' : 'Live' }}</span>
+          </button>
+          <button
+            @click="activePopover = null"
+            class="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white"
+          >
+            <X class="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       <div class="space-y-1 max-h-40 overflow-y-auto">

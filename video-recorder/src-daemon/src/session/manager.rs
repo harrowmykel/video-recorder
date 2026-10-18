@@ -25,6 +25,13 @@ pub struct StartRecordingRequest {
     pub mic_device: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UpdateAudioRequest {
+    pub mic_device: Option<String>,
+    pub mic_muted: Option<bool>,
+    pub sys_audio_muted: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMetadata {
     pub id: String,
@@ -250,6 +257,17 @@ impl SessionManager {
         }
         self.is_paused = false;
         println!("[SessionManager] Resumed active session");
+    }
+
+    pub fn update_audio(&mut self, req: UpdateAudioRequest) -> Result<()> {
+        if let Some(r) = &mut self.audio_recorder {
+            r.update_audio(
+                req.mic_device.as_deref(),
+                req.mic_muted,
+                req.sys_audio_muted,
+            )?;
+        }
+        Ok(())
     }
 
     pub fn stop(&mut self) -> Result<Option<SessionMetadata>> {
@@ -564,4 +582,30 @@ pub fn list_recorded_sessions(base_dir: &Path) -> Vec<SessionMetadata> {
     }
     list.sort_by(|a, b| b.id.cmp(&a.id));
     list
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_update_audio_request_struct() {
+        let json_payload = r#"{"mic_device":"pulse_usb_card","mic_muted":true,"sys_audio_muted":false}"#;
+        let req: UpdateAudioRequest = serde_json::from_str(json_payload).unwrap();
+        assert_eq!(req.mic_device.as_deref(), Some("pulse_usb_card"));
+        assert_eq!(req.mic_muted, Some(true));
+        assert_eq!(req.sys_audio_muted, Some(false));
+    }
+
+    #[test]
+    fn test_update_audio_on_idle_manager() {
+        let mut mgr = SessionManager::default();
+        let req = UpdateAudioRequest {
+            mic_device: Some("mic_1".to_string()),
+            mic_muted: Some(false),
+            sys_audio_muted: Some(true),
+        };
+        let res = mgr.update_audio(req);
+        assert!(res.is_ok());
+    }
 }

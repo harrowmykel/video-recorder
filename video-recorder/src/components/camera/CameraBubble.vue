@@ -157,6 +157,13 @@ watch(
   }
 );
 
+watch(recordingState, (state) => {
+  if (state === 'idle') {
+    recordingStartEpoch = 0;
+    chunkIndex = 1;
+  }
+});
+
 function resolveSupportedMimeType(): string | undefined {
   if (typeof MediaRecorder === 'undefined') return undefined;
   const candidates = [
@@ -232,9 +239,11 @@ function startCanvasRecording() {
   try {
     recordedChunks = [];
     currentChunkBlobs = [];
-    chunkIndex = 1;
-    recordingStartEpoch = Date.now();
-    chunkStartEpoch = recordingStartEpoch;
+    if (!recordingStartEpoch) {
+      recordingStartEpoch = Date.now();
+      chunkIndex = 1;
+    }
+    chunkStartEpoch = Date.now();
     chunkKeyframes = [];
 
     const stream = canvasRef.value.captureStream(30);

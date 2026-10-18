@@ -3,6 +3,7 @@ import {
   Video,
   VideoOff,
   Mic,
+  MicOff,
   Volume2,
   VolumeX,
   PenTool,
@@ -114,20 +115,65 @@ const emit = defineEmits<{
       <span>{{ props.recordingState === 'recording' ? 'HOLD' : 'RUN' }}</span>
     </button>
 
+    <!-- Hardware Toggle Push-Keys (Camera, Mic, Sys Audio) -->
+    <div class="flex items-center rounded tactile-key overflow-hidden">
+      <button
+        @click="emit('toggleCamera')"
+        :class="[
+          'h-9 px-2 text-xs flex items-center gap-1 transition',
+          props.isCameraDisabled
+            ? 'text-rose-400'
+            : !props.isCameraHidden
+              ? 'text-zinc-200'
+              : 'text-[#ff5500]'
+        ]"
+        :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
+      >
+        <span
+          class="w-1.5 h-1.5 rounded-full"
+          :class="props.isCameraDisabled ? 'bg-rose-500' : (!props.isCameraHidden ? 'bg-[#00e676]' : 'bg-[#ff5500]')"
+        ></span>
+        <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" />
+        <span>{{ props.isCameraDisabled ? 'NO CAM' : (props.isCameraHidden ? 'SHOW CAM' : 'CAM') }}</span>
+      </button>
+      <button
+        @click="emit('openCameraMenu')"
+        class="h-9 px-1 border-l border-zinc-700 text-zinc-400 hover:text-white flex items-center"
+        title="Choose Camera & Background"
+      >
+        <ChevronUp class="w-3 h-3" />
+      </button>
+    </div>
+
+    <div class="flex items-center rounded tactile-key overflow-hidden">
+      <button
+        @click="emit('toggleMic')"
+        :class="[
+          'h-9 px-2 text-xs text-zinc-200 flex items-center gap-1',
+          !props.isMicMuted ? '' : 'opacity-50'
+        ]"
+        title="Toggle Microphone"
+      >
+        <span class="w-1.5 h-1.5 rounded-full" :class="!props.isMicMuted ? 'bg-[#00e676]' : 'bg-zinc-600'"></span>
+        <component :is="props.isMicMuted ? MicOff : Mic" class="w-3.5 h-3.5" />
+        <span>{{ props.isMicMuted ? 'MUTED' : 'MIC' }}</span>
+      </button>
+      <button
+        @click="emit('openMicMenu')"
+        class="h-9 px-1 border-l border-zinc-700 text-zinc-400 hover:text-white flex items-center"
+        title="Choose Microphone"
+      >
+        <ChevronUp class="w-3 h-3" />
+      </button>
+    </div>
+
+    <!-- System Audio -->
     <button
-      @click="emit('toggleCamera')"
-      :class="[
-        'h-9 px-2.5 rounded tactile-key text-xs font-mono flex items-center gap-1.5 transition',
-        props.isCameraDisabled
-          ? 'border-rose-500/50 text-rose-400'
-          : props.isCameraHidden
-            ? 'border-[#ff5500] text-[#ff5500]'
-            : 'text-zinc-300'
-      ]"
-      :title="props.isCameraDisabled ? 'Camera Disabled (Click to Enable)' : (props.isCameraHidden ? 'Show Camera Bubble' : 'Hide Camera Bubble')"
+      @click="emit('toggleSysAudio')"
+      class="h-9 px-2 rounded tactile-key text-xs font-mono text-zinc-300 flex items-center gap-1"
+      :title="props.isSysAudioMuted ? 'System Audio Muted' : 'System Audio Active'"
     >
-      <component :is="(props.isCameraDisabled || props.isCameraHidden) ? VideoOff : Video" class="w-3.5 h-3.5" :class="props.isCameraDisabled ? 'text-rose-400' : ''" />
-      <span>{{ props.isCameraDisabled ? 'NO CAM' : (props.isCameraHidden ? 'SHOW CAM' : 'CAM') }}</span>
+      <component :is="props.isSysAudioMuted ? VolumeX : Volume2" class="w-3.5 h-3.5" />
     </button>
 
     <button
