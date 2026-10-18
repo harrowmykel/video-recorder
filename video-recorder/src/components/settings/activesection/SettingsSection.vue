@@ -11,6 +11,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'openAreaPicker'): void;
+  (e: 'openBackgrounds'): void;
+  (e: 'navigate', section: 'workspace' | 'settings' | 'backgrounds' | 'ai_studio' | 'sessions'): void;
 }>();
 </script>
 
@@ -22,8 +24,8 @@ const emit = defineEmits<{
         <!-- Column 1: Screen Capture Source -->
         <CaptureSourceColumn @open-area-picker="emit('openAreaPicker')" />
 
-        <!-- Column 2: Camera Device & Real-Time Background Settings -->
-        <CameraBackgroundColumn />
+        <!-- Column 2: Camera Device & More Settings Link -->
+        <CameraBackgroundColumn @open-backgrounds="emit('openBackgrounds')" />
 
         <!-- Column 3: Audio & Microphone Devices -->
         <AudioDevicesColumn :audio-volume="props.audioVolume" />

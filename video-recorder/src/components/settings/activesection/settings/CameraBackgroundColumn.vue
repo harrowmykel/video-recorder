@@ -1,35 +1,25 @@
 <script setup lang="ts">
-import { useTemplateRef } from 'vue';
 import {
   Video,
   VideoOff,
   Check,
   RefreshCw,
   Sparkles,
-  Upload,
+  ChevronRight,
 } from 'lucide-vue-next';
 import { useStudioState } from '@/composables/useStudioState';
 import { useMediaDevices } from '@/composables/useMediaDevices';
 
+const emit = defineEmits<{
+  (e: 'openBackgrounds'): void;
+}>();
+
 const {
   isCameraHidden,
   selectedCameraId,
-  bgMode,
-  bgImageUrl,
-  bgPresets,
-  setCustomBgImageFromFile,
 } = useStudioState();
 
 const { cameras, refreshDevices } = useMediaDevices();
-const bgUploadInput = useTemplateRef<HTMLInputElement>('bgUploadInput');
-
-async function handleBgImageFileChange(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (file) {
-    await setCustomBgImageFromFile(file);
-  }
-}
 </script>
 
 <template>
@@ -41,8 +31,8 @@ async function handleBgImageFileChange(e: Event) {
           <Video class="w-4 h-4" />
         </div>
         <div>
-          <h3 class="text-sm font-bold text-white">2. Camera & Background</h3>
-          <p class="text-[11px] text-white/50">Camera hardware & virtual backdrop</p>
+          <h3 class="text-sm font-bold text-white">2. Camera</h3>
+          <p class="text-[11px] text-white/50">Camera hardware & input source</p>
         </div>
       </div>
       <button @click="refreshDevices(true)"
@@ -86,62 +76,16 @@ async function handleBgImageFileChange(e: Event) {
       </div>
     </div>
 
-    <!-- Real-Time Background Setting (beneath camera devices like in popup) -->
+    <!-- Action button to open Real-Time BG tab (activeSection = 'backgrounds') -->
     <div class="pt-3 border-t border-white/10">
-      <div v-if="selectedCameraId !== 'none'" class="space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] font-mono uppercase tracking-wider text-white/50 flex items-center gap-1.5">
-            <Sparkles class="w-3.5 h-3.5 text-rose-400" />
-            <span>Real-Time Background Mode</span>
-          </span>
-          <button @click="bgUploadInput?.click()"
-            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition shadow-sm">
-            <Upload class="w-3 h-3" />
-            <span>Upload BG</span>
-          </button>
-          <input ref="bgUploadInput" type="file" accept="image/*" class="hidden" @change="handleBgImageFileChange" />
+      <button @click="emit('openBackgrounds')"
+        class="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white text-xs font-semibold flex items-center justify-between transition group shadow-sm">
+        <div class="flex items-center gap-2">
+          <Sparkles class="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+          <span>More camera settings</span>
         </div>
-
-        <!-- Background Mode Switcher (off, blur, cutout, image, gradient) -->
-        <div class="grid grid-cols-5 gap-1.5">
-          <button v-for="mode in (['off', 'blur', 'transparent', 'image', 'gradient'] as const)" :key="mode"
-            @click="bgMode = mode" :class="[
-              'py-1.5 px-1.5 rounded-xl text-[11px] font-semibold capitalize border transition text-center',
-              bgMode === mode
-                ? 'bg-rose-500 text-white border-rose-400 shadow'
-                : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
-            ]">
-            {{ mode === 'transparent' ? 'Cutout' : mode }}
-          </button>
-        </div>
-
-        <!-- Preset Studio Background Images Strip -->
-        <div class="space-y-1">
-          <span class="text-[10px] font-mono uppercase text-white/40 block">Studio Presets</span>
-          <div class="grid grid-cols-4 gap-2">
-            <button v-for="preset in bgPresets" :key="preset.id"
-              @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value;"
-              class="h-12 rounded-xl border border-white/15 hover:border-white/50 overflow-hidden relative group transition"
-              :style="{ background: preset.thumbnail }" :title="preset.name">
-              <span
-                class="absolute inset-x-0 bottom-0 bg-black/75 text-[9px] text-white font-medium py-0.5 truncate px-1">
-                {{ preset.name }}
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Placeholder when Camera is Disabled -->
-      <div v-else class="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 text-center space-y-1.5">
-        <div class="flex items-center justify-center gap-1.5 text-xs font-semibold text-rose-300">
-          <VideoOff class="w-3.5 h-3.5" />
-          <span>Camera Recording Disabled</span>
-        </div>
-        <p class="text-[11px] text-white/50">
-          Select a camera device above to enable camera PiP, virtual backgrounds, and cutout modes.
-        </p>
-      </div>
+        <ChevronRight class="w-4 h-4 text-white/40 group-hover:text-white transition-colors" />
+      </button>
     </div>
   </div>
 </template>

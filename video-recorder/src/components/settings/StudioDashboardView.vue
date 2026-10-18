@@ -193,7 +193,8 @@ onMounted(() => {
 
     <!-- SECTION 2: Settings & Devices Control Center -->
     <SettingsSection v-else-if="activeSection === 'settings'" :audio-volume="props.audioVolume"
-      @open-area-picker="emit('openAreaPicker')" />
+      @open-area-picker="emit('openAreaPicker')" @open-backgrounds="activeSection = 'backgrounds'"
+      @navigate="(s) => activeSection = s" />
 
     <!-- SECTION 3: Real-Time Camera Background Studio -->
     <BackgroundsSection v-else-if="activeSection === 'backgrounds'" :audio-volume="props.audioVolume" />
