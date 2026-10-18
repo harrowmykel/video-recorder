@@ -9,11 +9,11 @@ import {
   Sparkles,
   Film,
 } from 'lucide-vue-next';
-import WorkspaceSection from '../activesection/WorkspaceSection.vue';
-import SettingsSection from '../activesection/SettingsSection.vue';
-import BackgroundsSection from '../activesection/BackgroundsSection.vue';
-import AiStudioSection from '../activesection/AiStudioSection.vue';
-import SessionsSection from '../activesection/SessionsSection.vue';
+import WorkspaceSection from './activesection/WorkspaceSection.vue';
+import SettingsSection from './activesection/SettingsSection.vue';
+import BackgroundsSection from './activesection/BackgroundsSection.vue';
+import AiStudioSection from './activesection/AiStudioSection.vue';
+import SessionsSection from './activesection/SessionsSection.vue';
 import { useStudioState } from '../../composables/useStudioState';
 import {
   fetchRecordedSessions,
@@ -186,42 +186,23 @@ onMounted(() => {
     </header>
 
     <!-- SECTION 1: Interactive Workspace Preview -->
-    <WorkspaceSection
-      v-if="activeSection === 'workspace'"
-      :audio-volume="props.audioVolume"
-      @navigate="(s) => activeSection = s"
-      @toggle-camera="emit('toggleCamera')"
-      @toggle-dock="emit('toggleDock')"
-      @toggle-annotation="emit('toggleAnnotation')"
-      @toggle-live-zoom="emit('toggleLiveZoom')"
-      @open-area-picker="emit('openAreaPicker')"
-    />
+    <WorkspaceSection v-if="activeSection === 'workspace'" :audio-volume="props.audioVolume"
+      @navigate="(s) => activeSection = s" @toggle-camera="emit('toggleCamera')" @toggle-dock="emit('toggleDock')"
+      @toggle-annotation="emit('toggleAnnotation')" @toggle-live-zoom="emit('toggleLiveZoom')"
+      @open-area-picker="emit('openAreaPicker')" />
 
     <!-- SECTION 2: Settings & Devices Control Center -->
-    <SettingsSection
-      v-else-if="activeSection === 'settings'"
-      :audio-volume="props.audioVolume"
-      @open-area-picker="emit('openAreaPicker')"
-    />
+    <SettingsSection v-else-if="activeSection === 'settings'" :audio-volume="props.audioVolume"
+      @open-area-picker="emit('openAreaPicker')" />
 
     <!-- SECTION 3: Real-Time Camera Background Studio -->
-    <BackgroundsSection
-      v-else-if="activeSection === 'backgrounds'"
-      :audio-volume="props.audioVolume"
-    />
+    <BackgroundsSection v-else-if="activeSection === 'backgrounds'" :audio-volume="props.audioVolume" />
 
     <!-- SECTION 4: AI Batch Background Remover Studio -->
-    <AiStudioSection
-      v-else-if="activeSection === 'ai_studio'"
-    />
+    <AiStudioSection v-else-if="activeSection === 'ai_studio'" />
 
     <!-- SECTION 5: Undeleted Project Sessions Browser -->
-    <SessionsSection
-      v-else-if="activeSection === 'sessions'"
-      :sessions-list="sessionsList"
-      :is-loading-sessions="isLoadingSessions"
-      :projects-base-dir="projectsBaseDir"
-      @refresh="loadSessions"
-    />
+    <SessionsSection v-else-if="activeSection === 'sessions'" :sessions-list="sessionsList"
+      :is-loading-sessions="isLoadingSessions" :projects-base-dir="projectsBaseDir" @refresh="loadSessions" />
   </div>
 </template>

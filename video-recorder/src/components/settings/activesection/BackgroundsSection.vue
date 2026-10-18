@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useTemplateRef } from 'vue';
 import { Sparkles, Upload, Video, VideoOff } from 'lucide-vue-next';
-import CameraBubble from '../camera/CameraBubble.vue';
-import { useStudioState } from '../../composables/useStudioState';
-import { useMediaDevices } from '../../composables/useMediaDevices';
+import CameraBubble from '../../camera/CameraBubble.vue';
+import { useStudioState } from '../../../composables/useStudioState.ts';
+import { useMediaDevices } from '../../../composables/useMediaDevices.ts';
 
 const props = defineProps<{
   audioVolume: number;
@@ -95,8 +95,7 @@ async function handleBgDrop(e: DragEvent) {
             <span class="px-3.5 py-1.5 rounded-xl bg-indigo-500 text-white text-xs font-semibold shadow">
               Choose Image...
             </span>
-            <input ref="bgUploadInput" type="file" accept="image/*" class="hidden"
-              @change="handleBgImageFileChange" />
+            <input ref="bgUploadInput" type="file" accept="image/*" class="hidden" @change="handleBgImageFileChange" />
           </div>
         </div>
 
@@ -107,8 +106,7 @@ async function handleBgDrop(e: DragEvent) {
             <button v-for="preset in bgPresets" :key="preset.id"
               @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value;"
               class="h-20 rounded-2xl border border-white/15 hover:border-white/60 overflow-hidden relative group transition shadow-lg"
-              :style="{ background: preset.thumbnail }"
-              :title="preset.name">
+              :style="{ background: preset.thumbnail }" :title="preset.name">
               <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition" />
               <span
                 class="absolute inset-x-0 bottom-0 bg-black/75 text-[10px] text-white font-semibold py-1 px-2 truncate">

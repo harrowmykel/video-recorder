@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Monitor, Check } from 'lucide-vue-next';
-import { useTheme } from '../../../composables/useTheme';
-import { THEME_LIST, StudioTheme } from '../../../themes';
+import { useTheme } from '../../../../composables/useTheme';
+import { THEME_LIST, StudioTheme } from '../../../../themes';
 
 const { currentTheme, setTheme } = useTheme();
 

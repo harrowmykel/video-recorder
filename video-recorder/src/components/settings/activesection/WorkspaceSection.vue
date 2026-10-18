@@ -2,7 +2,7 @@
 import { Sparkles } from 'lucide-vue-next';
 import FloatingToolbar from '../toolbar/FloatingToolbar.vue';
 import CameraBubble from '../camera/CameraBubble.vue';
-import { useStudioState } from '../../composables/useStudioState';
+import { useStudioState } from '../../../composables/useStudioState.ts';
 
 const props = defineProps<{
   audioVolume: number;
@@ -80,10 +80,9 @@ const {
     <div v-if="!isDockedToCamera" class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30">
       <FloatingToolbar v-model:recording-state="recordingState" :is-camera-hidden="isCameraHidden"
         :is-docked-to-camera="isDockedToCamera" :is-annotation-active="isAnnotationActive"
-        :is-live-zoom-active="isLiveZoomActive" @toggle-camera="emit('toggleCamera')"
-        @toggle-dock="emit('toggleDock')" @toggle-annotation="emit('toggleAnnotation')"
-        @toggle-live-zoom="emit('toggleLiveZoom')" @open-settings-modal="emit('navigate', 'settings')"
-        @open-area-picker="emit('openAreaPicker')" />
+        :is-live-zoom-active="isLiveZoomActive" @toggle-camera="emit('toggleCamera')" @toggle-dock="emit('toggleDock')"
+        @toggle-annotation="emit('toggleAnnotation')" @toggle-live-zoom="emit('toggleLiveZoom')"
+        @open-settings-modal="emit('navigate', 'settings')" @open-area-picker="emit('openAreaPicker')" />
     </div>
   </main>
 </template>

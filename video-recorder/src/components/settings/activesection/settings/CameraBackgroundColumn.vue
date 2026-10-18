@@ -8,8 +8,8 @@ import {
   Sparkles,
   Upload,
 } from 'lucide-vue-next';
-import { useStudioState } from '../../../composables/useStudioState';
-import { useMediaDevices } from '../../../composables/useMediaDevices';
+import { useStudioState } from '../../../../composables/useStudioState';
+import { useMediaDevices } from '../../../../composables/useMediaDevices';
 
 const {
   isCameraHidden,
@@ -94,35 +94,23 @@ async function handleBgImageFileChange(e: Event) {
             <Sparkles class="w-3.5 h-3.5 text-rose-400" />
             <span>Real-Time Background Mode</span>
           </span>
-          <button
-            @click="bgUploadInput?.click()"
-            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition shadow-sm"
-          >
+          <button @click="bgUploadInput?.click()"
+            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition shadow-sm">
             <Upload class="w-3 h-3" />
             <span>Upload BG</span>
           </button>
-          <input
-            ref="bgUploadInput"
-            type="file"
-            accept="image/*"
-            class="hidden"
-            @change="handleBgImageFileChange"
-          />
+          <input ref="bgUploadInput" type="file" accept="image/*" class="hidden" @change="handleBgImageFileChange" />
         </div>
 
         <!-- Background Mode Switcher (off, blur, cutout, image, gradient) -->
         <div class="grid grid-cols-5 gap-1.5">
-          <button
-            v-for="mode in (['off', 'blur', 'transparent', 'image', 'gradient'] as const)"
-            :key="mode"
-            @click="bgMode = mode"
-            :class="[
+          <button v-for="mode in (['off', 'blur', 'transparent', 'image', 'gradient'] as const)" :key="mode"
+            @click="bgMode = mode" :class="[
               'py-1.5 px-1.5 rounded-xl text-[11px] font-semibold capitalize border transition text-center',
               bgMode === mode
                 ? 'bg-rose-500 text-white border-rose-400 shadow'
                 : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
-            ]"
-          >
+            ]">
             {{ mode === 'transparent' ? 'Cutout' : mode }}
           </button>
         </div>
@@ -131,15 +119,12 @@ async function handleBgImageFileChange(e: Event) {
         <div class="space-y-1">
           <span class="text-[10px] font-mono uppercase text-white/40 block">Studio Presets</span>
           <div class="grid grid-cols-4 gap-2">
-            <button
-              v-for="preset in bgPresets"
-              :key="preset.id"
+            <button v-for="preset in bgPresets" :key="preset.id"
               @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value;"
               class="h-12 rounded-xl border border-white/15 hover:border-white/50 overflow-hidden relative group transition"
-              :style="{ background: preset.thumbnail }"
-              :title="preset.name"
-            >
-              <span class="absolute inset-x-0 bottom-0 bg-black/75 text-[9px] text-white font-medium py-0.5 truncate px-1">
+              :style="{ background: preset.thumbnail }" :title="preset.name">
+              <span
+                class="absolute inset-x-0 bottom-0 bg-black/75 text-[9px] text-white font-medium py-0.5 truncate px-1">
                 {{ preset.name }}
               </span>
             </button>

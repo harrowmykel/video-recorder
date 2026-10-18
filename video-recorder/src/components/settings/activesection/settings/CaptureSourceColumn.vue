@@ -7,9 +7,9 @@ import {
   Check,
   RefreshCw,
 } from 'lucide-vue-next';
-import { useStudioState } from '../../../composables/useStudioState';
-import { fetchCaptureSources } from '../../../lib/tauriBridge';
-import type { DisplaySourceInfo, WindowSourceInfo } from '../../../types/studio';
+import { useStudioState } from '../../../../composables/useStudioState';
+import { fetchCaptureSources } from '../../../../lib/tauriBridge';
+import type { DisplaySourceInfo, WindowSourceInfo } from '../../../../types/studio';
 
 const emit = defineEmits<{
   (e: 'openAreaPicker'): void;
@@ -117,7 +117,8 @@ onMounted(() => {
 
     <!-- Windows List -->
     <div v-else-if="captureSourceMode === 'window'" class="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-      <span class="text-[10px] font-mono uppercase text-white/40 block">Open Desktop Windows ({{ windows.length }})</span>
+      <span class="text-[10px] font-mono uppercase text-white/40 block">Open Desktop Windows ({{ windows.length
+        }})</span>
       <button v-for="w in windows" :key="w.id"
         @click="selectedWindowId = w.id; selectedWindowTitle = w.title; captureArea = { x: w.x, y: w.y, width: w.width, height: w.height }"
         :class="[
