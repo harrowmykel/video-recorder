@@ -112,6 +112,7 @@ export interface BatchMattingJob {
   etaSeconds: number;
   outputFormat: 'prores_4444' | 'webm_alpha' | 'luma_matte';
   outputPath?: string;
+  errorMessage?: string;
 }
 
 export type AnnotationTool = 'select' | 'pen' | 'arrow' | 'rect' | 'badge' | 'spotlight';

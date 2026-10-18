@@ -6,6 +6,7 @@ export interface ElectronOverlayAPI {
   send: (channel: string, payload?: unknown) => void;
   invoke?: (channel: string, payload?: unknown) => Promise<any>;
   on: (channel: string, callback: (payload: any) => void) => () => void;
+  getPathForFile?: (file: File) => string;
 }
 
 declare global {
@@ -500,6 +501,54 @@ export async function openExportDirectory(targetPath: string): Promise<{ success
     }
   }
   return { success: false, error: 'Opening folder in system file manager is available in the Desktop overlay.' };
+}
+
+export async function revealInFolder(targetPath: string): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      return await window.__ELECTRON_OVERLAY__.invoke('reveal_in_folder', targetPath);
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+  return openExportDirectory(targetPath);
+}
+
+export async function selectVideoFiles(): Promise<string[]> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const files = await window.__ELECTRON_OVERLAY__.invoke('select_video_files');
+      if (Array.isArray(files)) return files;
+    } catch (e) {
+      console.warn('[selectVideoFiles] error:', e);
+    }
+  }
+  return [];
+}
+
+export async function getFilePathForFile(file: File): Promise<string> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.getPathForFile) {
+    try {
+      const p = window.__ELECTRON_OVERLAY__.getPathForFile(file);
+      if (p) return p;
+    } catch {}
+  }
+  if ((file as unknown as { path?: string }).path) {
+    return (file as unknown as { path?: string }).path!;
+  }
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const savedPath = await window.__ELECTRON_OVERLAY__.invoke('save_dropped_file', {
+        fileName: file.name,
+        buffer: arrayBuffer,
+      });
+      if (savedPath) return savedPath;
+    } catch (e) {
+      console.warn('[getFilePathForFile] Failed to save dropped file buffer:', e);
+    }
+  }
+  return '';
 }
 
 export async function getCameraTelemetry(): Promise<any[]> {

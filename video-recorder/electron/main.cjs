@@ -464,6 +464,41 @@ ipcMain.handle('open_path', async (_event, targetPath) => {
   }
 });
 
+ipcMain.handle('reveal_in_folder', async (_event, filePath) => {
+  if (!filePath) return { success: false, error: 'Target path required' };
+  try {
+    const resolved = filePath.startsWith('~/')
+      ? path.join(app.getPath('home'), filePath.slice(2))
+      : filePath;
+    shell.showItemInFolder(resolved);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('select_video_files', async () => {
+  const primaryWin = windows.studio || windows.toolbar || null;
+  const result = await dialog.showOpenDialog(primaryWin, {
+    title: 'Select Video Files for Background Removal',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Video Files', extensions: ['mp4', 'mov', 'webm', 'mkv', 'avi'] },
+    ],
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return [];
+  }
+  return result.filePaths;
+});
+
+ipcMain.handle('save_dropped_file', async (_event, { fileName, buffer }) => {
+  const targetDir = getStudioSubDir('bg-remover');
+  const destPath = path.join(targetDir, fileName);
+  await fs.promises.writeFile(destPath, Buffer.from(buffer));
+  return destPath;
+});
+
 ipcMain.handle('get_camera_telemetry', () => {
   return recordedCameraTelemetry;
 });

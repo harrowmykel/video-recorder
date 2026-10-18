@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, onUnmounted, useTemplateRef } from 'vue';
+import { ref, shallowRef, onMounted, useTemplateRef } from 'vue';
 import {
   UploadCloud,
   Sparkles,
@@ -9,14 +9,20 @@ import {
   Cpu,
   Download,
   Film,
-  FolderOpen
+  FolderOpen,
+  AlertCircle,
+  RotateCcw,
+  Loader2,
 } from 'lucide-vue-next';
 import { BatchMattingJob, BgModelType } from '@/types/studio';
 import {
   STUDIO_BG_REMOVER_DIR,
   getDefaultBgRemoverDirectory,
   invokeCommand,
-  openExportDirectory
+  openExportDirectory,
+  revealInFolder,
+  selectVideoFiles,
+  getFilePathForFile,
 } from '@/lib/tauriBridge';
 
 const bgRemoverDir = shallowRef<string>(STUDIO_BG_REMOVER_DIR);
@@ -38,8 +44,7 @@ const jobs = ref<BatchMattingJob[]>([
 
 const isDragging = shallowRef(false);
 const selectedModel = shallowRef<BgModelType>('birefnet_hq');
-const defaultFormat = shallowRef<'prores_4444' | 'webm_alpha' | 'luma_matte'>('prores_4444');
-const activeIntervals = new Set<ReturnType<typeof setInterval>>();
+const defaultFormat = shallowRef<'prores_4444' | 'webm_alpha' | 'luma_matte'>('webm_alpha');
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
 
 onMounted(async () => {
@@ -53,11 +58,6 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {
-  activeIntervals.forEach(clearInterval);
-  activeIntervals.clear();
-});
-
 function handleDragOver(e: DragEvent) {
   e.preventDefault();
   isDragging.value = true;
@@ -67,10 +67,44 @@ function handleDragLeave() {
   isDragging.value = false;
 }
 
+async function triggerFileInput() {
+  const nativeFiles = await selectVideoFiles();
+  if (nativeFiles && nativeFiles.length > 0) {
+    await enqueueFilePaths(nativeFiles);
+    return;
+  }
+  fileInputRef.value?.click();
+}
+
+async function enqueueFilePaths(paths: string[]) {
+  const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
+  for (const filePath of paths) {
+    const fileName = filePath.split(/[/\\]/).pop() || 'video.mp4';
+    const ext = defaultFormat.value === 'prores_4444' ? 'mov' : (defaultFormat.value === 'webm_alpha' ? 'webm' : 'mp4');
+    const stem = fileName.replace(/\.[^/.]+$/, '');
+    const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
+
+    const newJob: BatchMattingJob = {
+      id: `job_${Date.now()}_${Math.random()}`,
+      fileName,
+      filePath,
+      fileSizeBytes: 0,
+      status: 'queued',
+      progressPct: 0,
+      fps: 0,
+      etaSeconds: 15,
+      outputFormat: defaultFormat.value,
+      outputPath,
+    };
+    jobs.value.unshift(newJob);
+    executeExtraction(newJob, filePath, targetDir);
+  }
+}
+
 async function enqueueFiles(files: File[]) {
   const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
   for (const file of files) {
-    const filePath = (file as unknown as { path?: string }).path || `${targetDir}/${file.name}`;
+    const filePath = await getFilePathForFile(file);
     const ext = defaultFormat.value === 'prores_4444' ? 'mov' : (defaultFormat.value === 'webm_alpha' ? 'webm' : 'mp4');
     const stem = file.name.replace(/\.[^/.]+$/, '');
     const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
@@ -78,33 +112,66 @@ async function enqueueFiles(files: File[]) {
     const newJob: BatchMattingJob = {
       id: `job_${Date.now()}_${Math.random()}`,
       fileName: file.name,
-      filePath,
+      filePath: filePath || file.name,
       fileSizeBytes: file.size,
       status: 'queued',
       progressPct: 0,
       fps: 0,
-      etaSeconds: 30,
+      etaSeconds: 15,
       outputFormat: defaultFormat.value,
       outputPath,
     };
     jobs.value.unshift(newJob);
 
-    invokeCommand<{ success: boolean; output_path: string }>('extract_transparent_background', {
-      file_path: filePath,
-      format: defaultFormat.value,
-      model: selectedModel.value,
-      output_dir: targetDir,
-    })
-      .then((res) => {
-        if (res && res.output_path) {
-          newJob.outputPath = res.output_path;
-        }
-      })
-      .catch((err) => {
-        console.log('Daemon extraction fallback simulation:', err);
-      });
+    if (!filePath) {
+      newJob.status = 'failed';
+      newJob.errorMessage = 'Could not access file path on disk. Please click to use the native file selector.';
+      continue;
+    }
 
-    simulateProcessing(newJob.id, outputPath);
+    executeExtraction(newJob, filePath, targetDir);
+  }
+}
+
+async function executeExtraction(job: BatchMattingJob, inputPath: string, targetDir: string) {
+  job.status = 'processing';
+  job.progressPct = 15;
+  job.fps = 30;
+  job.errorMessage = undefined;
+
+  let currentPct = 15;
+  const progressTimer = setInterval(() => {
+    if (currentPct < 90) {
+      currentPct += 5;
+      job.progressPct = currentPct;
+    }
+  }, 400);
+
+  try {
+    const res = await invokeCommand<{ success: boolean; output_path?: string; error?: string }>(
+      'extract_transparent_background',
+      {
+        file_path: inputPath,
+        format: job.outputFormat || defaultFormat.value,
+        model: selectedModel.value,
+        output_dir: targetDir,
+      }
+    );
+
+    clearInterval(progressTimer);
+
+    if (res && res.success && res.output_path) {
+      job.status = 'completed';
+      job.progressPct = 100;
+      job.outputPath = res.output_path;
+    } else {
+      job.status = 'failed';
+      job.errorMessage = res?.error || 'Extraction failed in daemon';
+    }
+  } catch (err: any) {
+    clearInterval(progressTimer);
+    job.status = 'failed';
+    job.errorMessage = err?.message || 'Daemon offline or extraction failed';
   }
 }
 
@@ -122,34 +189,6 @@ async function handleFileInputChange(e: Event) {
   }
 }
 
-function simulateProcessing(jobId: string, expectedOutput?: string) {
-  let progress = 0;
-  const interval = setInterval(() => {
-    progress += 12;
-    const target = jobs.value.find((j) => j.id === jobId);
-    if (!target) {
-      clearInterval(interval);
-      activeIntervals.delete(interval);
-      return;
-    }
-    if (progress >= 100) {
-      clearInterval(interval);
-      activeIntervals.delete(interval);
-      target.status = 'completed';
-      target.progressPct = 100;
-      if (!target.outputPath) {
-        target.outputPath = expectedOutput || `${bgRemoverDir.value}/${target.fileName.replace(/\.[^/.]+$/, '')}_alpha.mov`;
-      }
-    } else {
-      target.status = 'processing';
-      target.progressPct = progress;
-      target.fps = 32 + Math.floor(Math.random() * 8);
-      target.etaSeconds = Math.max(1, Math.round((100 - progress) / 3));
-    }
-  }, 450);
-  activeIntervals.add(interval);
-}
-
 function formatBytes(bytes: number) {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -163,12 +202,11 @@ function removeJob(id: string) {
 }
 
 async function revealOutput(job: BatchMattingJob) {
-  const path = job.outputPath || job.filePath;
-  const dir = job.outputPath ? job.outputPath.replace(/\/[^/]+$/, '') : bgRemoverDir.value;
-  const res = await openExportDirectory(dir);
+  const target = job.outputPath || job.filePath;
+  const res = await revealInFolder(target);
   if (!res.success) {
-    navigator.clipboard?.writeText(path).catch(() => {});
-    window.alert(`Transparent video output path (copied to clipboard):\n${path}`);
+    navigator.clipboard?.writeText(target).catch(() => {});
+    window.alert(`Transparent video output path (copied to clipboard):\n${target}`);
   }
 }
 
@@ -199,45 +237,47 @@ async function handleOpenBgRemoverFolder() {
       <div class="flex items-center space-x-3">
         <!-- Open Output Folder Action -->
         <button
+          type="button"
           @click="handleOpenBgRemoverFolder"
-          class="flex items-center space-x-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-semibold transition"
-          title="Open AI BG Remover folder"
+          class="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-gray-200 border border-white/10 text-xs font-medium transition-all"
+          title="Open bg-remover destination folder"
         >
-          <FolderOpen class="w-4 h-4 text-indigo-400" />
-          <span class="hidden sm:inline">Open Folder</span>
+          <FolderOpen class="w-3.5 h-3.5 text-indigo-400" />
+          <span>Open Folder</span>
         </button>
-        <!-- Model Fidelity Selector -->
-        <div class="flex items-center space-x-2 bg-black/60 px-3.5 py-2 rounded-xl border border-white/10 shadow-inner">
-          <Cpu class="w-4 h-4 text-indigo-400" />
+
+        <!-- Neural Model Selector -->
+        <div class="relative">
           <select
             v-model="selectedModel"
-            class="bg-transparent text-xs font-medium text-gray-200 outline-none cursor-pointer"
+            class="appearance-none bg-[#12141D] border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-1.5 pr-8 focus:outline-none focus:border-indigo-400 font-medium"
           >
-            <option value="birefnet_hq" class="bg-[#12141D]">Studio HQ: BiRefNet (Hair-Strand Precision)</option>
-            <option value="rmbg_1_4" class="bg-[#12141D]">Studio HQ: RMBG-1.4 (Enterprise Accuracy)</option>
-            <option value="rvm_video" class="bg-[#12141D]">Video Matting: RVM (Temporal Consistency)</option>
+            <option value="birefnet_hq" class="bg-[#12141D]">Ultra Quality: BiRefNet</option>
+            <option value="rmbg_1_4" class="bg-[#12141D]">HQ Portrait: RMBG-1.4</option>
+            <option value="rvm_video" class="bg-[#12141D]">Smooth Motion: RVM</option>
             <option value="mediapipe_fast" class="bg-[#12141D]">Fast Realtime: MediaPipe</option>
           </select>
+          <Cpu class="w-3.5 h-3.5 text-indigo-400 absolute right-2.5 top-2.5 pointer-events-none" />
         </div>
 
-        <!-- Format Selector -->
-        <div class="flex items-center space-x-2 bg-black/60 px-3.5 py-2 rounded-xl border border-white/10 shadow-inner">
-          <Layers class="w-4 h-4 text-emerald-400" />
+        <!-- Format Preset -->
+        <div class="relative">
           <select
             v-model="defaultFormat"
-            class="bg-transparent text-xs font-medium text-gray-200 outline-none cursor-pointer"
+            class="appearance-none bg-[#12141D] border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-1.5 pr-8 focus:outline-none focus:border-indigo-400 font-medium"
           >
-            <option value="prores_4444" class="bg-[#12141D]">Apple ProRes 4444 (.mov - Alpha)</option>
             <option value="webm_alpha" class="bg-[#12141D]">WebM VP9 Alpha (.webm)</option>
-            <option value="luma_matte" class="bg-[#12141D]">Luma Matte Mask (.mp4)</option>
+            <option value="prores_4444" class="bg-[#12141D]">Apple ProRes 4444 (.mov)</option>
+            <option value="luma_matte" class="bg-[#12141D]">High-Contrast Luma Matte (.mp4)</option>
           </select>
+          <Layers class="w-3.5 h-3.5 text-emerald-400 absolute right-2.5 top-2.5 pointer-events-none" />
         </div>
       </div>
     </div>
 
-    <!-- Drag & Drop / Click to Upload Zone -->
+    <!-- Drag & Drop Zone -->
     <div
-      @click="fileInputRef?.click()"
+      @click="triggerFileInput"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop"
@@ -295,18 +335,26 @@ async function handleOpenBgRemoverFolder() {
               </span>
             </div>
             <div class="flex items-center space-x-3 text-xs text-gray-400 font-mono mt-1">
-              <span>{{ formatBytes(job.fileSizeBytes) }}</span>
+              <span v-if="job.fileSizeBytes > 0">{{ formatBytes(job.fileSizeBytes) }}</span>
               <template v-if="job.status === 'processing'">
                 <span>•</span>
-                <span class="text-indigo-400 font-semibold">{{ job.fps }} FPS</span>
-                <span>•</span>
-                <span>ETA {{ job.etaSeconds }}s</span>
+                <span class="text-indigo-400 font-semibold flex items-center space-x-1">
+                  <Loader2 class="w-3 h-3 animate-spin" />
+                  <span>Extracting...</span>
+                </span>
               </template>
               <template v-if="job.status === 'completed'">
                 <span>•</span>
                 <span class="text-emerald-400 flex items-center space-x-1.5 font-sans font-medium">
                   <CheckCircle2 class="w-3.5 h-3.5" />
                   <span>Ready for Video Editor</span>
+                </span>
+              </template>
+              <template v-if="job.status === 'failed'">
+                <span>•</span>
+                <span class="text-rose-400 flex items-center space-x-1.5 font-sans font-medium" :title="job.errorMessage">
+                  <AlertCircle class="w-3.5 h-3.5 shrink-0" />
+                  <span class="truncate max-w-xs">{{ job.errorMessage || 'Extraction failed' }}</span>
                 </span>
               </template>
             </div>
@@ -326,6 +374,15 @@ async function handleOpenBgRemoverFolder() {
               />
             </div>
           </div>
+
+          <button
+            v-if="job.status === 'failed'"
+            @click="executeExtraction(job, job.filePath, bgRemoverDir)"
+            class="flex items-center space-x-1 px-3 py-1.5 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm"
+          >
+            <RotateCcw class="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
 
           <button
             v-if="job.status === 'completed'"
