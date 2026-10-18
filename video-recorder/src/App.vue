@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { shallowRef, ref, onMounted, onUnmounted } from 'vue';
+import { shallowRef, onMounted, onUnmounted } from 'vue';
 import FloatingToolbar from './components/toolbar/FloatingToolbar.vue';
 import CameraBubble from './components/camera/CameraBubble.vue';
 import CountdownOverlay from './components/countdown/CountdownOverlay.vue';

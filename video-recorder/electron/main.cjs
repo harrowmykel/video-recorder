@@ -217,7 +217,7 @@ function createOverlayWindows() {
     height: studioHeight,
     x: Math.round(workArea.x + (workArea.width - studioWidth) / 2),
     y: Math.round(workArea.y + (workArea.height - studioHeight) / 2),
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     skipTaskbar: false,
     resizable: true,
     show: false,

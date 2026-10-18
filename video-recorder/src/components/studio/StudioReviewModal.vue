@@ -14,9 +14,17 @@ import {
   Film,
   RefreshCw,
   Trash2,
+  GripVertical,
 } from 'lucide-vue-next';
 import type { CameraTelemetryPoint, RecordingSession } from '../../types/studio';
-import { fetchRecordedSessions, openExportDirectory, subscribeToEvent, deleteSession } from '../../lib/tauriBridge';
+import {
+  fetchRecordedSessions,
+  openExportDirectory,
+  subscribeToEvent,
+  deleteSession,
+  moveOverlayWindow,
+  isNativeOverlayWindow,
+} from '../../lib/tauriBridge';
 
 import { useStudioState } from '../../composables/useStudioState';
 import DragDropBgRemover from './DragDropBgRemover.vue';
@@ -285,8 +293,70 @@ onMounted(() => {
   });
 });
 
+// Dragging logic for frameless window & modal repositioning
+let isPointerDown = false;
+let isDraggingWindow = false;
+let startScreenX = 0;
+let startScreenY = 0;
+let lastScreenX = 0;
+let lastScreenY = 0;
+
+const modalOffsetX = shallowRef(0);
+const modalOffsetY = shallowRef(0);
+
+const modalOffsetStyle = computed(() => {
+  if (!isNativeOverlayWindow() && (modalOffsetX.value || modalOffsetY.value)) {
+    return {
+      transform: `translate(${modalOffsetX.value}px, ${modalOffsetY.value}px)`,
+    };
+  }
+  return {};
+});
+
+function onDragMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('button, input, select, a, [data-no-drag]')) return;
+  isPointerDown = true;
+  isDraggingWindow = false;
+  startScreenX = e.screenX;
+  startScreenY = e.screenY;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+  window.addEventListener('mousemove', onDragMouseMove);
+  window.addEventListener('mouseup', onDragMouseUp);
+}
+
+function onDragMouseMove(e: MouseEvent) {
+  if (!isPointerDown) return;
+  const totalDx = Math.abs(e.screenX - startScreenX);
+  const totalDy = Math.abs(e.screenY - startScreenY);
+  if (!isDraggingWindow && totalDx + totalDy > 3) {
+    isDraggingWindow = true;
+  }
+  if (!isDraggingWindow) return;
+  const dx = e.screenX - lastScreenX;
+  const dy = e.screenY - lastScreenY;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+
+  if (isNativeOverlayWindow()) {
+    moveOverlayWindow('studio', dx, dy);
+  } else {
+    modalOffsetX.value += dx;
+    modalOffsetY.value += dy;
+  }
+}
+
+function onDragMouseUp() {
+  isPointerDown = false;
+  isDraggingWindow = false;
+  window.removeEventListener('mousemove', onDragMouseMove);
+  window.removeEventListener('mouseup', onDragMouseUp);
+}
+
 onUnmounted(() => {
   pausePlayback();
+  onDragMouseUp();
   if (unsubscribeCameraUpload) {
     unsubscribeCameraUpload();
     unsubscribeCameraUpload = null;
@@ -296,10 +366,17 @@ onUnmounted(() => {
 
 <template>
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/85 backdrop-blur-xl select-none font-sans">
-    <div class="glass-panel w-full max-w-6xl h-[92vh] rounded-[28px] flex flex-col overflow-hidden border border-white/10 shadow-[0_32px_96px_rgba(0,0,0,0.95)]">
-      <!-- Top Window Navigation Bar -->
-      <div class="px-6 py-4 flex items-center justify-between border-b border-white/[0.08] bg-[#0E1017]">
-        <div class="flex items-center space-x-3.5">
+    <div
+      :style="modalOffsetStyle"
+      class="glass-panel w-full max-w-6xl h-[92vh] rounded-[28px] flex flex-col overflow-hidden border border-white/10 shadow-[0_32px_96px_rgba(0,0,0,0.95)]"
+    >
+      <!-- Top Window Navigation Bar (Draggable) -->
+      <div
+        @mousedown="onDragMouseDown"
+        class="px-6 py-4 flex items-center justify-between border-b border-white/[0.08] bg-[#0E1017] cursor-grab active:cursor-grabbing select-none"
+      >
+        <div class="flex items-center space-x-3.5 pointer-events-none">
+          <GripVertical class="w-4 h-4 text-white/30 shrink-0" />
           <div class="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-studio-crimson shadow-[0_0_12px_rgba(255,59,48,0.2)]">
             <Film class="w-4 h-4" />
           </div>

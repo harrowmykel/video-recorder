@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { shallowRef, computed, watch } from 'vue';
+import { shallowRef, computed, watch, onUnmounted } from 'vue';
 import {
   Folder,
   FolderOpen,
@@ -15,7 +15,8 @@ import {
   Sparkles,
   Loader2,
   Copy,
-  Check
+  Check,
+  GripVertical
 } from 'lucide-vue-next';
 import {
   getDefaultVideosDirectory,
@@ -24,6 +25,8 @@ import {
   openExportDirectory,
   checkDirectoryNotEmpty,
   deleteSession,
+  moveOverlayWindow,
+  isNativeOverlayWindow,
 } from '../../lib/tauriBridge';
 
 
@@ -202,7 +205,10 @@ async function handleStartExport() {
   }, 200);
 
   try {
-    const res = await exportSessionPackage(exportPath.value.trim(), props.sessionMetadata, exportPreset.value);
+    const safeMeta = props.sessionMetadata
+      ? JSON.parse(JSON.stringify(props.sessionMetadata))
+      : undefined;
+    const res = await exportSessionPackage(exportPath.value.trim(), safeMeta, exportPreset.value);
     clearInterval(timer);
     exportProgress.value = 100;
 
@@ -240,6 +246,71 @@ async function handleOpenPath() {
     }, 4000);
   }
 }
+
+// Dragging logic for frameless window & modal repositioning
+let isPointerDown = false;
+let isDraggingWindow = false;
+let startScreenX = 0;
+let startScreenY = 0;
+let lastScreenX = 0;
+let lastScreenY = 0;
+
+const modalOffsetX = shallowRef(0);
+const modalOffsetY = shallowRef(0);
+
+const modalOffsetStyle = computed(() => {
+  if (!isNativeOverlayWindow() && (modalOffsetX.value || modalOffsetY.value)) {
+    return {
+      transform: `translate(${modalOffsetX.value}px, ${modalOffsetY.value}px)`,
+    };
+  }
+  return {};
+});
+
+function onDragMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('button, input, select, a, [data-no-drag]')) return;
+  isPointerDown = true;
+  isDraggingWindow = false;
+  startScreenX = e.screenX;
+  startScreenY = e.screenY;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+  window.addEventListener('mousemove', onDragMouseMove);
+  window.addEventListener('mouseup', onDragMouseUp);
+}
+
+function onDragMouseMove(e: MouseEvent) {
+  if (!isPointerDown) return;
+  const totalDx = Math.abs(e.screenX - startScreenX);
+  const totalDy = Math.abs(e.screenY - startScreenY);
+  if (!isDraggingWindow && totalDx + totalDy > 3) {
+    isDraggingWindow = true;
+  }
+  if (!isDraggingWindow) return;
+  const dx = e.screenX - lastScreenX;
+  const dy = e.screenY - lastScreenY;
+  lastScreenX = e.screenX;
+  lastScreenY = e.screenY;
+
+  if (isNativeOverlayWindow()) {
+    moveOverlayWindow('studio', dx, dy);
+  } else {
+    modalOffsetX.value += dx;
+    modalOffsetY.value += dy;
+  }
+}
+
+function onDragMouseUp() {
+  isPointerDown = false;
+  isDraggingWindow = false;
+  window.removeEventListener('mousemove', onDragMouseMove);
+  window.removeEventListener('mouseup', onDragMouseUp);
+}
+
+onUnmounted(() => {
+  onDragMouseUp();
+});
 </script>
 
 <template>
@@ -248,11 +319,16 @@ async function handleOpenPath() {
     class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-black/80 backdrop-blur-xl font-sans select-none"
   >
     <div
+      :style="modalOffsetStyle"
       class="glass-panel w-full max-w-2xl rounded-3xl overflow-hidden border border-white/10 shadow-[0_32px_96px_rgba(0,0,0,0.95)] flex flex-col bg-[#0E1017]"
     >
-      <!-- Modal Header -->
-      <div class="px-6 py-4 flex items-center justify-between border-b border-white/[0.08] bg-[#12151F]">
-        <div class="flex items-center space-x-3">
+      <!-- Modal Header (Draggable) -->
+      <div
+        @mousedown="onDragMouseDown"
+        class="px-6 py-4 flex items-center justify-between border-b border-white/[0.08] bg-[#12151F] cursor-grab active:cursor-grabbing select-none"
+      >
+        <div class="flex items-center space-x-3 pointer-events-none">
+          <GripVertical class="w-4 h-4 text-white/30 shrink-0" />
           <div class="p-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
             <Download class="w-4 h-4" />
           </div>
