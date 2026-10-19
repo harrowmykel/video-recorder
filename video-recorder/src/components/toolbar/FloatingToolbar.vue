@@ -458,8 +458,9 @@ const activeToolbarVariant = computed(() => {
   <div class="relative font-sans select-none flex flex-col items-center justify-end">
     <!-- Popover 1: Camera Device & Real-Time Virtual Background Picker -->
     <div v-if="activePopover === 'camera'" data-popover="true"
-      class="mb-2.5 w-[440px] max-w-[calc(100vw-2rem)] flex flex-col p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3.5 z-50">
-      <div class="flex items-center justify-between border-b border-white/10 pb-2">
+      class="mb-2.5 w-[440px] max-w-[calc(100vw-2rem)] max-h-[420px] flex flex-col rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white z-50 overflow-hidden">
+      <!-- Fixed Header -->
+      <div class="flex items-center justify-between border-b border-white/10 px-4 py-3 shrink-0">
         <div class="flex items-center gap-2 text-xs font-bold">
           <Video class="w-4 h-4 text-indigo-400" />
           <span>Camera & Real-Time Background</span>
@@ -487,7 +488,8 @@ const activeToolbarVariant = computed(() => {
         </div>
       </div>
 
-      <div class=" max-h-[calc(100vh-6rem)] overflow-y-auto"> 
+      <!-- Scrollable Body -->
+      <div class="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5"> 
         <!-- Camera Hardware Selector -->
         <div class="space-y-1.5">
           <span class="text-[10px] font-mono uppercase tracking-wider text-white/50 block">Choose Camera Device</span>
