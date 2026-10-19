@@ -458,7 +458,7 @@ const activeToolbarVariant = computed(() => {
   <div class="relative font-sans select-none flex flex-col items-center justify-end">
     <!-- Popover 1: Camera Device & Real-Time Virtual Background Picker -->
     <div v-if="activePopover === 'camera'" data-popover="true"
-      class="mb-2.5 w-[440px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] overflow-y-auto p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3.5 z-50">
+      class="mb-2.5 w-[440px] max-w-[calc(100vw-2rem)] flex flex-col p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3.5 z-50">
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2 text-xs font-bold">
           <Video class="w-4 h-4 text-indigo-400" />
@@ -487,124 +487,126 @@ const activeToolbarVariant = computed(() => {
         </div>
       </div>
 
-      <!-- Camera Hardware Selector -->
-      <div class="space-y-1.5">
-        <span class="text-[10px] font-mono uppercase tracking-wider text-white/50 block">Choose Camera Device</span>
-        <div class="space-y-1 max-h-32 overflow-y-auto">
-          <!-- Dedicated No Camera Option -->
-          <button @click="selectedCameraId = 'none'; if (!props.isCameraHidden) emit('toggleCamera');" :class="[
-            'w-full px-3 py-1.5 rounded-xl text-left text-xs flex items-center justify-between transition border',
-            selectedCameraId === 'none'
-              ? 'bg-rose-500/20 border-rose-400/50 text-white font-semibold'
-              : 'bg-white/5 border-transparent hover:bg-white/10 text-white/75'
-          ]">
-            <div class="flex items-center gap-2 truncate">
-              <VideoOff class="w-3.5 h-3.5 text-rose-400 shrink-0" />
-              <span class="truncate">No Camera (Screen Only)</span>
-            </div>
-            <Check v-if="selectedCameraId === 'none'" class="w-3.5 h-3.5 text-rose-400 shrink-0" />
-          </button>
-
-          <button v-for="cam in cameras" :key="cam.deviceId"
-            @click="selectedCameraId = cam.deviceId; if (props.isCameraHidden) emit('toggleCamera');" :class="[
+      <div class=" max-h-[calc(100vh-6rem)] overflow-y-auto"> 
+        <!-- Camera Hardware Selector -->
+        <div class="space-y-1.5">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-white/50 block">Choose Camera Device</span>
+          <div class="space-y-1 max-h-32 overflow-y-auto">
+            <!-- Dedicated No Camera Option -->
+            <button @click="selectedCameraId = 'none'; if (!props.isCameraHidden) emit('toggleCamera');" :class="[
               'w-full px-3 py-1.5 rounded-xl text-left text-xs flex items-center justify-between transition border',
-              selectedCameraId === cam.deviceId
-                ? 'bg-indigo-500/20 border-indigo-400/50 text-white font-semibold'
+              selectedCameraId === 'none'
+                ? 'bg-rose-500/20 border-rose-400/50 text-white font-semibold'
                 : 'bg-white/5 border-transparent hover:bg-white/10 text-white/75'
             ]">
-            <div class="flex items-center gap-2 truncate">
-              <Video class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-              <span class="truncate">{{ cam.label }}</span>
+              <div class="flex items-center gap-2 truncate">
+                <VideoOff class="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span class="truncate">No Camera (Screen Only)</span>
+              </div>
+              <Check v-if="selectedCameraId === 'none'" class="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            </button>
+
+            <button v-for="cam in cameras" :key="cam.deviceId"
+              @click="selectedCameraId = cam.deviceId; if (props.isCameraHidden) emit('toggleCamera');" :class="[
+                'w-full px-3 py-1.5 rounded-xl text-left text-xs flex items-center justify-between transition border',
+                selectedCameraId === cam.deviceId
+                  ? 'bg-indigo-500/20 border-indigo-400/50 text-white font-semibold'
+                  : 'bg-white/5 border-transparent hover:bg-white/10 text-white/75'
+              ]">
+              <div class="flex items-center gap-2 truncate">
+                <Video class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span class="truncate">{{ cam.label }}</span>
+              </div>
+              <Check v-if="selectedCameraId === cam.deviceId" class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Real-Time Background Mode Selector -->
+        <div v-if="selectedCameraId !== 'none'" class="space-y-2 mt-2 ">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-mono uppercase tracking-wider text-white/50 flex items-center gap-1">
+              <Sparkles class="w-3 h-3 text-rose-400" />
+              <span>Real-Time Background Mode</span>
+            </span>
+            <button @click="bgFileInput?.click()"
+              class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition">
+              <Upload class="w-3 h-3" />
+              <span>Upload BG Image</span>
+            </button>
+            <input ref="bgFileInput" type="file" accept="image/*" class="hidden" @change="handleCustomBgUpload" />
+          </div>
+
+          <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+            <button v-for="mode in (['off', 'blur', 'transparent', 'color', 'image', 'gradient'] as const)" :key="mode"
+              @click="bgMode = mode" :class="[
+                'py-1.5 px-1 rounded-xl text-[10px] font-semibold capitalize border transition text-center',
+                bgMode === mode
+                  ? 'bg-rose-500 text-white border-rose-400 shadow'
+                  : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+              ]">
+              {{ mode === 'transparent' ? 'Cutout' : (mode === 'color' ? 'Solid' : mode) }}
+            </button>
+          </div>
+
+          <!-- Solid Colors Row -->
+          <div class="space-y-1 pt-1">
+            <div class="text-[9px] font-mono uppercase text-white/40">Solid Colors</div>
+            <div class="grid grid-cols-7 gap-1.5">
+              <button v-for="preset in solidColorPresets" :key="preset.id" type="button"
+                @click="bgMode = 'color'; bgColor = preset.value;"
+                class="h-6 rounded-md border transition flex items-center justify-center shadow" :class="[
+                  bgMode === 'color' && bgColor.toUpperCase() === preset.value.toUpperCase()
+                    ? 'border-emerald-400 ring-2 ring-emerald-400/50 scale-105'
+                    : 'border-white/15 hover:border-white/60'
+                ]" :style="{ backgroundColor: preset.value }" :title="preset.name" />
             </div>
-            <Check v-if="selectedCameraId === cam.deviceId" class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-          </button>
-        </div>
-      </div>
+          </div>
 
-      <!-- Real-Time Background Mode Selector -->
-      <div v-if="selectedCameraId !== 'none'" class="space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] font-mono uppercase tracking-wider text-white/50 flex items-center gap-1">
-            <Sparkles class="w-3 h-3 text-rose-400" />
-            <span>Real-Time Background Mode</span>
-          </span>
-          <button @click="bgFileInput?.click()"
-            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition">
-            <Upload class="w-3 h-3" />
-            <span>Upload BG Image</span>
-          </button>
-          <input ref="bgFileInput" type="file" accept="image/*" class="hidden" @change="handleCustomBgUpload" />
-        </div>
+          <!-- Saved Background Images Strip (if any) -->
+          <div v-if="savedBgImages.length > 0" class="space-y-1 pt-1">
+            <div class="text-[9px] font-mono uppercase text-white/40">Recent Backgrounds</div>
+            <div class="grid grid-cols-4 gap-1.5 max-h-24 overflow-y-auto">
+              <button v-for="img in savedBgImages.slice(0, 8)" :key="img.id" type="button"
+                @click="bgMode = 'image'; bgImageUrl = img.dataUrl;"
+                class="h-9 rounded-lg border overflow-hidden relative transition group shadow" :class="[
+                  bgMode === 'image' && bgImageUrl === img.dataUrl
+                    ? 'border-emerald-400 ring-2 ring-emerald-400/50'
+                    : 'border-white/15 hover:border-white/50'
+                ]" :title="img.name">
+                <img :src="img.dataUrl" :alt="img.name" class="w-full h-full object-cover" />
+              </button>
+            </div>
+          </div>
 
-        <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-          <button v-for="mode in (['off', 'blur', 'transparent', 'color', 'image', 'gradient'] as const)" :key="mode"
-            @click="bgMode = mode" :class="[
-              'py-1.5 px-1 rounded-xl text-[10px] font-semibold capitalize border transition text-center',
-              bgMode === mode
-                ? 'bg-rose-500 text-white border-rose-400 shadow'
-                : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
-            ]">
-            {{ mode === 'transparent' ? 'Cutout' : (mode === 'color' ? 'Solid' : mode) }}
-          </button>
-        </div>
-
-        <!-- Solid Colors Row -->
-        <div class="space-y-1 pt-1">
-          <div class="text-[9px] font-mono uppercase text-white/40">Solid Colors</div>
-          <div class="grid grid-cols-7 gap-1.5">
-            <button v-for="preset in solidColorPresets" :key="preset.id" type="button"
-              @click="bgMode = 'color'; bgColor = preset.value;"
-              class="h-6 rounded-md border transition flex items-center justify-center shadow" :class="[
-                bgMode === 'color' && bgColor.toUpperCase() === preset.value.toUpperCase()
-                  ? 'border-emerald-400 ring-2 ring-emerald-400/50 scale-105'
-                  : 'border-white/15 hover:border-white/60'
-              ]" :style="{ backgroundColor: preset.value }" :title="preset.name" />
+          <!-- Preset Studio Background Images Strip -->
+          <div class="space-y-1 pt-1">
+            <div class="text-[9px] font-mono uppercase text-white/40">Studio Sceneries</div>
+            <div class="grid grid-cols-4 gap-1.5">
+              <button v-for="preset in sceneryPresets" :key="preset.id"
+                @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value; else if (preset.type === 'gradient') bgGradient = preset.value;"
+                class="h-9 rounded-lg border border-white/15 hover:border-white/50 overflow-hidden relative group transition"
+                :class="{ 'border-emerald-400 ring-2 ring-emerald-400/50': (bgMode === preset.type && ((preset.type === 'image' && bgImageUrl === preset.value) || (preset.type === 'gradient' && bgGradient === preset.value))) }"
+                :style="{ background: preset.thumbnail }" :title="preset.name">
+                <span
+                  class="absolute inset-x-0 bottom-0 bg-black/75 text-[8px] text-white font-medium py-0.5 truncate px-1">
+                  {{ preset.name }}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Saved Background Images Strip (if any) -->
-        <div v-if="savedBgImages.length > 0" class="space-y-1 pt-1">
-          <div class="text-[9px] font-mono uppercase text-white/40">Recent Backgrounds</div>
-          <div class="grid grid-cols-4 gap-1.5 max-h-24 overflow-y-auto">
-            <button v-for="img in savedBgImages.slice(0, 8)" :key="img.id" type="button"
-              @click="bgMode = 'image'; bgImageUrl = img.dataUrl;"
-              class="h-9 rounded-lg border overflow-hidden relative transition group shadow" :class="[
-                bgMode === 'image' && bgImageUrl === img.dataUrl
-                  ? 'border-emerald-400 ring-2 ring-emerald-400/50'
-                  : 'border-white/15 hover:border-white/50'
-              ]" :title="img.name">
-              <img :src="img.dataUrl" :alt="img.name" class="w-full h-full object-cover" />
-            </button>
+        <!-- Placeholder when Camera is Disabled -->
+        <div v-else class="p-3.5 mt-2 rounded-xl bg-white/[0.03] border border-white/5 text-center space-y-1">
+          <div class="flex items-center justify-center gap-1.5 text-xs font-semibold text-rose-300">
+            <VideoOff class="w-3.5 h-3.5" />
+            <span>Camera Recording Disabled</span>
           </div>
+          <p class="text-[11px] text-white/50">
+            Select a camera device above to enable camera PiP, virtual backgrounds, and cutout modes.
+          </p>
         </div>
-
-        <!-- Preset Studio Background Images Strip -->
-        <div class="space-y-1 pt-1">
-          <div class="text-[9px] font-mono uppercase text-white/40">Studio Sceneries</div>
-          <div class="grid grid-cols-4 gap-1.5">
-            <button v-for="preset in sceneryPresets" :key="preset.id"
-              @click="bgMode = preset.type; if (preset.type === 'image') bgImageUrl = preset.value; else if (preset.type === 'gradient') bgGradient = preset.value;"
-              class="h-9 rounded-lg border border-white/15 hover:border-white/50 overflow-hidden relative group transition"
-              :class="{ 'border-emerald-400 ring-2 ring-emerald-400/50': (bgMode === preset.type && ((preset.type === 'image' && bgImageUrl === preset.value) || (preset.type === 'gradient' && bgGradient === preset.value))) }"
-              :style="{ background: preset.thumbnail }" :title="preset.name">
-              <span
-                class="absolute inset-x-0 bottom-0 bg-black/75 text-[8px] text-white font-medium py-0.5 truncate px-1">
-                {{ preset.name }}
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Placeholder when Camera is Disabled -->
-      <div v-else class="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 text-center space-y-1">
-        <div class="flex items-center justify-center gap-1.5 text-xs font-semibold text-rose-300">
-          <VideoOff class="w-3.5 h-3.5" />
-          <span>Camera Recording Disabled</span>
-        </div>
-        <p class="text-[11px] text-white/50">
-          Select a camera device above to enable camera PiP, virtual backgrounds, and cutout modes.
-        </p>
       </div>
     </div>
 
