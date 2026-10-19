@@ -282,6 +282,13 @@ function openSessionExport(session: RecordingSession) {
                 <span>{{ session.chunkCount }} chunks</span>
               </span>
 
+              <!-- Chunk duration -->
+              <span v-if="session.chunkDurationSec"
+                class="px-2 py-0.5 rounded-md text-[11px] font-mono text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1"
+                title="Configured recording chunk interval">
+                <span>{{ session.chunkDurationSec }}s interval</span>
+              </span>
+
             </div>
             <div class="flex items-center gap-2 flex-wrap text-xs">
               <!-- Location path preview -->

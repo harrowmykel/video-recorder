@@ -255,6 +255,7 @@ pub struct ScreenRecorder {
     screen_w: u32,
     screen_h: u32,
     screen_fps: u32,
+    chunk_duration_sec: u32,
 }
 
 impl ScreenRecorder {
@@ -271,6 +272,7 @@ impl ScreenRecorder {
             screen_w: 1920,
             screen_h: 1080,
             screen_fps: 60,
+            chunk_duration_sec: 15,
         }
     }
 
@@ -280,6 +282,7 @@ impl ScreenRecorder {
         manifest_path: PathBuf,
         source_mode: Option<String>,
         source_id: Option<String>,
+        chunk_duration_sec: Option<u32>,
     ) -> Self {
         let temp_path = output_path.with_extension("temp.mp4");
         Self {
@@ -293,6 +296,7 @@ impl ScreenRecorder {
             screen_w: 1920,
             screen_h: 1080,
             screen_fps: 60,
+            chunk_duration_sec: chunk_duration_sec.unwrap_or(15).max(1),
         }
     }
 
@@ -383,7 +387,7 @@ impl ScreenRecorder {
                 "-keyint_min", "60",
                 "-sc_threshold", "0",
                 "-f", "segment",
-                "-segment_time", "15",
+                "-segment_time", &self.chunk_duration_sec.to_string(),
                 "-segment_format", "mp4",
                 "-segment_start_number", &start_num.to_string(),
                 "-reset_timestamps", "1",
@@ -520,8 +524,8 @@ impl ScreenRecorder {
                 if let Some(manifest_path) = &self.manifest_path {
                     for (idx, chunk_file) in chunk_files.iter().enumerate() {
                         let file_size = std::fs::metadata(chunk_file).map(|m| m.len()).unwrap_or(0);
-                        let start_ms = (idx as u64) * 15000;
-                        let duration_ms = 15000;
+                        let duration_ms = self.chunk_duration_sec as u64 * 1000;
+                        let start_ms = (idx as u64) * duration_ms;
                         let entry = crate::session::ScreenChunkEntry {
                             chunk_id: format!("screen_chunk_{:04}", idx + 1),
                             start_ms,

@@ -999,6 +999,7 @@ ipcMain.handle('list_sessions', async () => {
           mic_manifest: path.join(sessionDir, 'mic_manifest.ndjson'),
           sys_audio_manifest: path.join(sessionDir, 'sys_audio_manifest.ndjson'),
           chunk_count: chunkCount,
+          chunk_duration_sec: meta?.chunk_duration_sec || 15,
           status: meta?.status || 'completed',
         });
       }

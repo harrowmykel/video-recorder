@@ -49,6 +49,7 @@ const {
   bgGradient,
   bgEngine,
   bgColor,
+  chunkDuration,
   lastRecordedSession,
   setCustomBgImageFromFile,
   cycleBgMode,
@@ -343,7 +344,8 @@ function startCanvasRecording() {
     };
     mediaRecorder.start(250);
 
-    // 15-second chunk timer
+    // Dynamic user-configured chunk timer (default 15s)
+    const intervalMs = (chunkDuration.value || 15) * 1000;
     chunkIntervalTimer = setInterval(async () => {
       if (mediaRecorder && mediaRecorder.state === 'recording') {
         try {
@@ -351,7 +353,7 @@ function startCanvasRecording() {
         } catch {}
         await flushCurrentChunk();
       }
-    }, 15000);
+    }, intervalMs);
   } catch (err) {
     console.warn('[CameraBubble] MediaRecorder start failed:', err);
   }

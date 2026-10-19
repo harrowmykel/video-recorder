@@ -212,6 +212,7 @@ const isAreaSelectorOpen = shallowRef(false);
 const isSourceModalOpen = shallowRef(false);
 const targetFps = shallowRef<number>(60);
 const countdownDuration = shallowRef<number>(3); // 0 = Immediate start (no countdown), 1-10s
+const chunkDuration = shallowRef<number>(15); // 5 - 60s recording chunk interval, default 15s
 const autoHideCameraOnRecord = shallowRef<boolean>(false);
 
 // Audio & Camera Device State
@@ -258,6 +259,7 @@ function loadPersistedSettings() {
     if (data.captureArea) captureArea.value = data.captureArea;
     if (data.targetFps) targetFps.value = data.targetFps;
     if (typeof data.countdownDuration === 'number') countdownDuration.value = data.countdownDuration;
+    if (typeof data.chunkDuration === 'number') chunkDuration.value = data.chunkDuration;
     if (typeof data.autoHideCameraOnRecord === 'boolean') autoHideCameraOnRecord.value = data.autoHideCameraOnRecord;
     if (data.selectedCameraId) selectedCameraId.value = data.selectedCameraId;
     if (data.selectedMicId) selectedMicId.value = data.selectedMicId;
@@ -289,6 +291,7 @@ function savePersistedSettings() {
       captureArea: captureArea.value,
       targetFps: targetFps.value,
       countdownDuration: countdownDuration.value,
+      chunkDuration: chunkDuration.value,
       autoHideCameraOnRecord: autoHideCameraOnRecord.value,
       selectedCameraId: selectedCameraId.value,
       selectedMicId: selectedMicId.value,
@@ -356,6 +359,7 @@ function broadcastFullState() {
     isSourceModalOpen: isSourceModalOpen.value,
     targetFps: targetFps.value,
     countdownDuration: countdownDuration.value,
+    chunkDuration: chunkDuration.value,
     autoHideCameraOnRecord: autoHideCameraOnRecord.value,
     isProcessingSession: isProcessingSession.value,
     processingStatusMessage: processingStatusMessage.value,
@@ -402,6 +406,7 @@ export function useStudioState() {
       if (payload.isSourceModalOpen !== undefined) isSourceModalOpen.value = payload.isSourceModalOpen;
       if (payload.targetFps !== undefined) targetFps.value = payload.targetFps;
       if (payload.countdownDuration !== undefined) countdownDuration.value = payload.countdownDuration;
+      if (payload.chunkDuration !== undefined) chunkDuration.value = payload.chunkDuration;
       if (payload.autoHideCameraOnRecord !== undefined) autoHideCameraOnRecord.value = payload.autoHideCameraOnRecord;
       if (payload.isProcessingSession !== undefined) isProcessingSession.value = payload.isProcessingSession;
       if (payload.processingStatusMessage !== undefined) processingStatusMessage.value = payload.processingStatusMessage;
@@ -558,6 +563,7 @@ export function useStudioState() {
     isSourceModalOpen,
     targetFps,
     countdownDuration,
+    chunkDuration,
     autoHideCameraOnRecord,
     isProcessingSession,
     processingStatusMessage,

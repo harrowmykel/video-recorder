@@ -14,6 +14,7 @@ pub struct AudioRecorder {
     current_mic_device: Option<String>,
     mic_muted: bool,
     sys_audio_muted: bool,
+    chunk_duration_sec: u32,
 }
 
 impl AudioRecorder {
@@ -29,6 +30,7 @@ impl AudioRecorder {
             current_mic_device: None,
             mic_muted: false,
             sys_audio_muted: false,
+            chunk_duration_sec: 15,
         }
     }
 
@@ -38,6 +40,7 @@ impl AudioRecorder {
         chunks_dir: PathBuf,
         mic_manifest_path: PathBuf,
         sys_manifest_path: PathBuf,
+        chunk_duration_sec: Option<u32>,
     ) -> Self {
         Self {
             mic_process: None,
@@ -50,6 +53,7 @@ impl AudioRecorder {
             current_mic_device: None,
             mic_muted: false,
             sys_audio_muted: false,
+            chunk_duration_sec: chunk_duration_sec.unwrap_or(15).max(1),
         }
     }
 
@@ -102,7 +106,7 @@ impl AudioRecorder {
         if let Some(chunks_dir) = &self.chunks_dir {
             mic_cmd.args([
                 "-f", "segment",
-                "-segment_time", "15",
+                "-segment_time", &self.chunk_duration_sec.to_string(),
                 "-segment_start_number", &start_number.to_string(),
                 "-segment_format", "wav",
             ]);
@@ -146,7 +150,7 @@ impl AudioRecorder {
         if let Some(chunks_dir) = &self.chunks_dir {
             sys_cmd.args([
                 "-f", "segment",
-                "-segment_time", "15",
+                "-segment_time", &self.chunk_duration_sec.to_string(),
                 "-segment_start_number", &start_number.to_string(),
                 "-segment_format", "wav",
             ]);
@@ -330,7 +334,7 @@ impl AudioRecorder {
                     let duration_ms = if data_bytes > 0 {
                         ((data_bytes as f64 / 96000.0) * 1000.0).round() as u64
                     } else {
-                        15000
+                        self.chunk_duration_sec as u64 * 1000
                     };
                     let start_ms = accumulated_mic_ms;
                     let end_ms = start_ms + duration_ms;
@@ -396,7 +400,7 @@ impl AudioRecorder {
                     let duration_ms = if data_bytes > 0 {
                         ((data_bytes as f64 / 192000.0) * 1000.0).round() as u64
                     } else {
-                        15000
+                        self.chunk_duration_sec as u64 * 1000
                     };
                     let start_ms = accumulated_sys_ms;
                     let end_ms = start_ms + duration_ms;

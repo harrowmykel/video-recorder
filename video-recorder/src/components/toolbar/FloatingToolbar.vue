@@ -102,6 +102,7 @@ const {
   savedBgImages,
   bgPresets,
   countdownDuration,
+  chunkDuration,
   isProcessingSession,
   processingStatusMessage,
   currentSessionId,
@@ -365,6 +366,7 @@ function handleStart() {
       sys_audio_muted: isSysAudioMuted.value,
       camera_device: selectedCameraId.value,
       mic_device: selectedMicId.value,
+      chunk_duration_sec: chunkDuration.value,
     };
     if (captureSourceMode.value === 'display') {
       startArgs.display_id = selectedDisplayId.value;

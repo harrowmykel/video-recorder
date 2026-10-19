@@ -37,6 +37,7 @@ const {
   isAreaSelectorOpen,
   targetFps,
   countdownDuration,
+  chunkDuration,
   autoHideCameraOnRecord,
   isProcessingSession,
   processingStatusMessage,
@@ -94,6 +95,7 @@ async function handleCountdownComplete() {
       sys_audio_muted: isSysAudioMuted.value,
       camera_device: selectedCameraId.value,
       mic_device: selectedMicId.value,
+      chunk_duration_sec: chunkDuration.value,
     };
     if (captureSourceMode.value === 'display') {
       startArgs.display_id = selectedDisplayId.value;

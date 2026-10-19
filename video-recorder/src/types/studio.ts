@@ -59,6 +59,7 @@ export interface StartRecordingOptions {
   sys_audio_muted?: boolean;
   camera_device?: string | 'none';
   mic_device?: string;
+  chunk_duration_sec?: number;
 }
 
 export interface TelemetryPoint {
@@ -109,6 +110,7 @@ export interface RecordingSession {
   micManifest?: string;
   sysAudioManifest?: string;
   chunkCount?: number;
+  chunkDurationSec?: number;
   status?: string;
   sessionDir?: string;
   notesPath?: string;

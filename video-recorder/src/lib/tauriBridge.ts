@@ -395,6 +395,7 @@ export async function buildRecordingSessionFromDaemonMeta(meta: any): Promise<Re
     micManifest: meta?.mic_manifest,
     sysAudioManifest: meta?.sys_audio_manifest,
     chunkCount: meta?.chunk_count,
+    chunkDurationSec: meta?.chunk_duration_sec,
     status: meta?.status || 'completed',
   };
 }

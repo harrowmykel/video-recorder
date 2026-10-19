@@ -24,6 +24,7 @@ pub struct StartRecordingRequest {
     pub sys_audio_muted: Option<bool>,
     pub camera_device: Option<String>,
     pub mic_device: Option<String>,
+    pub chunk_duration_sec: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -49,6 +50,10 @@ fn default_status_completed() -> String {
     "completed".to_string()
 }
 
+fn default_chunk_duration_sec() -> u32 {
+    15
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMetadata {
     pub id: String,
@@ -70,6 +75,8 @@ pub struct SessionMetadata {
     pub sys_audio_manifest: String,
     #[serde(default)]
     pub chunk_count: u32,
+    #[serde(default = "default_chunk_duration_sec")]
+    pub chunk_duration_sec: u32,
     #[serde(default = "default_status_completed")]
     pub status: String,
 }
@@ -81,6 +88,7 @@ pub struct SessionManager {
     last_metadata: Option<SessionMetadata>,
     started_at: Option<Instant>,
     created_at_rfc3339: Option<String>,
+    chunk_duration_sec: u32,
     is_paused: bool,
     screen_recorder: Option<ScreenRecorder>,
     camera_recorder: Option<CameraRecorder>,
@@ -97,6 +105,7 @@ impl Default for SessionManager {
             last_metadata: None,
             started_at: None,
             created_at_rfc3339: None,
+            chunk_duration_sec: 15,
             is_paused: false,
             screen_recorder: None,
             camera_recorder: None,
@@ -219,6 +228,8 @@ impl SessionManager {
             req.display_id.clone()
         };
 
+        let chunk_duration_sec = req.chunk_duration_sec.unwrap_or(15).max(1);
+
         // 1. Start Screen Recorder (Chunked)
         let mut screen_rec = ScreenRecorder::new_chunked(
             screen_path.clone(),
@@ -226,6 +237,7 @@ impl SessionManager {
             screen_manifest.clone(),
             req.source_mode.clone(),
             source_id,
+            Some(chunk_duration_sec),
         );
         if let Err(e) = screen_rec.start_with_config(ScreenCaptureConfig {
             x,
@@ -261,6 +273,7 @@ impl SessionManager {
             chunks_dir.clone(),
             mic_manifest.clone(),
             sys_manifest.clone(),
+            Some(chunk_duration_sec),
         );
         let mic_muted = req.mic_muted.unwrap_or(false);
         let sys_muted = req.sys_audio_muted.unwrap_or(false);
@@ -292,6 +305,7 @@ impl SessionManager {
             mic_manifest: mic_manifest.to_string_lossy().to_string(),
             sys_audio_manifest: sys_manifest.to_string_lossy().to_string(),
             chunk_count: 0,
+            chunk_duration_sec,
             status: "recording".to_string(),
         };
 
@@ -304,6 +318,7 @@ impl SessionManager {
         self.last_session_dir = Some(session_dir);
         self.started_at = Some(Instant::now());
         self.created_at_rfc3339 = Some(created_at);
+        self.chunk_duration_sec = chunk_duration_sec;
         self.is_paused = false;
         self.screen_recorder = Some(screen_rec);
         self.camera_recorder = camera_rec;
@@ -543,6 +558,7 @@ impl SessionManager {
             mic_manifest: format!("{}/mic_manifest.ndjson", dir_str),
             sys_audio_manifest: format!("{}/sys_audio_manifest.ndjson", dir_str),
             chunk_count,
+            chunk_duration_sec: self.chunk_duration_sec,
             status: "completed".to_string(),
         };
 

@@ -8,6 +8,7 @@ import {
   EyeOff,
   Timer,
   Shield,
+  Layers,
 } from 'lucide-vue-next';
 import { useStudioState } from '@/composables/useStudioState';
 
@@ -16,6 +17,7 @@ const {
   isDockedToCamera,
   isToolbarCollapsed,
   countdownDuration,
+  chunkDuration,
   autoHideCameraOnRecord,
 } = useStudioState();
 </script>
@@ -28,8 +30,8 @@ const {
         <Palette class="w-4 h-4" />
       </div>
       <div>
-        <h3 class="text-sm font-bold text-white">4. Overlays & Pre-Roll</h3>
-        <p class="text-[11px] text-white/50">Toolbar, countdown & capture isolation</p>
+        <h3 class="text-sm font-bold text-white">4. Overlays & Recording Chunks</h3>
+        <p class="text-[11px] text-white/50">Countdown, chunk intervals & capture isolation</p>
       </div>
     </div>
 
@@ -58,6 +60,42 @@ const {
       </div>
       <p class="text-[10px] text-white/40 leading-relaxed">
         {{ countdownDuration === 0 ? 'Recording starts instantly without waiting.' : `Shows a ${countdownDuration}-second visual leader with an instant "Start Now" skip button.` }}
+      </p>
+    </div>
+
+    <!-- Recording Segment Chunk Size Slider (5 - 60 seconds) -->
+    <div class="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+      <div class="flex items-center justify-between text-xs text-white">
+        <span class="flex items-center gap-2 font-semibold">
+          <Layers class="w-4 h-4 text-indigo-400" />
+          <span>Recording Chunk Size</span>
+        </span>
+        <span class="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-indigo-300 font-semibold">
+          {{ chunkDuration }}s CHUNKS
+        </span>
+      </div>
+      <div class="flex items-center gap-3 pt-1">
+        <span class="text-[10px] font-mono text-white/40">5s</span>
+        <input
+          type="range"
+          min="5"
+          max="60"
+          step="5"
+          v-model.number="chunkDuration"
+          class="w-full accent-indigo-500 cursor-pointer h-1.5 bg-white/15 rounded-lg appearance-none"
+        />
+        <span class="text-[10px] font-mono text-white/40">60s</span>
+      </div>
+      <p class="text-[10px] text-white/40 leading-relaxed">
+        <span v-if="chunkDuration < 15" class="text-emerald-400/90 font-medium">
+          High Crash Safety: Max ~{{ chunkDuration }}s lost if system abruptly powers off, but produces more segments to join.
+        </span>
+        <span v-else-if="chunkDuration === 15" class="text-indigo-300/90 font-medium">
+          Balanced (Recommended): Optimal balance between crash recovery and fast file finalization.
+        </span>
+        <span v-else class="text-amber-300/90 font-medium">
+          Low Disk Overhead: Fewer chunk files on disk and faster finalization, ideal for long lectures or webinars.
+        </span>
       </p>
     </div>
 
