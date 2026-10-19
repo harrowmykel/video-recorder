@@ -767,6 +767,7 @@ pub fn list_recorded_sessions(base_dir: &Path) -> Vec<SessionMetadata> {
                             mic_manifest: mic_manifest.to_string_lossy().to_string(),
                             sys_audio_manifest: sys_manifest.to_string_lossy().to_string(),
                             chunk_count,
+                            chunk_duration_sec: 15,
                             status: "completed".to_string(),
                         };
 
