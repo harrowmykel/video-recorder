@@ -90,7 +90,7 @@ const {
         <span v-if="chunkDuration < 15" class="text-emerald-400/90 font-medium">
           High Crash Safety: Max ~{{ chunkDuration }}s lost if system abruptly powers off, but produces more segments to join.
         </span>
-        <span v-else-if="chunkDuration === 15" class="text-indigo-300/90 font-medium">
+        <span v-else-if="chunkDuration > 15 && chunkDuration < 30" class="text-indigo-300/90 font-medium">
           Balanced (Recommended): Optimal balance between crash recovery and fast file finalization.
         </span>
         <span v-else class="text-amber-300/90 font-medium">
