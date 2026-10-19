@@ -177,7 +177,9 @@ watch(
   [isToolbarCollapsed, activePopover, () => props.isCameraHidden],
   ([collapsed, popover, cameraHidden]) => {
     if (popover !== null) {
-      resizeOverlayWindow('toolbar', 860, 390);
+      // Camera popover contains multiple background and device sections; give it adequate vertical space
+      const popoverHeight = popover === 'camera' ? 520 : 390;
+      resizeOverlayWindow('toolbar', 860, popoverHeight);
     } else if (collapsed) {
       resizeOverlayWindow('toolbar', cameraHidden ? 230 : 190, 58);
     } else {
@@ -454,7 +456,7 @@ const activeToolbarVariant = computed(() => {
   <div class="relative font-sans select-none flex flex-col items-center justify-end">
     <!-- Popover 1: Camera Device & Real-Time Virtual Background Picker -->
     <div v-if="activePopover === 'camera'" data-popover="true"
-      class="mb-2.5 w-[440px] p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3.5 z-50">
+      class="mb-2.5 w-[440px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] overflow-y-auto p-4 rounded-2xl bg-[#0e111a]/95 backdrop-blur-xl border border-white/15 shadow-2xl text-white space-y-3.5 z-50">
       <div class="flex items-center justify-between border-b border-white/10 pb-2">
         <div class="flex items-center gap-2 text-xs font-bold">
           <Video class="w-4 h-4 text-indigo-400" />
