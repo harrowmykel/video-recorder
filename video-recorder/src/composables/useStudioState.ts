@@ -261,6 +261,7 @@ function loadPersistedSettings() {
     if (typeof data.countdownDuration === 'number') countdownDuration.value = data.countdownDuration;
     if (typeof data.chunkDuration === 'number') chunkDuration.value = data.chunkDuration;
     if (typeof data.autoHideCameraOnRecord === 'boolean') autoHideCameraOnRecord.value = data.autoHideCameraOnRecord;
+    if (typeof data.cameraCustomDiameter === 'number' || data.cameraCustomDiameter === null) cameraCustomDiameter.value = data.cameraCustomDiameter;
     if (data.selectedCameraId) selectedCameraId.value = data.selectedCameraId;
     if (data.selectedMicId) selectedMicId.value = data.selectedMicId;
     if (typeof data.isMicMuted === 'boolean') isMicMuted.value = data.isMicMuted;
@@ -299,6 +300,7 @@ function savePersistedSettings() {
       isSysAudioMuted: isSysAudioMuted.value,
       cameraShape: cameraShape.value,
       cameraSize: cameraSize.value,
+      cameraCustomDiameter: cameraCustomDiameter.value,
       isCameraMirrored: isCameraMirrored.value,
       bgMode: bgMode.value,
       selectedBgModel: selectedBgModel.value,
@@ -463,6 +465,9 @@ export function useStudioState() {
         isAreaSelectorOpen,
         isSourceModalOpen,
         targetFps,
+        countdownDuration,
+        chunkDuration,
+        autoHideCameraOnRecord,
         selectedCameraId,
         selectedMicId,
         isMicMuted,
