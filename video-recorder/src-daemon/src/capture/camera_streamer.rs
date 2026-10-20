@@ -25,6 +25,96 @@ impl Default for CameraStreamerConfig {
     }
 }
 
+fn build_capture_cmd(device_name: Option<&str>, use_fallback: bool) -> Command {
+    let mut cmd = crate::ffmpeg::ffmpeg_cmd();
+    cmd.args(["-loglevel", "error", "-y"]);
+
+    if use_fallback {
+        cmd.args([
+            "-f", "lavfi",
+            "-i", "testsrc=size=640x480:rate=30",
+            "-f", "rawvideo",
+            "-pix_fmt", "rgb24",
+            "-",
+        ]);
+        return cmd;
+    }
+
+    let dev = device_name.unwrap_or("").trim();
+
+    #[cfg(target_os = "windows")]
+    {
+        let is_valid = !dev.is_empty() && dev != "default" && dev != "none" && !dev.starts_with("/dev/video");
+        if is_valid {
+            let clean_name = if dev.starts_with("video=") {
+                dev.to_string()
+            } else if let Some(idx) = dev.rfind(" (") {
+                format!("video={}", &dev[..idx])
+            } else {
+                format!("video={}", dev)
+            };
+
+            cmd.args([
+                "-f", "dshow",
+                "-video_size", "640x480",
+                "-framerate", "30",
+                "-i", &clean_name,
+                "-f", "rawvideo",
+                "-pix_fmt", "rgb24",
+                "-",
+            ]);
+            return cmd;
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let dev_path = if dev.is_empty() || dev == "default" {
+            "/dev/video0".to_string()
+        } else {
+            dev.to_string()
+        };
+        if std::path::Path::new(&dev_path).exists() {
+            cmd.args([
+                "-f", "v4l2",
+                "-input_format", "mjpeg",
+                "-video_size", "640x480",
+                "-framerate", "30",
+                "-i", &dev_path,
+                "-f", "rawvideo",
+                "-pix_fmt", "rgb24",
+                "-",
+            ]);
+            return cmd;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let dev_idx = if dev.is_empty() || dev == "default" { "0" } else { dev };
+        cmd.args([
+            "-f", "avfoundation",
+            "-framerate", "30",
+            "-video_size", "640x480",
+            "-i", &format!("none:{}", dev_idx),
+            "-f", "rawvideo",
+            "-pix_fmt", "rgb24",
+            "-",
+        ]);
+        return cmd;
+    }
+
+    // Default fallback if no specific valid device configured
+    cmd.args([
+        "-f", "lavfi",
+        "-i", "testsrc=size=640x480:rate=30",
+        "-f", "rawvideo",
+        "-pix_fmt", "rgb24",
+        "-",
+    ]);
+    cmd
+}
+
 struct RecordingSinks {
     raw_child: Option<Child>,
     alpha_child: Option<Child>,
@@ -39,6 +129,7 @@ pub struct CameraStreamer {
     running: Arc<AtomicBool>,
     recording_sinks: Arc<Mutex<Option<RecordingSinks>>>,
     active_subscribers: Arc<std::sync::atomic::AtomicUsize>,
+    active_capture_pid: Arc<Mutex<Option<u32>>>,
 }
 
 impl CameraStreamer {
@@ -51,6 +142,7 @@ impl CameraStreamer {
             running: Arc::new(AtomicBool::new(false)),
             recording_sinks: Arc::new(Mutex::new(None)),
             active_subscribers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            active_capture_pid: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -64,6 +156,37 @@ impl CameraStreamer {
         if prev == 0 {
             self.active_subscribers.store(0, Ordering::SeqCst);
         }
+    }
+
+    pub fn set_device_name(&self, device: &str) {
+        let changed = if let Ok(mut cfg) = self.config.write() {
+            let prev = cfg.device_name.as_deref().unwrap_or("");
+            if prev != device {
+                cfg.device_name = Some(device.to_string());
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if changed {
+            if let Some(pid) = *self.active_capture_pid.lock().unwrap() {
+                #[cfg(unix)]
+                {
+                    let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status();
+                }
+                #[cfg(windows)]
+                {
+                    let _ = std::process::Command::new("taskkill").args(["/F", "/PID", &pid.to_string()]).status();
+                }
+            }
+        }
+    }
+
+    pub fn get_device_name(&self) -> Option<String> {
+        self.config.read().ok().and_then(|c| c.device_name.clone())
     }
 
     pub fn set_bg_mode(&self, mode: &str) {
@@ -195,11 +318,13 @@ impl CameraStreamer {
         let frame_tx = self.frame_tx.clone();
         let recording_sinks = self.recording_sinks.clone();
         let active_subscribers = self.active_subscribers.clone();
+        let active_capture_pid = self.active_capture_pid.clone();
 
         std::thread::spawn(move || {
             let width = 640u32;
             let height = 480u32;
             let frame_size = (width * height * 3) as usize;
+            let mut consecutive_device_failures = 0;
 
             while running.load(Ordering::SeqCst) {
                 let subs = active_subscribers.load(Ordering::SeqCst);
@@ -213,34 +338,11 @@ impl CameraStreamer {
 
                 let device = {
                     let cfg = config.read().unwrap();
-                    cfg.device_name.clone().unwrap_or_else(|| "/dev/video0".to_string())
+                    cfg.device_name.clone()
                 };
 
-                // Spawn camera capture process (v4l2 on Linux, test pattern fallback if camera busy/absent)
-                let mut cmd = crate::ffmpeg::ffmpeg_cmd();
-                cmd.args(["-loglevel", "error", "-y"]);
-
-                if std::path::Path::new(&device).exists() {
-                    cmd.args([
-                        "-f", "v4l2",
-                        "-input_format", "mjpeg",
-                        "-video_size", "640x480",
-                        "-framerate", "30",
-                        "-i", &device,
-                        "-f", "rawvideo",
-                        "-pix_fmt", "rgb24",
-                        "-",
-                    ]);
-                } else {
-                    // Fallback test card so preview stream never breaks even if webcam unplugged
-                    cmd.args([
-                        "-f", "lavfi",
-                        "-i", "testsrc=size=640x480:rate=30",
-                        "-f", "rawvideo",
-                        "-pix_fmt", "rgb24",
-                        "-",
-                    ]);
-                }
+                let should_fallback = consecutive_device_failures >= 2;
+                let mut cmd = build_capture_cmd(device.as_deref(), should_fallback);
 
                 cmd.stdin(Stdio::null());
                 cmd.stdout(Stdio::piped());
@@ -250,24 +352,34 @@ impl CameraStreamer {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("[CameraStreamer] Failed to spawn FFmpeg capture: {}", e);
-                        std::thread::sleep(Duration::from_secs(1));
+                        consecutive_device_failures += 1;
+                        std::thread::sleep(Duration::from_millis(500));
                         continue;
                     }
                 };
+
+                *active_capture_pid.lock().unwrap() = Some(child.id());
 
                 let mut stdout = match child.stdout.take() {
                     Some(s) => s,
                     None => {
                         let _ = child.kill();
+                        *active_capture_pid.lock().unwrap() = None;
+                        consecutive_device_failures += 1;
                         continue;
                     }
                 };
 
                 let mut raw_buf = vec![0u8; frame_size];
+                let mut frame_count: u64 = 0;
 
                 while running.load(Ordering::SeqCst) {
                     if let Err(_) = stdout.read_exact(&mut raw_buf) {
                         break; // EOF or camera disconnected
+                    }
+                    frame_count += 1;
+                    if frame_count > 10 {
+                        consecutive_device_failures = 0;
                     }
 
                     let bg_mode = {
@@ -341,7 +453,13 @@ impl CameraStreamer {
 
                 let _ = child.kill();
                 let _ = child.wait();
-                std::thread::sleep(Duration::from_millis(500));
+                *active_capture_pid.lock().unwrap() = None;
+                if frame_count <= 2 {
+                    consecutive_device_failures += 1;
+                    std::thread::sleep(Duration::from_millis(400));
+                } else {
+                    std::thread::sleep(Duration::from_millis(150));
+                }
             }
         });
     }

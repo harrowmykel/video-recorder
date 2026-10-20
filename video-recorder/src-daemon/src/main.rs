@@ -404,6 +404,7 @@ async fn main() {
     struct CameraConfigRequest {
         bg_mode: Option<String>,
         bg_model: Option<String>,
+        device_name: Option<String>,
     }
 
     // 17. Camera config route
@@ -418,10 +419,14 @@ async fn main() {
             if let Some(ref model) = req.bg_model {
                 streamer_clone.set_bg_model(model);
             }
+            if let Some(ref dev) = req.device_name {
+                streamer_clone.set_device_name(dev);
+            }
             warp::reply::json(&serde_json::json!({
                 "success": true,
                 "bg_mode": streamer_clone.get_bg_mode(),
-                "bg_model": streamer_clone.get_bg_model()
+                "bg_model": streamer_clone.get_bg_model(),
+                "device_name": streamer_clone.get_device_name()
             }))
         });
 
@@ -433,6 +438,7 @@ async fn main() {
             warp::reply::json(&serde_json::json!({
                 "bg_mode": streamer_clone.get_bg_mode(),
                 "bg_model": streamer_clone.get_bg_model(),
+                "device_name": streamer_clone.get_device_name(),
                 "is_recording": streamer_clone.is_recording()
             }))
         });

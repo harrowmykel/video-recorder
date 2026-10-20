@@ -7,10 +7,12 @@ import {
   uploadRecordedCameraTrack,
   uploadCameraChunk,
   broadcastEvent,
+  updateCameraDevice,
 } from '@/lib/tauriBridge';
 
 import { useTheme } from '@/composables/useTheme';
 import { useStudioState } from '@/composables/useStudioState';
+import { useMediaDevices } from '@/composables/useMediaDevices';
 import { useBackgroundSegmentation } from '@/composables/useBackgroundSegmentation';
 
 // Theme Variants
@@ -125,6 +127,27 @@ const hasEffectiveStream = computed(() => {
   return hasCameraStream.value;
 });
 
+const { cameras, refreshDevices } = useMediaDevices();
+
+function syncCameraToDaemon(id: string) {
+  if (id === 'none') {
+    updateCameraDevice('none');
+    return;
+  }
+  const matching = cameras.value.find((c) => c.deviceId === id);
+  if (matching && matching.label) {
+    updateCameraDevice(matching.label);
+  } else if (id && id !== 'default' && !id.startsWith('cam_')) {
+    updateCameraDevice(id);
+  }
+}
+
+watch(cameras, (list) => {
+  if (list.length > 0 && selectedCameraId.value !== 'none') {
+    syncCameraToDaemon(selectedCameraId.value);
+  }
+});
+
 async function startCameraStream(deviceId?: string) {
   if (mediaStream) {
     mediaStream.getTracks().forEach((t) => t.stop());
@@ -133,7 +156,7 @@ async function startCameraStream(deviceId?: string) {
   if (videoRef.value) {
     videoRef.value.srcObject = null;
   }
-  if (!deviceId || deviceId === 'none') {
+  if (!deviceId || deviceId === 'none' || bgEngine.value === 'rust') {
     hasCameraStream.value = false;
     return;
   }
@@ -165,15 +188,28 @@ async function startCameraStream(deviceId?: string) {
 
 // Switch camera stream in real time when selectedCameraId changes
 watch(selectedCameraId, (newId) => {
+  syncCameraToDaemon(newId);
   if (newId === 'none') {
     stopCanvasRecording();
   }
-  startCameraStream(newId);
+  if (bgEngine.value === 'js') {
+    startCameraStream(newId);
+  }
 });
 
 watch(bgEngine, (newEngine) => {
   if (newEngine === 'js' && selectedCameraId.value !== 'none' && !hasCameraStream.value) {
     startCameraStream(selectedCameraId.value);
+  } else if (newEngine === 'rust') {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((t) => t.stop());
+      mediaStream = null;
+    }
+    if (videoRef.value) {
+      videoRef.value.srcObject = null;
+    }
+    hasCameraStream.value = false;
+    syncCameraToDaemon(selectedCameraId.value);
   }
 });
 
@@ -482,8 +518,12 @@ function onDragMouseUp() {
 
 onMounted(async () => {
   initTheme();
+  await refreshDevices(false);
   if (selectedCameraId.value !== 'none') {
-    await startCameraStream(selectedCameraId.value);
+    syncCameraToDaemon(selectedCameraId.value);
+    if (bgEngine.value === 'js') {
+      await startCameraStream(selectedCameraId.value);
+    }
   } else {
     hasCameraStream.value = false;
   }

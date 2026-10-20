@@ -295,6 +295,31 @@ export async function updateCameraBackgroundMode(bgMode: string, bgModel?: strin
   }
 }
 
+export async function updateCameraDevice(deviceName: string): Promise<boolean> {
+  return updateCameraConfig({ device_name: deviceName });
+}
+
+export interface CameraConfigOptions {
+  bg_mode?: string;
+  bg_model?: string;
+  device_name?: string;
+}
+
+export async function updateCameraConfig(options: CameraConfigOptions): Promise<boolean> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const resp = await fetch(`${daemonBase}/camera/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    });
+    return resp.ok;
+  } catch (err) {
+    console.warn('[updateCameraConfig] Failed to sync config with daemon:', err);
+    return false;
+  }
+}
+
 export interface DaemonModelInfo {
   name: string;
   model_type: string;

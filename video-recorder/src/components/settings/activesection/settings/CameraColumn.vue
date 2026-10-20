@@ -8,7 +8,8 @@ import {
   ChevronRight,
 } from 'lucide-vue-next';
 import { useStudioState } from '@/composables/useStudioState';
-import { useMediaDevices } from '@/composables/useMediaDevices';
+import { useMediaDevices, type MediaDeviceOption } from '@/composables/useMediaDevices';
+import { updateCameraDevice } from '@/lib/tauriBridge';
 
 const emit = defineEmits<{
   (e: 'openBackgrounds'): void;
@@ -21,6 +22,12 @@ const {
 
 const { cameras, refreshDevices } = useMediaDevices();
 
+function selectCamera(cam: MediaDeviceOption|null) {
+  
+  selectedCameraId.value = cam?.deviceId || 'none';
+  isCameraHidden.value = cam === null;
+    updateCameraDevice(selectedCameraId.value );
+} 
 </script>
 
 <template>
@@ -48,7 +55,7 @@ const { cameras, refreshDevices } = useMediaDevices();
       <label class="text-[10px] font-mono uppercase text-white/50 block">Active Camera Device</label>
       <div class="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
         <!-- Dedicated No Camera (Screen Only) Option -->
-        <button @click="selectedCameraId = 'none'; isCameraHidden = true" :class="[
+        <button @click="selectCamera(null)" :class="[
           'w-full px-3.5 py-2.5 rounded-xl text-left text-xs flex items-center justify-between border transition',
           selectedCameraId === 'none'
             ? 'bg-rose-500/20 border-rose-400/50 text-white font-semibold'
@@ -62,7 +69,7 @@ const { cameras, refreshDevices } = useMediaDevices();
         </button>
 
         <button v-for="cam in cameras" :key="cam.deviceId"
-          @click="selectedCameraId = cam.deviceId; isCameraHidden = false" :class="[
+          @click="selectCamera(cam)" :class="[
             'w-full px-3.5 py-2.5 rounded-xl text-left text-xs flex items-center justify-between border transition',
             selectedCameraId === cam.deviceId
               ? 'bg-indigo-500/20 border-indigo-400/50 text-white font-semibold'
