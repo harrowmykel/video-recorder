@@ -17,7 +17,7 @@ impl CameraRecorder {
     }
 
     pub fn start(&mut self, device_name: Option<&str>) -> Result<()> {
-        let mut cmd = Command::new("ffmpeg");
+        let mut cmd = crate::ffmpeg::ffmpeg_cmd();
         cmd.arg("-y");
 
         #[cfg(target_os = "linux")]

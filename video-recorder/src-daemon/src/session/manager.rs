@@ -504,12 +504,13 @@ impl SessionManager {
                 let concat_list_path = chunks_d.join("camera_concat.txt");
                 let mut content = String::new();
                 for f in &cam_chunks {
-                    content.push_str(&format!("file '{}'\n", f.to_string_lossy()));
+                    let rel = f.file_name().unwrap_or(f.as_os_str()).to_string_lossy().replace('\'', "'\\''");
+                    content.push_str(&format!("file '{}'\n", rel));
                 }
                 let _ = std::fs::write(&concat_list_path, content);
                 let unified_webm = dir.join("camera_alpha.webm");
                 let unified_mp4 = dir.join("camera_raw.mp4");
-                let _ = Command::new("ffmpeg")
+                let _ = crate::ffmpeg::ffmpeg_cmd()
                     .arg("-y")
                     .arg("-f").arg("concat")
                     .arg("-safe").arg("0")
@@ -520,7 +521,7 @@ impl SessionManager {
                     .stderr(Stdio::null())
                     .status();
 
-                let _ = Command::new("ffmpeg")
+                let _ = crate::ffmpeg::ffmpeg_cmd()
                     .arg("-y")
                     .arg("-i").arg(&unified_webm)
                     .args([
@@ -645,7 +646,7 @@ impl SessionManager {
 
         let mp4_path = target_dir.join("camera_raw.mp4");
         let tmp_mp4_path = target_dir.join("camera_raw_uploaded.mp4");
-        let status = Command::new("ffmpeg")
+        let status = crate::ffmpeg::ffmpeg_cmd()
             .arg("-y")
             .arg("-i")
             .arg(&webm_path)

@@ -11,11 +11,12 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "overlay": "electron --no-sandbox electron/main.cjs",
+    "prepare:binaries": "node scripts/prepare-binaries.cjs",
     "daemon:build": "node scripts/build-daemon.cjs",
     "daemon:stop": "node scripts/stop-daemon.cjs",
     "daemon:start": "node scripts/start-daemon.cjs",
-    "package:dir": "npm run build && npm run daemon:build && electron-builder --dir",
-    "package:dist": "npm run build && npm run daemon:build && electron-builder"
+    "package:dir": "npm run prepare:binaries && npm run build && npm run daemon:build && electron-builder --dir",
+    "package:dist": "npm run prepare:binaries && npm run build && npm run daemon:build && electron-builder"
   },
   "description": "Studio-grade screen and camera overlay recorder for Linux",
   "homepage": "https://github.com/harrowmykel/video-recorder-studio",
@@ -47,6 +48,10 @@
         {
           "from": "src-daemon/target/release/recorder-daemon",
           "to": "bin/recorder-daemon"
+        },
+        {
+          "from": "bin/ffmpeg",
+          "to": "bin/ffmpeg"
         }
       ]
     },
@@ -60,6 +65,10 @@
         {
           "from": "src-daemon/target/release/recorder-daemon.exe",
           "to": "bin/recorder-daemon.exe"
+        },
+        {
+          "from": "bin/ffmpeg.exe",
+          "to": "bin/ffmpeg.exe"
         }
       ]
     }
@@ -83,6 +92,7 @@
     "autoprefixer": "^10.4.20",
     "electron": "^44.9.0",
     "electron-builder": "^26.15.3",
+    "ffmpeg-static": "^5.3.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",

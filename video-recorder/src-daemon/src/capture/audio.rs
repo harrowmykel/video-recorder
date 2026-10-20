@@ -80,7 +80,7 @@ impl AudioRecorder {
     }
 
     fn spawn_mic_recorder(&mut self, start_number: usize) -> Result<()> {
-        let mut mic_cmd = Command::new("ffmpeg");
+        let mut mic_cmd = crate::ffmpeg::ffmpeg_cmd();
         mic_cmd.arg("-y");
 
         #[cfg(target_os = "linux")]
@@ -127,7 +127,7 @@ impl AudioRecorder {
     }
 
     fn spawn_sys_recorder(&mut self, start_number: usize) -> Result<()> {
-        let mut sys_cmd = Command::new("ffmpeg");
+        let mut sys_cmd = crate::ffmpeg::ffmpeg_cmd();
         sys_cmd.arg("-y");
 
         #[cfg(target_os = "linux")]
@@ -362,10 +362,11 @@ impl AudioRecorder {
                 let concat_list_path = chunks_dir.join("mic_concat.txt");
                 let mut content = String::new();
                 for f in &mic_files {
-                    content.push_str(&format!("file '{}'\n", f.to_string_lossy()));
+                    let rel = f.file_name().unwrap_or(f.as_os_str()).to_string_lossy().replace('\'', "'\\''");
+                    content.push_str(&format!("file '{}'\n", rel));
                 }
                 let _ = std::fs::write(&concat_list_path, content);
-                let _ = Command::new("ffmpeg")
+                let _ = crate::ffmpeg::ffmpeg_cmd()
                     .arg("-y")
                     .arg("-f").arg("concat")
                     .arg("-safe").arg("0")
@@ -428,10 +429,11 @@ impl AudioRecorder {
                 let concat_list_path = chunks_dir.join("sys_concat.txt");
                 let mut content = String::new();
                 for f in &sys_files {
-                    content.push_str(&format!("file '{}'\n", f.to_string_lossy()));
+                    let rel = f.file_name().unwrap_or(f.as_os_str()).to_string_lossy().replace('\'', "'\\''");
+                    content.push_str(&format!("file '{}'\n", rel));
                 }
                 let _ = std::fs::write(&concat_list_path, content);
-                let _ = Command::new("ffmpeg")
+                let _ = crate::ffmpeg::ffmpeg_cmd()
                     .arg("-y")
                     .arg("-f").arg("concat")
                     .arg("-safe").arg("0")

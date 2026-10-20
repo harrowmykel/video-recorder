@@ -63,7 +63,7 @@ pub fn process_video_background(
         }
     };
 
-    let mut cmd = Command::new("ffmpeg");
+    let mut cmd = crate::ffmpeg::ffmpeg_cmd();
     cmd.arg("-y")
         .arg("-i")
         .arg(input_path);

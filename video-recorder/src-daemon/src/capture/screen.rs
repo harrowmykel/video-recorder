@@ -324,7 +324,7 @@ impl ScreenRecorder {
         self.screen_h = clamped_h;
         self.screen_fps = fps;
 
-        let mut cmd = Command::new("ffmpeg");
+        let mut cmd = crate::ffmpeg::ffmpeg_cmd();
         cmd.arg("-y");
 
         #[cfg(target_os = "linux")]
@@ -550,11 +550,12 @@ impl ScreenRecorder {
                     let concat_list_path = chunks_dir.join("screen_concat.txt");
                     let mut concat_content = String::new();
                     for f in &chunk_files {
-                        concat_content.push_str(&format!("file '{}'\n", f.to_string_lossy()));
+                        let rel = f.file_name().unwrap_or(f.as_os_str()).to_string_lossy().replace('\'', "'\\''");
+                        concat_content.push_str(&format!("file '{}'\n", rel));
                     }
                     let _ = std::fs::write(&concat_list_path, concat_content);
 
-                    let status = Command::new("ffmpeg")
+                    let status = crate::ffmpeg::ffmpeg_cmd()
                         .arg("-y")
                         .arg("-f")
                         .arg("concat")
@@ -569,7 +570,7 @@ impl ScreenRecorder {
                         .status();
 
                     if status.is_err() || !status.unwrap().success() {
-                        let _ = Command::new("ffmpeg")
+                        let _ = crate::ffmpeg::ffmpeg_cmd()
                             .arg("-y")
                             .arg("-f")
                             .arg("concat")
@@ -594,7 +595,7 @@ impl ScreenRecorder {
                     let _ = std::fs::remove_file(&concat_list_path);
                 }
             } else if self.temp_path.exists() {
-                let _ = Command::new("ffmpeg")
+                let _ = crate::ffmpeg::ffmpeg_cmd()
                     .arg("-y")
                     .arg("-i")
                     .arg(&self.temp_path)

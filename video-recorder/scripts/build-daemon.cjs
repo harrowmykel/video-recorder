@@ -34,6 +34,10 @@ if (checkCargo.status !== 0) {
 }
 
 console.log('=== Building native capture daemon (recorder-daemon) ===');
+const prepScript = path.join(__dirname, 'prepare-binaries.cjs');
+if (fs.existsSync(prepScript)) {
+  require(prepScript);
+}
 const result = spawnSync('cargo', ['build', '--release', '--manifest-path', 'src-daemon/Cargo.toml'], {
   stdio: 'inherit',
   shell: true,

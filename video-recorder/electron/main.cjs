@@ -5,6 +5,19 @@ const fs = require('fs');
 
 let daemonProcess = null;
 
+function getBundledFfmpegPath() {
+  const exeExt = process.platform === 'win32' ? '.exe' : '';
+  const possiblePaths = [
+    path.join(process.resourcesPath || '', `bin/ffmpeg${exeExt}`),
+    path.join(__dirname, `../bin/ffmpeg${exeExt}`),
+    path.join(__dirname, `../node_modules/ffmpeg-static/ffmpeg${exeExt}`),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
 function startDaemonIfAvailable() {
   const exeExt = process.platform === 'win32' ? '.exe' : '';
   const possiblePaths = [
@@ -13,13 +26,22 @@ function startDaemonIfAvailable() {
     path.join(__dirname, `../src-daemon/target/debug/recorder-daemon${exeExt}`),
   ];
 
+  const ffmpegPath = getBundledFfmpegPath();
+  const daemonEnv = { ...process.env, RUST_BACKTRACE: '1' };
+  if (ffmpegPath) {
+    daemonEnv.FFMPEG_PATH = ffmpegPath;
+    const ffmpegDir = path.dirname(ffmpegPath);
+    const pathKey = Object.keys(daemonEnv).find((k) => k.toLowerCase() === 'path') || 'PATH';
+    daemonEnv[pathKey] = `${ffmpegDir}${path.delimiter}${daemonEnv[pathKey] || ''}`;
+  }
+
   for (const binPath of possiblePaths) {
     if (fs.existsSync(binPath)) {
       try {
         daemonProcess = spawn(binPath, [], {
           stdio: 'ignore',
           detached: false,
-          env: { ...process.env, RUST_BACKTRACE: '1' },
+          env: daemonEnv,
         });
         break;
       } catch (err) {

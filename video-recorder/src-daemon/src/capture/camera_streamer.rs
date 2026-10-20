@@ -107,7 +107,7 @@ impl CameraStreamer {
         let alpha_path = session_dir.join("camera_alpha.webm");
 
         // 1. Raw FFmpeg recorder (H.264 MP4 from raw RGB24 frames)
-        let mut raw_cmd = Command::new("ffmpeg");
+        let mut raw_cmd = crate::ffmpeg::ffmpeg_cmd();
         raw_cmd.args([
             "-y",
             "-f", "rawvideo",
@@ -129,7 +129,7 @@ impl CameraStreamer {
         let raw_child = raw_cmd.spawn().context("Failed to spawn camera raw recorder")?;
 
         // 2. Alpha/Cutout FFmpeg recorder (VP9 WebM with yuva420p transparency from RGBA frames)
-        let mut alpha_cmd = Command::new("ffmpeg");
+        let mut alpha_cmd = crate::ffmpeg::ffmpeg_cmd();
         alpha_cmd.args([
             "-y",
             "-f", "rawvideo",
@@ -217,7 +217,7 @@ impl CameraStreamer {
                 };
 
                 // Spawn camera capture process (v4l2 on Linux, test pattern fallback if camera busy/absent)
-                let mut cmd = Command::new("ffmpeg");
+                let mut cmd = crate::ffmpeg::ffmpeg_cmd();
                 cmd.args(["-loglevel", "error", "-y"]);
 
                 if std::path::Path::new(&device).exists() {
