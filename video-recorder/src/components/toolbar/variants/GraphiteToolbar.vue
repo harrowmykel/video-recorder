@@ -179,6 +179,13 @@ const emit = defineEmits<{
       title="Session Notes (Markdown WYSIWYG)">
       <FileText class="w-3.5 h-3.5" />
     </button>
+    <!-- Theme / Settings -->
+    <button @click="emit('openSettings')"
+      class="h-9 px-2 rounded tactile-key text-[#ff5500] hover:text-[#ff7733] flex items-center gap-1"
+      title="Themes & Preferences">
+      <Settings class="w-3.5 h-3.5" />
+      <span class="text-[10px]">CFG</span>
+    </button>
 
     <button @click="emit('stopRecord')"
       class="h-9 px-3.5 rounded bg-zinc-100 hover:bg-white text-black font-mono font-bold text-xs flex items-center gap-1.5">

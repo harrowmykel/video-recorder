@@ -201,6 +201,13 @@ const emit = defineEmits<{
       <span>Finish</span>
       <kbd class="px-1 py-0.5 rounded bg-black/30 text-[9px] font-mono text-white/70">⇧⌘R</kbd>
     </button>
+    
+    <!-- Theme / Settings Button -->
+    <button @click="emit('openSettings')"
+      class="w-9 h-9 rounded-xl obsidian-btn text-rose-400 hover:text-rose-300 flex items-center justify-center transition"
+      title="Themes & Settings">
+      <Settings class="w-4 h-4" />
+    </button>
 
     <!-- Minimize to Corner -->
     <button @click="emit('toggleCollapse')"

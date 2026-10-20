@@ -185,6 +185,12 @@ const emit = defineEmits<{
       title="Session Notes (Markdown WYSIWYG)">
       <FileText class="w-3.5 h-3.5" />
     </button>
+    <!-- Theme / Settings Button -->
+    <button @click="emit('openSettings')"
+      class="w-9 h-9 rounded-full spatial-pill-btn text-sky-300 flex items-center justify-center transition"
+      title="Themes & Settings">
+      <Settings class="w-4 h-4" />
+    </button>
 
     <button @click="emit('stopRecord')"
       class="h-9 px-4 rounded-full bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 shadow-md transition">

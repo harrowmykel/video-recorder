@@ -178,6 +178,14 @@ const emit = defineEmits<{
       <FileText class="w-3.5 h-3.5" />
     </button>
 
+    <!-- Theme / Settings -->
+    <button @click="emit('openSettings')"
+      class="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center hover:bg-slate-200/70 transition"
+      title="Themes & Preferences">
+      <Settings class="w-4 h-4" />
+    </button>
+
+
     <button @click="emit('stopRecord')"
       class="h-8 px-3.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow">
       <span class="w-2 h-2 rounded-xs bg-white"></span>
