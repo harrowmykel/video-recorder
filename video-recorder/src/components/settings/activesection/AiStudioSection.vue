@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, useTemplateRef } from 'vue';
+import { ref, shallowRef, computed, onMounted, useTemplateRef, reactive, triggerRef } from 'vue';
 import {
   UploadCloud,
   Sparkles,
@@ -54,17 +54,6 @@ const jobs = ref<BatchMattingJob[]>([
     outputPath: `${STUDIO_BG_REMOVER_DIR}/podcast_camera_angle_transparent.mov`,
   },
 ]);
-
-onMounted(async () => {
-  const dir = await getDefaultBgRemoverDirectory();
-  if (dir) {
-    bgRemoverDir.value = dir;
-    if (jobs.value[0]) {
-      jobs.value[0].filePath = `${dir}/podcast_camera_angle_raw.mp4`;
-      jobs.value[0].outputPath = `${dir}/podcast_camera_angle_transparent.mov`;
-    }
-  }
-});
 
 interface BgModelOption {
   id: BgModelType;
@@ -236,7 +225,7 @@ async function processQueue() {
         continue;
       }
 
-      await executeExtraction(nextItem.job, nextItem.source, nextItem.targetDir);
+      await executeExtraction(currentJob, nextItem.source, nextItem.targetDir);
 
       // Pop finished job from queue
       extractionQueue.value = extractionQueue.value.slice(1);
@@ -254,7 +243,7 @@ async function enqueueFilePaths(paths: string[]) {
     const stem = fileName.replace(/\.[^/.]+$/, '');
     const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
 
-    const newJob: BatchMattingJob = {
+    const newJob: BatchMattingJob = reactive({
       id: `job_${Date.now()}_${Math.random()}`,
       fileName,
       filePath,
@@ -265,9 +254,10 @@ async function enqueueFilePaths(paths: string[]) {
       etaSeconds: 0,
       outputFormat: defaultFormat.value,
       outputPath,
-    };
+    });
     jobs.value.unshift(newJob);
-    extractionQueue.value = [...extractionQueue.value, { job: newJob, source: filePath, targetDir }];
+    const reactiveJob = jobs.value[0];
+    extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: filePath, targetDir }];
   }
   processQueue();
 }
@@ -280,7 +270,7 @@ async function enqueueFiles(files: File[]) {
     const stem = file.name.replace(/\.[^/.]+$/, '');
     const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
 
-    const newJob: BatchMattingJob = {
+    const newJob: BatchMattingJob = reactive({
       id: `job_${Date.now()}_${Math.random()}`,
       fileName: file.name,
       filePath,
@@ -291,30 +281,37 @@ async function enqueueFiles(files: File[]) {
       etaSeconds: 0,
       outputFormat: defaultFormat.value,
       outputPath,
-    };
+    });
     jobs.value.unshift(newJob);
-    extractionQueue.value = [...extractionQueue.value, { job: newJob, source: file, targetDir }];
+    const reactiveJob = jobs.value[0];
+    extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: file, targetDir }];
   }
   processQueue();
 }
 
 async function executeExtraction(job: BatchMattingJob, fileOrPath: File | string, targetDir: string) {
+  // Always locate the reactive proxy in jobs.value to guarantee UI reactivity
+  const reactiveJob = jobs.value.find((j) => j.id === job.id) || job;
+
   // If the model selected is not downloaded yet, ensure it gets downloaded
   if (currentModel.value.id !== 'mediapipe_fast' && !isCurrentModelDownloaded.value) {
-    job.status = 'loading_model';
-    job.errorMessage = undefined;
+    reactiveJob.status = 'loading_model';
+    reactiveJob.errorMessage = undefined;
+    triggerRef(jobs);
     try {
       const res = await downloadModel(currentModel.value.fileName);
       if (res.success) {
         daemonModels.value = await fetchAvailableModels();
       } else {
-        job.status = 'failed';
-        job.errorMessage = res.error || 'Failed to download selected AI model';
+        reactiveJob.status = 'failed';
+        reactiveJob.errorMessage = res.error || 'Failed to download selected AI model';
+        triggerRef(jobs);
         return;
       }
     } catch (e: any) {
-      job.status = 'failed';
-      job.errorMessage = e?.message || 'Model download error';
+      reactiveJob.status = 'failed';
+      reactiveJob.errorMessage = e?.message || 'Model download error';
+      triggerRef(jobs);
       return;
     }
   }
@@ -328,45 +325,49 @@ async function executeExtraction(job: BatchMattingJob, fileOrPath: File | string
     }
   }
 
-  const stem = job.fileName.replace(/\.[^/.]+$/, '');
+  const stem = reactiveJob.fileName.replace(/\.[^/.]+$/, '');
   const removerJob = new VideoBgRemoverJob({
-    id: job.id,
+    id: reactiveJob.id,
     source,
-    fileName: job.fileName,
+    fileName: reactiveJob.fileName,
     fileStem: stem,
     modelId: selectedBgModel.value,
     modelFileName: currentModel.value.fileName,
-    outputFormat: job.outputFormat || defaultFormat.value,
+    outputFormat: reactiveJob.outputFormat || defaultFormat.value,
     targetDir,
     onProgress: (p) => {
-      job.progressPct = p.pct;
-      job.fps = p.fps;
-      job.etaSeconds = p.etaSeconds;
-      job.processedFrames = p.frame;
-      job.totalFrames = p.totalFrames;
+      reactiveJob.progressPct = p.pct;
+      reactiveJob.fps = p.fps;
+      reactiveJob.etaSeconds = p.etaSeconds;
+      reactiveJob.processedFrames = p.frame;
+      reactiveJob.totalFrames = p.totalFrames;
+      triggerRef(jobs);
     },
     onPreview: (thumb) => {
-      job.previewThumbnail = thumb;
+      reactiveJob.previewThumbnail = thumb;
+      triggerRef(jobs);
     },
     onStatusChange: (status, errMsg) => {
-      job.status = status;
-      if (errMsg) job.errorMessage = errMsg;
+      reactiveJob.status = status;
+      if (errMsg) reactiveJob.errorMessage = errMsg;
+      triggerRef(jobs);
     },
   });
 
-  activeRemoverJobs.set(job.id, removerJob);
+  activeRemoverJobs.set(reactiveJob.id, removerJob);
 
   const res = await removerJob.run();
-  activeRemoverJobs.delete(job.id);
+  activeRemoverJobs.delete(reactiveJob.id);
 
   if (res.success && res.outputPath) {
-    job.status = 'completed';
-    job.progressPct = 100;
-    job.outputPath = res.outputPath;
-  } else if (!job.errorMessage) {
-    job.status = 'failed';
-    job.errorMessage = res.error || 'Video background extraction failed';
+    reactiveJob.status = 'completed';
+    reactiveJob.progressPct = 100;
+    reactiveJob.outputPath = res.outputPath;
+  } else if (!reactiveJob.errorMessage) {
+    reactiveJob.status = 'failed';
+    reactiveJob.errorMessage = res.error || 'Video background extraction failed';
   }
+  triggerRef(jobs);
 }
 
 function cancelJob(jobId: string) {
@@ -381,15 +382,18 @@ function cancelJob(jobId: string) {
     j.status = 'failed';
     j.errorMessage = 'Cancelled by user';
   }
+  triggerRef(jobs);
 }
 
 function retryJob(job: BatchMattingJob) {
-  job.status = 'queued';
-  job.progressPct = 0;
-  job.fps = 0;
-  job.etaSeconds = 0;
-  job.errorMessage = undefined;
-  extractionQueue.value = [...extractionQueue.value, { job, source: job.filePath, targetDir: bgRemoverDir.value }];
+  const reactiveJob = jobs.value.find((j) => j.id === job.id) || job;
+  reactiveJob.status = 'queued';
+  reactiveJob.progressPct = 0;
+  reactiveJob.fps = 0;
+  reactiveJob.etaSeconds = 0;
+  reactiveJob.errorMessage = undefined;
+  extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: reactiveJob.filePath, targetDir: bgRemoverDir.value }];
+  triggerRef(jobs);
   processQueue();
 }
 

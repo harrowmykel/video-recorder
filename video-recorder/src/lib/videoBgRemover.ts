@@ -149,26 +149,32 @@ export class VideoBgRemoverJob {
         video.src = this.objectUrl;
       }
 
-      await new Promise<void>((resolve, reject) => {
-        const onLoaded = () => {
-          cleanup();
-          resolve();
-        };
-        const onError = () => {
-          cleanup();
-          reject(new Error('Failed to load video file into browser media engine.'));
-        };
-        const cleanup = () => {
-          video.removeEventListener('loadedmetadata', onLoaded);
-          video.removeEventListener('error', onError);
-        };
-        video.addEventListener('loadedmetadata', onLoaded);
-        video.addEventListener('error', onError);
-      });
+      if (video.readyState < 1) {
+        await new Promise<void>((resolve, reject) => {
+          const onLoaded = () => {
+            cleanup();
+            resolve();
+          };
+          const onError = () => {
+            cleanup();
+            reject(new Error('Failed to load video file into browser media engine.'));
+          };
+          const cleanup = () => {
+            video.removeEventListener('loadedmetadata', onLoaded);
+            video.removeEventListener('error', onError);
+          };
+          video.addEventListener('loadedmetadata', onLoaded);
+          video.addEventListener('error', onError);
+          video.load();
+        });
+      }
 
       if (this.isCancelled) return { success: false, error: 'Cancelled by user' };
 
-      const duration = Math.max(0.1, video.duration || 1);
+      let duration = video.duration;
+      if (!Number.isFinite(duration) || Number.isNaN(duration) || duration <= 0) {
+        duration = 5;
+      }
       const videoW = video.videoWidth || 1280;
       const videoH = video.videoHeight || 720;
       const targetFps = 30;
@@ -225,6 +231,7 @@ export class VideoBgRemoverJob {
       let currentFps = targetFps;
       let maskImageData: ImageData | null = null;
       let maskData32: Uint32Array | null = null;
+      let lastMpTimestamp = -1;
 
       for (let i = 0; i < totalFrames; i++) {
         if (this.isCancelled) {
@@ -241,7 +248,11 @@ export class VideoBgRemoverJob {
 
         // Compute AI Mask
         if (segmenter) {
-          const timestamp = Math.floor(frameTime * 1000);
+          let timestamp = Math.floor(frameTime * 1000);
+          if (timestamp <= lastMpTimestamp) {
+            timestamp = lastMpTimestamp + 1;
+          }
+          lastMpTimestamp = timestamp;
           segmenter.segmentForVideo(video, timestamp, (result) => {
             try {
               const confidenceMask = result.confidenceMasks?.[1] ?? result.confidenceMasks?.[0];
@@ -373,6 +384,11 @@ export class VideoBgRemoverJob {
   }
 
   private seekVideo(video: HTMLVideoElement, timeSeconds: number): Promise<void> {
+    const maxDur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : timeSeconds;
+    const target = Math.min(timeSeconds, maxDur);
+    if (Math.abs(video.currentTime - target) < 0.001) {
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
       let resolved = false;
       const onSeeked = () => {
@@ -384,7 +400,7 @@ export class VideoBgRemoverJob {
       };
 
       video.addEventListener('seeked', onSeeked, { once: true });
-      video.currentTime = Math.min(timeSeconds, video.duration || timeSeconds);
+      video.currentTime = target;
 
       // Failsafe timeout in case browser drops seeked event
       setTimeout(() => {
