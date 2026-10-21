@@ -4,8 +4,6 @@ import {
   Sparkles,
   CheckCircle2,
   Trash2,
-  Layers,
-  Cpu,
   Download,
   Film,
   FolderOpen,
@@ -25,9 +23,10 @@ import {
 } from '@/lib/tauriBridge';
 
 import { useStudioState } from '@/composables/useStudioState';
+import AIBgModel from './settings/AIBgModel.vue';
 
 const bgRemoverDir = shallowRef<string>(STUDIO_BG_REMOVER_DIR);
-const { selectedBgModel: selectedModel } = useStudioState();
+const { selectedBgModel: selectedBgModel } = useStudioState();
 
 const jobs = ref<BatchMattingJob[]>([
   {
@@ -154,7 +153,7 @@ async function executeExtraction(job: BatchMattingJob, inputPath: string, target
       {
         file_path: inputPath,
         format: job.outputFormat || defaultFormat.value,
-        model: selectedModel.value,
+        model: selectedBgModel.value,
         output_dir: targetDir,
       }
     );
@@ -249,31 +248,9 @@ async function handleOpenBgRemoverFolder() {
               <span>Open Folder</span>
             </button>
 
-            <!-- Neural Model Selector -->
-            <div class="relative">
-              <select v-model="selectedModel"
-                class="appearance-none bg-[#12141D] border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-1.5 pr-8 focus:outline-none focus:border-indigo-400 font-medium">
-                <option value="birefnet_hq" class="bg-[#12141D]">Ultra Quality: BiRefNet</option>
-                <option value="rmbg_1_4" class="bg-[#12141D]">HQ Portrait: RMBG-1.4</option>
-                <option value="rvm_video" class="bg-[#12141D]">Smooth Motion: RVM</option>
-                <option value="mediapipe_fast" class="bg-[#12141D]">Fast Realtime: MediaPipe</option>
-              </select>
-              <Cpu class="w-3.5 h-3.5 text-indigo-400 absolute right-2.5 top-2.5 pointer-events-none" />
-            </div>
-
-            <!-- Format Preset -->
-            <div class="relative">
-              <select v-model="defaultFormat"
-                class="appearance-none bg-[#12141D] border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-1.5 pr-8 focus:outline-none focus:border-indigo-400 font-medium">
-                <option value="webm_alpha" class="bg-[#12141D]">WebM VP9 Alpha (.webm)</option>
-                <option value="prores_4444" class="bg-[#12141D]">Apple ProRes 4444 (.mov)</option>
-                <option value="luma_matte" class="bg-[#12141D]">High-Contrast Luma Matte (.mp4)</option>
-              </select>
-              <Layers class="w-3.5 h-3.5 text-emerald-400 absolute right-2.5 top-2.5 pointer-events-none" />
-            </div>
           </div>
         </div>
-
+        <AIBgModel />
         <!-- Drag & Drop Zone -->
         <div @click="triggerFileInput" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop"
           class="border-2 border-dashed rounded-3xl p-10 text-center transition-all cursor-pointer relative overflow-hidden group"
