@@ -404,7 +404,7 @@ function consolidateTakes({ sourceDir, outputTakesDir, sessionMetadata, ffmpegPa
 /**
  * Builds and executes an FFmpeg -filter_complex command to composite all takes into a single MP4.
  */
-function renderSingleMp4({ takesData, targetFile, telemetry, ffmpegPath }) {
+function renderSingleMp4({ takesData, targetFile, telemetry, ffmpegPath, includeCameraPip = true }) {
   const durSec = Math.max(1, Number((takesData.totalDurationMs / 1000).toFixed(3)));
   const args = ['-y'];
   const filterParts = [];
@@ -418,7 +418,9 @@ function renderSingleMp4({ takesData, targetFile, telemetry, ffmpegPath }) {
   };
 
   takesData.screenTakes.forEach(registerInput);
-  takesData.cameraTakes.forEach(registerInput);
+  if (includeCameraPip) {
+    takesData.cameraTakes.forEach(registerInput);
+  }
   takesData.micTakes.forEach(registerInput);
   takesData.sysAudioTakes.forEach(registerInput);
 
@@ -435,30 +437,32 @@ function renderSingleMp4({ takesData, targetFile, telemetry, ffmpegPath }) {
     currentVideo = nextVideo;
   });
 
-  // 3. Overlay Camera Takes
-  const initialPoint = telemetry?.[0] || {
-    normX: 0.82,
-    normY: 0.72,
-    width: 288,
-    height: 288,
-    shape: 'circle',
-    hidden: false,
-  };
+  // 3. Overlay Camera Takes (optional based on includeCameraPip)
+  if (includeCameraPip && takesData.cameraTakes.length > 0) {
+    const initialPoint = telemetry?.[0] || {
+      normX: 0.82,
+      normY: 0.72,
+      width: 288,
+      height: 288,
+      shape: 'circle',
+      hidden: false,
+    };
 
-  takesData.cameraTakes.forEach((take, idx) => {
-    const startSec = (take.startMs / 1000).toFixed(3);
-    const endSec = (take.endMs / 1000).toFixed(3);
-    const camW = take.width || initialPoint.width || 288;
-    const camH = take.height || initialPoint.height || 288;
-    const camX = Math.round((initialPoint.normX || 0.82) * 1920);
-    const camY = Math.round((initialPoint.normY || 0.72) * 1080);
+    takesData.cameraTakes.forEach((take, idx) => {
+      const startSec = (take.startMs / 1000).toFixed(3);
+      const endSec = (take.endMs / 1000).toFixed(3);
+      const camW = take.width || initialPoint.width || 288;
+      const camH = take.height || initialPoint.height || 288;
+      const camX = Math.round((initialPoint.normX || 0.82) * 1920);
+      const camY = Math.round((initialPoint.normY || 0.72) * 1080);
 
-    const scaledCam = `[v_cam_scaled_${idx}]`;
-    const nextVideo = `[v_cam_${idx}]`;
-    filterParts.push(`[${take.inputIndex}:v] scale=${camW}:${camH} ${scaledCam}`);
-    filterParts.push(`${currentVideo}${scaledCam} overlay=x=${camX}:y=${camY}:enable='between(t,${startSec},${endSec})' ${nextVideo}`);
-    currentVideo = nextVideo;
-  });
+      const scaledCam = `[v_cam_scaled_${idx}]`;
+      const nextVideo = `[v_cam_${idx}]`;
+      filterParts.push(`[${take.inputIndex}:v] scale=${camW}:${camH} ${scaledCam}`);
+      filterParts.push(`${currentVideo}${scaledCam} overlay=x=${camX}:y=${camY}:enable='between(t,${startSec},${endSec})' ${nextVideo}`);
+      currentVideo = nextVideo;
+    });
+  }
 
   // 4. Audio Mixing
   const audioOutputs = [];
@@ -508,7 +512,7 @@ function renderSingleMp4({ takesData, targetFile, telemetry, ffmpegPath }) {
  * Main export handler function.
  * Supported presets: 'single_mp4', 'remotion_video', 'mp4_bundle'.
  */
-async function exportSessionPackage({ targetDir, sessionMetadata, preset = 'single_mp4' }, options = {}) {
+async function exportSessionPackage({ targetDir, sessionMetadata, preset = 'single_mp4', includeCameraPip }, options = {}) {
   try {
     const homeDir = options.homeDir || (app ? app.getPath('home') : require('os').homedir());
     const resolvedTargetDir = targetDir.startsWith('~/')
@@ -517,6 +521,9 @@ async function exportSessionPackage({ targetDir, sessionMetadata, preset = 'sing
     fs.mkdirSync(resolvedTargetDir, { recursive: true });
 
     const ffmpegPath = getFfmpegExecutablePath(options);
+    const shouldIncludeCameraPip = includeCameraPip !== undefined
+      ? Boolean(includeCameraPip)
+      : (sessionMetadata?.includeCameraPip !== false);
 
     // Determine source directory
     const rawSourceDir =
@@ -579,6 +586,7 @@ async function exportSessionPackage({ targetDir, sessionMetadata, preset = 'sing
         targetFile: singleMp4File,
         telemetry,
         ffmpegPath,
+        includeCameraPip: shouldIncludeCameraPip,
       });
 
       // Cleanup tmp takes after single_mp4 render
@@ -599,6 +607,7 @@ async function exportSessionPackage({ targetDir, sessionMetadata, preset = 'sing
           durationMs: durMs,
         },
         file: 'single_recording.mp4',
+        includeCameraPip: shouldIncludeCameraPip,
         telemetrySampleCount: telemetry.length,
       }, null, 2));
 

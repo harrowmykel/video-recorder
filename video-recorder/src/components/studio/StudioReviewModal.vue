@@ -7,7 +7,6 @@ import {
   Download,
   FolderOpen,
   ZoomIn,
-  Sparkles,
   Monitor,
   Smartphone,
   Ratio,

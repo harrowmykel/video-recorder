@@ -885,7 +885,8 @@ export async function checkDirectoryNotEmpty(
 export async function exportSessionPackage(
   targetDir: string,
   sessionMetadata?: unknown,
-  preset: string = 'single_mp4'
+  preset: string = 'single_mp4',
+  options?: { includeCameraPip?: boolean }
 ): Promise<{ success: boolean; targetDir?: string; error?: string }> {
   const normalized = targetDir.trim().replace(/[\\/]+$/, '');
 
@@ -896,6 +897,7 @@ export async function exportSessionPackage(
         targetDir: String(targetDir),
         sessionMetadata: cleanMeta,
         preset: String(preset),
+        includeCameraPip: options?.includeCameraPip ?? (cleanMeta as any)?.includeCameraPip ?? true,
       });
       if (res?.success) {
         exportedDirectories.add(normalized);

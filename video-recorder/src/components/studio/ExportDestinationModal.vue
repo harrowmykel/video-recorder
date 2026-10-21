@@ -69,6 +69,7 @@ const openError = shallowRef<string | null>(null);
 const folderNotEmptyAlert = shallowRef<string | null>(null);
 const exportPreset = shallowRef<ExportPresetType>('single_mp4');
 const deleteSessionOnDone = shallowRef(false);
+const includeCameraPip = shallowRef(true);
 
 function handleExportAnother() {
   isComplete.value = false;
@@ -129,6 +130,7 @@ watch(
       isCopied.value = false;
       openError.value = null;
       folderNotEmptyAlert.value = null;
+      includeCameraPip.value = true;
       initializeDefaultPath();
     }
   },
@@ -198,8 +200,11 @@ async function handleStartExport() {
   try {
     const safeMeta = props.sessionMetadata
       ? JSON.parse(JSON.stringify(props.sessionMetadata))
-      : undefined;
-    const res = await exportSessionPackage(exportPath.value.trim(), safeMeta, exportPreset.value);
+      : {};
+    safeMeta.includeCameraPip = includeCameraPip.value;
+    const res = await exportSessionPackage(exportPath.value.trim(), safeMeta, exportPreset.value, {
+      includeCameraPip: includeCameraPip.value,
+    });
     clearInterval(timer);
     exportProgress.value = 100;
 
@@ -426,6 +431,17 @@ onUnmounted(() => {
               </span>
             </div>
           </div>
+
+          <!-- Options for Single MP4: Camera PiP Toggle -->
+          <div v-if="exportPreset === 'single_mp4'" class="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-between">
+            <label class="flex items-center space-x-3 cursor-pointer select-none">
+              <input type="checkbox" v-model="includeCameraPip" class="w-4 h-4 rounded bg-white/10 border-white/20 text-indigo-500 accent-indigo-500 cursor-pointer" />
+              <div>
+                <span class="text-xs font-semibold text-white block">Overlay Camera PiP Track</span>
+                <span class="text-[11px] text-gray-400 block">Uncheck if camera bubble was already captured directly on screen (e.g. Linux).</span>
+              </div>
+            </label>
+          </div>
         </div>
 
         <!-- Package Manifest Assets Preview -->
@@ -436,7 +452,7 @@ onUnmounted(() => {
           <div class="grid grid-cols-2 gap-2 text-xs font-mono text-gray-300">
             <div v-if="exportPreset === 'single_mp4'" class="flex items-center space-x-2 col-span-2">
               <FileVideo class="w-3.5 h-3.5 text-indigo-400" />
-              <span>single_recording.mp4 (Full multi-track composited 60fps)</span>
+              <span>single_recording.mp4 (Full multi-track composited 60fps{{ includeCameraPip ? ' with Camera PiP' : ' without PiP' }})</span>
             </div>
             <div v-else-if="exportPreset === 'remotion_video'" class="flex items-center space-x-2">
               <FileCode class="w-3.5 h-3.5 text-violet-400" />
