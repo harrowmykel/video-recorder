@@ -129,13 +129,13 @@ mod tests {
     fn test_studio_exports_sess_format_uuid_convention() {
         let home = std::path::PathBuf::from("/home/user");
         let raw_uuid = "82f1b4a3-488b-47e2-880c-e2f472851532";
-        let format = "premiere_xml";
-        let folder_name = format!("sess_{}_{}", format, raw_uuid);
-        let export_dir = home.join("Videos").join("studio").join("exports").join(folder_name);
-        assert_eq!(
-            export_dir.to_str().unwrap(),
-            "/home/user/Videos/studio/exports/sess_premiere_xml_82f1b4a3-488b-47e2-880c-e2f472851532"
-        );
+
+        for format in &["single_mp4", "remotion_video", "mp4_bundle"] {
+            let folder_name = format!("sess_{}_{}", format, raw_uuid);
+            let export_dir = home.join("Videos").join("studio").join("exports").join(&folder_name);
+            let expected = format!("/home/user/Videos/studio/exports/sess_{}_{}", format, raw_uuid);
+            assert_eq!(export_dir.to_str().unwrap(), expected);
+        }
     }
 
     #[test]

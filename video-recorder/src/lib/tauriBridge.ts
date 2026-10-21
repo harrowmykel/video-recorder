@@ -885,7 +885,7 @@ export async function checkDirectoryNotEmpty(
 export async function exportSessionPackage(
   targetDir: string,
   sessionMetadata?: unknown,
-  preset: string = 'premiere_xml'
+  preset: string = 'single_mp4'
 ): Promise<{ success: boolean; targetDir?: string; error?: string }> {
   const normalized = targetDir.trim().replace(/[\\/]+$/, '');
 

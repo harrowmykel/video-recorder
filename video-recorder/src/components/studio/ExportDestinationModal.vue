@@ -30,7 +30,7 @@ import {
 } from '@/lib/tauriBridge';
 
 
-type ExportPresetType = 'premiere_xml' | 'capcut_draft' | 'mp4_bundle';
+type ExportPresetType = 'single_mp4' | 'remotion_video' | 'mp4_bundle';
 
 const props = withDefaults(
   defineProps<{
@@ -67,7 +67,7 @@ const hasSavedPackage = shallowRef(false);
 const isCopied = shallowRef(false);
 const openError = shallowRef<string | null>(null);
 const folderNotEmptyAlert = shallowRef<string | null>(null);
-const exportPreset = shallowRef<ExportPresetType>('premiere_xml');
+const exportPreset = shallowRef<ExportPresetType>('single_mp4');
 const deleteSessionOnDone = shallowRef(false);
 
 function handleExportAnother() {
@@ -372,41 +372,41 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Preset Selection (Premiere XML vs CapCut Draft vs Raw Bundle) -->
+        <!-- Preset Selection (Single MP4 vs Remotion Video vs Raw Bundle) -->
         <div class="space-y-2">
           <label class="block text-xs font-semibold uppercase tracking-wider text-gray-300">
             Package Preset Format
           </label>
           <div class="grid grid-cols-3 gap-2.5">
-            <!-- Preset 1: Premiere & DaVinci XML Sync -->
-            <div @click="handleSelectPreset('premiere_xml')" :class="[
+            <!-- Preset 1: Single MP4 (Full Assembled) -->
+            <div @click="handleSelectPreset('single_mp4')" :class="[
               'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
-              exportPreset === 'premiere_xml'
+              exportPreset === 'single_mp4'
                 ? 'bg-indigo-600/20 border-indigo-400/60 text-white shadow-lg shadow-indigo-950/40'
                 : 'bg-white/[0.02] border-white/5 hover:border-white/15 text-gray-400 hover:text-gray-200'
             ]">
               <div class="flex items-center space-x-2 mb-1.5">
-                <Layers class="w-4 h-4 text-indigo-400 shrink-0" />
-                <span class="text-xs font-bold block text-white truncate">Premiere & DaVinci</span>
+                <FileVideo class="w-4 h-4 text-indigo-400 shrink-0" />
+                <span class="text-xs font-bold block text-white truncate">Single Video (MP4)</span>
               </div>
               <span class="text-[10px] text-gray-400 leading-snug block">
-                Standard XMEML timeline with facecam motion position keyframes + stems.
+                Assembled MP4 with screen, camera PiP, and mixed audio stems ready to share.
               </span>
             </div>
 
-            <!-- Preset 2: CapCut Draft & PIP Sync -->
-            <div @click="handleSelectPreset('capcut_draft')" :class="[
+            <!-- Preset 2: Remotion Video (React Project) -->
+            <div @click="handleSelectPreset('remotion_video')" :class="[
               'p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between',
-              exportPreset === 'capcut_draft'
-                ? 'bg-sky-600/20 border-sky-400/60 text-white shadow-lg shadow-sky-950/40'
+              exportPreset === 'remotion_video'
+                ? 'bg-violet-600/20 border-violet-400/60 text-white shadow-lg shadow-violet-950/40'
                 : 'bg-white/[0.02] border-white/5 hover:border-white/15 text-gray-400 hover:text-gray-200'
             ]">
               <div class="flex items-center space-x-2 mb-1.5">
-                <Sparkles class="w-4 h-4 text-sky-400 shrink-0" />
-                <span class="text-xs font-bold block text-white truncate">CapCut Draft Sync</span>
+                <FileCode class="w-4 h-4 text-violet-400 shrink-0" />
+                <span class="text-xs font-bold block text-white truncate">Remotion Video</span>
               </div>
               <span class="text-[10px] text-gray-400 leading-snug block">
-                CapCut Desktop draft_content.json with PIP camera placement + stems.
+                React Remotion project with multi-track Sequences, telemetry, and Agent skills.
               </span>
             </div>
 
@@ -418,11 +418,11 @@ onUnmounted(() => {
                 : 'bg-white/[0.02] border-white/5 hover:border-white/15 text-gray-400 hover:text-gray-200'
             ]">
               <div class="flex items-center space-x-2 mb-1.5">
-                <FileVideo class="w-4 h-4 text-emerald-400 shrink-0" />
+                <Layers class="w-4 h-4 text-emerald-400 shrink-0" />
                 <span class="text-xs font-bold block text-white truncate">Raw Asset Archive</span>
               </div>
               <span class="text-[10px] text-gray-400 leading-snug block">
-                Clean MP4 + isolated facecam + separate WAV stems + JSON telemetry.
+                Consolidated take files, clean screen MP4, separate WAV stems, and telemetry JSON.
               </span>
             </div>
           </div>
@@ -434,45 +434,50 @@ onUnmounted(() => {
             Package Manifest Included Tracks
           </span>
           <div class="grid grid-cols-2 gap-2 text-xs font-mono text-gray-300">
-            <div class="flex items-center space-x-2">
+            <div v-if="exportPreset === 'single_mp4'" class="flex items-center space-x-2 col-span-2">
               <FileVideo class="w-3.5 h-3.5 text-indigo-400" />
-              <span>screen_clean.mp4 (60fps)</span>
+              <span>single_recording.mp4 (Full multi-track composited 60fps)</span>
             </div>
-            <div v-if="hasCameraTrack" class="flex items-center space-x-2">
-              <FileVideo class="w-3.5 h-3.5 text-rose-400" />
-              <span>camera_raw.mp4 (1080p)</span>
-            </div>
-            <div v-else class="flex items-center space-x-2 text-gray-500">
-              <FileVideo class="w-3.5 h-3.5 text-gray-600" />
-              <span class="line-through">camera_raw.mp4 (None)</span>
-            </div>
-            <div v-if="hasCameraTrack" class="flex items-center space-x-2">
-              <Sparkles class="w-3.5 h-3.5 text-amber-400" />
-              <span>camera_alpha.webm (Transparent PIP)</span>
-            </div>
-            <div v-else class="flex items-center space-x-2 text-gray-500">
-              <Sparkles class="w-3.5 h-3.5 text-gray-600" />
-              <span class="line-through">camera_alpha.webm (None)</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <FileAudio class="w-3.5 h-3.5 text-emerald-400" />
-              <span>audio_mic.wav (48kHz 24-bit)</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <FileAudio class="w-3.5 h-3.5 text-cyan-400" />
-              <span>audio_system.wav (Loopback)</span>
-            </div>
-            <div v-if="exportPreset === 'premiere_xml'" class="flex items-center space-x-2">
-              <FileCode class="w-3.5 h-3.5 text-purple-400" />
-              <span>project_sync.xml (Premiere/DaVinci)</span>
-            </div>
-            <div v-else-if="exportPreset === 'capcut_draft'" class="flex items-center space-x-2">
-              <FileCode class="w-3.5 h-3.5 text-sky-400" />
-              <span>draft_content.json (CapCut PIP)</span>
+            <div v-else-if="exportPreset === 'remotion_video'" class="flex items-center space-x-2">
+              <FileCode class="w-3.5 h-3.5 text-violet-400" />
+              <span>Composition.tsx & sessionData.ts</span>
             </div>
             <div v-else class="flex items-center space-x-2">
+              <Layers class="w-3.5 h-3.5 text-emerald-400" />
+              <span>takes/ (Screen, Camera & Audio takes)</span>
+            </div>
+
+            <div v-if="exportPreset === 'remotion_video'" class="flex items-center space-x-2">
+              <Sparkles class="w-3.5 h-3.5 text-amber-400" />
+              <span>public/takes/ (Consolidated media)</span>
+            </div>
+            <div v-else-if="exportPreset !== 'single_mp4'" class="flex items-center space-x-2">
+              <FileVideo class="w-3.5 h-3.5 text-indigo-400" />
+              <span>screen_take_*.mp4 (60fps)</span>
+            </div>
+
+            <div v-if="hasCameraTrack && exportPreset !== 'single_mp4'" class="flex items-center space-x-2">
+              <Sparkles class="w-3.5 h-3.5 text-rose-400" />
+              <span>camera_take_*.webm (Transparent PiP)</span>
+            </div>
+
+            <div v-if="exportPreset === 'remotion_video'" class="flex items-center space-x-2">
+              <FileCode class="w-3.5 h-3.5 text-emerald-400" />
+              <span>.agents/skills/ (Remotion AI Skills)</span>
+            </div>
+            <div v-else-if="exportPreset !== 'single_mp4'" class="flex items-center space-x-2">
+              <FileAudio class="w-3.5 h-3.5 text-emerald-400" />
+              <span>audio_mic_take_*.wav (48kHz 24-bit)</span>
+            </div>
+
+            <div class="flex items-center space-x-2">
               <FileCode class="w-3.5 h-3.5 text-purple-400" />
-              <span>telemetry_camera.json (Position/Scale)</span>
+              <span>package_manifest.json (Metadata)</span>
+            </div>
+
+            <div v-if="hasCameraTrack && exportPreset !== 'single_mp4'" class="flex items-center space-x-2">
+              <FileCode class="w-3.5 h-3.5 text-sky-400" />
+              <span>telemetry_camera.json (Keyframes)</span>
             </div>
           </div>
         </div>
