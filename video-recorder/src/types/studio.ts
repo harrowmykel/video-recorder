@@ -121,13 +121,16 @@ export interface BatchMattingJob {
   fileName: string;
   filePath: string;
   fileSizeBytes: number;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'loading_model' | 'processing' | 'finalizing' | 'completed' | 'failed';
   progressPct: number;
   fps: number;
   etaSeconds: number;
   outputFormat: 'prores_4444' | 'webm_alpha' | 'luma_matte';
   outputPath?: string;
   errorMessage?: string;
+  previewThumbnail?: string;
+  processedFrames?: number;
+  totalFrames?: number;
 }
 
 export type AnnotationTool = 'select' | 'pen' | 'arrow' | 'rect' | 'circle' | 'badge' | 'spotlight';

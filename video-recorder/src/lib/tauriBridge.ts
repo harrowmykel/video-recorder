@@ -313,6 +313,47 @@ export async function downloadModel(fileName: string): Promise<{ success: boolea
   }
 }
 
+export async function getDaemonModelCacheUrl(fileName: string): Promise<string> {
+  const daemonBase = await resolveDaemonUrl();
+  return `${daemonBase}/models/cache/${fileName}`;
+}
+
+export async function finalizeBgVideo(params: {
+  blob: Blob;
+  format: 'prores_4444' | 'webm_alpha' | 'luma_matte';
+  fileStem: string;
+  outputDir?: string;
+}): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+  try {
+    const daemonBase = await resolveDaemonUrl();
+    const headers: Record<string, string> = {
+      'x-output-format': params.format,
+      'x-file-stem': params.fileStem,
+    };
+    if (params.outputDir) {
+      headers['x-output-dir'] = params.outputDir;
+    }
+
+    const resp = await fetch(`${daemonBase}/finalize_bg_video`, {
+      method: 'POST',
+      headers,
+      body: params.blob,
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      return {
+        success: Boolean(data?.success),
+        outputPath: data?.output_path,
+        error: data?.error,
+      };
+    }
+    return { success: false, error: `Daemon error HTTP ${resp.status}: ${resp.statusText}` };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to finalize video' };
+  }
+}
+
 
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
@@ -791,6 +832,22 @@ export async function selectVideoFiles(): Promise<string[]> {
     }
   }
   return [];
+}
+
+export async function readFileBuffer(filePath: string): Promise<ArrayBuffer | null> {
+  if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {
+    try {
+      const res = await window.__ELECTRON_OVERLAY__.invoke('read_file_buffer', filePath);
+      if (res && res.success && res.buffer) {
+        if (res.buffer instanceof ArrayBuffer) return res.buffer;
+        if (res.buffer.buffer instanceof ArrayBuffer) return res.buffer.buffer;
+        return new Uint8Array(res.buffer).buffer;
+      }
+    } catch (e) {
+      console.warn('[readFileBuffer] invoke error:', e);
+    }
+  }
+  return null;
 }
 
 export async function getFilePathForFile(file: File): Promise<string> {

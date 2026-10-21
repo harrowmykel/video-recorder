@@ -12,13 +12,14 @@ use session::{
     default_recordings_base_dir, list_recorded_sessions,
 };
 use capture::{enumerate_displays, enumerate_windows};
-use ai::{process_video_background, OutputFormat};
+use ai::{finalize_transparent_video, OutputFormat};
 
 #[derive(Deserialize)]
 struct ExtractBgRequest {
     file_path: String,
     format: String,
     output_dir: Option<String>,
+    stem: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -234,8 +235,9 @@ async fn main() {
                 _ => OutputFormat::ProRes4444,
             };
 
+            let stem = req.stem;
             let res = tokio::task::spawn_blocking(move || {
-                process_video_background(&path, out_format, out_dir.as_deref())
+                ai::finalize_transparent_video(&path, out_format, out_dir.as_deref(), stem.as_deref())
             }).await.map_err(|_| warp::reject::reject())?;
 
             let reply = match res {
@@ -275,6 +277,59 @@ async fn main() {
                 Ok(path) => warp::reply::json(&serde_json::json!({
                     "success": true,
                     "path": path.to_string_lossy()
+                })),
+                Err(e) => warp::reply::json(&serde_json::json!({
+                    "success": false,
+                    "error": e.to_string()
+                })),
+            };
+            Ok::<_, warp::Rejection>(reply)
+        });
+
+    // 13c. Serve cached AI models from disk
+    let models_cache_dir = crate::session::default_studio_base_dir()
+        .join(".cache")
+        .join("models");
+    let _ = std::fs::create_dir_all(&models_cache_dir);
+    let models_cache_route = warp::path("models")
+        .and(warp::path("cache"))
+        .and(warp::fs::dir(models_cache_dir));
+
+    // 13d. Finalize transparent background video (converts uploaded WebM to ProRes 4444, Luma Matte, or saves WebM)
+    let finalize_bg_video_route = warp::path("finalize_bg_video")
+        .and(warp::post())
+        .and(warp::header::optional::<String>("x-output-format"))
+        .and(warp::header::optional::<String>("x-file-stem"))
+        .and(warp::header::optional::<String>("x-output-dir"))
+        .and(warp::body::bytes())
+        .and_then(|format_hdr: Option<String>, stem_hdr: Option<String>, dir_hdr: Option<String>, bytes: warp::hyper::body::Bytes| async move {
+            let res = tokio::task::spawn_blocking(move || -> anyhow::Result<PathBuf> {
+                let out_format = match format_hdr.as_deref() {
+                    Some("prores_4444") => OutputFormat::ProRes4444,
+                    Some("luma_matte") => OutputFormat::LumaMatte,
+                    _ => OutputFormat::WebmAlpha,
+                };
+                let out_dir = dir_hdr.map(PathBuf::from);
+                let stem = stem_hdr.unwrap_or_else(|| "output".to_string());
+
+                let temp_dir = std::env::temp_dir().join("video_recorder_bg_temp");
+                std::fs::create_dir_all(&temp_dir)?;
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis();
+                let temp_input = temp_dir.join(format!("temp_bg_{}_{}.webm", stem, timestamp));
+                std::fs::write(&temp_input, &bytes)?;
+
+                let result = ai::finalize_transparent_video(&temp_input, out_format, out_dir.as_deref(), Some(&stem));
+                let _ = std::fs::remove_file(&temp_input);
+                result
+            }).await.map_err(|_| warp::reject::reject())?;
+
+            let reply = match res {
+                Ok(path) => warp::reply::json(&serde_json::json!({
+                    "success": true,
+                    "output_path": path.to_string_lossy()
                 })),
                 Err(e) => warp::reply::json(&serde_json::json!({
                     "success": false,
@@ -334,12 +389,18 @@ async fn main() {
             }
         });
 
-    // 16. Camera MJPEG preview stream route
     // Enable CORS for frontend dev server
     let cors = warp::cors()
         .allow_any_origin()
         .allow_methods(vec!["GET", "POST", "DELETE", "OPTIONS"])
-        .allow_headers(vec!["Content-Type", "x-chunk-index", "x-camera-metadata"]);
+        .allow_headers(vec![
+            "Content-Type",
+            "x-chunk-index",
+            "x-camera-metadata",
+            "x-output-format",
+            "x-file-stem",
+            "x-output-dir",
+        ]);
 
     let routes = status_route
         .or(sources_route)
@@ -357,8 +418,10 @@ async fn main() {
         .or(discard_route)
         .or(toggle_zoom_route)
         .or(extract_route)
+        .or(finalize_bg_video_route)
         .or(models_route)
         .or(models_download_route)
+        .or(models_cache_route)
         .with(cors);
 
 

@@ -15,20 +15,22 @@ import {
   Zap,
   Layers,
   Cpu,
+  XCircle,
 } from 'lucide-vue-next';
 import type { BatchMattingJob, BgModelType } from '@/types/studio';
 import {
   STUDIO_BG_REMOVER_DIR,
   getDefaultBgRemoverDirectory,
-  invokeCommand,
   openExportDirectory,
   revealInFolder,
   selectVideoFiles,
   getFilePathForFile,
+  readFileBuffer,
   fetchAvailableModels,
   downloadModel,
   type DaemonModelInfo,
 } from '@/lib/tauriBridge';
+import { VideoBgRemoverJob } from '@/lib/videoBgRemover';
 
 import { useStudioState } from '@/composables/useStudioState';
 const bgRemoverDir = shallowRef<string>(STUDIO_BG_REMOVER_DIR);
@@ -179,6 +181,8 @@ async function triggerFileInput() {
   fileInputRef.value?.click();
 }
 
+const activeRemoverJobs = new Map<string, VideoBgRemoverJob>();
+
 async function enqueueFilePaths(paths: string[]) {
   const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
   for (const filePath of paths) {
@@ -195,7 +199,7 @@ async function enqueueFilePaths(paths: string[]) {
       status: 'queued',
       progressPct: 0,
       fps: 0,
-      etaSeconds: 15,
+      etaSeconds: 0,
       outputFormat: defaultFormat.value,
       outputPath,
     };
@@ -207,7 +211,7 @@ async function enqueueFilePaths(paths: string[]) {
 async function enqueueFiles(files: File[]) {
   const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
   for (const file of files) {
-    const filePath = await getFilePathForFile(file);
+    const filePath = (await getFilePathForFile(file)) || file.name;
     const ext = defaultFormat.value === 'prores_4444' ? 'mov' : (defaultFormat.value === 'webm_alpha' ? 'webm' : 'mp4');
     const stem = file.name.replace(/\.[^/.]+$/, '');
     const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
@@ -215,66 +219,102 @@ async function enqueueFiles(files: File[]) {
     const newJob: BatchMattingJob = {
       id: `job_${Date.now()}_${Math.random()}`,
       fileName: file.name,
-      filePath: filePath || file.name,
+      filePath,
       fileSizeBytes: file.size,
       status: 'queued',
       progressPct: 0,
       fps: 0,
-      etaSeconds: 15,
+      etaSeconds: 0,
       outputFormat: defaultFormat.value,
       outputPath,
     };
     jobs.value.unshift(newJob);
 
-    if (!filePath) {
-      newJob.status = 'failed';
-      newJob.errorMessage = 'Could not access file path on disk. Please click to use the native file selector.';
-      continue;
-    }
-
-    executeExtraction(newJob, filePath, targetDir);
+    executeExtraction(newJob, file, targetDir);
   }
 }
 
-async function executeExtraction(job: BatchMattingJob, inputPath: string, targetDir: string) {
-  job.status = 'processing';
-  job.progressPct = 15;
-  job.fps = 30;
-  job.errorMessage = undefined;
-
-  let currentPct = 15;
-  const progressTimer = setInterval(() => {
-    if (currentPct < 90) {
-      currentPct += 5;
-      job.progressPct = currentPct;
-    }
-  }, 400);
-
-  try {
-    const res = await invokeCommand<{ success: boolean; output_path?: string; error?: string }>(
-      'extract_transparent_background',
-      {
-        file_path: inputPath,
-        format: job.outputFormat || defaultFormat.value,
-        model: selectedBgModel.value,
-        output_dir: targetDir,
+async function executeExtraction(job: BatchMattingJob, fileOrPath: File | string, targetDir: string) {
+  // If the model selected is not downloaded yet, ensure it gets downloaded
+  if (currentModel.value.id !== 'mediapipe_fast' && !isCurrentModelDownloaded.value) {
+    job.status = 'loading_model';
+    job.errorMessage = undefined;
+    try {
+      const res = await downloadModel(currentModel.value.fileName);
+      if (res.success) {
+        daemonModels.value = await fetchAvailableModels();
+      } else {
+        job.status = 'failed';
+        job.errorMessage = res.error || 'Failed to download selected AI model';
+        return;
       }
-    );
-
-    clearInterval(progressTimer);
-
-    if (res && res.success && res.output_path) {
-      job.status = 'completed';
-      job.progressPct = 100;
-      job.outputPath = res.output_path;
-    } else {
+    } catch (e: any) {
       job.status = 'failed';
-      job.errorMessage = res?.error || 'Extraction failed in daemon';
+      job.errorMessage = e?.message || 'Model download error';
+      return;
     }
-  } catch (err: any) {
-    clearInterval(progressTimer);
+  }
+
+  // Obtain a File or Blob or URL for the video
+  let source: File | Blob | string = fileOrPath;
+  if (typeof fileOrPath === 'string') {
+    const buf = await readFileBuffer(fileOrPath);
+    if (buf) {
+      source = new Blob([buf], { type: 'video/mp4' });
+    }
+  }
+
+  const stem = job.fileName.replace(/\.[^/.]+$/, '');
+  const removerJob = new VideoBgRemoverJob({
+    id: job.id,
+    source,
+    fileName: job.fileName,
+    fileStem: stem,
+    modelId: selectedBgModel.value,
+    modelFileName: currentModel.value.fileName,
+    outputFormat: job.outputFormat || defaultFormat.value,
+    targetDir,
+    onProgress: (p) => {
+      job.progressPct = p.pct;
+      job.fps = p.fps;
+      job.etaSeconds = p.etaSeconds;
+      job.processedFrames = p.frame;
+      job.totalFrames = p.totalFrames;
+    },
+    onPreview: (thumb) => {
+      job.previewThumbnail = thumb;
+    },
+    onStatusChange: (status, errMsg) => {
+      job.status = status;
+      if (errMsg) job.errorMessage = errMsg;
+    },
+  });
+
+  activeRemoverJobs.set(job.id, removerJob);
+
+  const res = await removerJob.run();
+  activeRemoverJobs.delete(job.id);
+
+  if (res.success && res.outputPath) {
+    job.status = 'completed';
+    job.progressPct = 100;
+    job.outputPath = res.outputPath;
+  } else if (!job.errorMessage) {
     job.status = 'failed';
-    job.errorMessage = err?.message || 'Daemon offline or extraction failed';
+    job.errorMessage = res.error || 'Video background extraction failed';
+  }
+}
+
+function cancelJob(jobId: string) {
+  const active = activeRemoverJobs.get(jobId);
+  if (active) {
+    active.cancel();
+    activeRemoverJobs.delete(jobId);
+  }
+  const j = jobs.value.find((x) => x.id === jobId);
+  if (j && (j.status === 'processing' || j.status === 'loading_model' || j.status === 'queued' || j.status === 'finalizing')) {
+    j.status = 'failed';
+    j.errorMessage = 'Cancelled by user';
   }
 }
 
@@ -497,7 +537,10 @@ async function handleOpenBgRemoverFolder() {
           <div v-for="job in jobs" :key="job.id"
             class="p-4 rounded-2xl glass-card flex items-center justify-between gap-4 border border-white/[0.06] transition-all hover:border-white/15">
             <div class="flex items-center space-x-3.5 min-w-0">
-              <div class="p-3 rounded-xl bg-white/[0.06] text-gray-300 border border-white/5 shadow-inner">
+              <div v-if="job.previewThumbnail" class="w-16 h-11 rounded-xl overflow-hidden border border-white/10 shrink-0 bg-black/40 shadow-inner">
+                <img :src="job.previewThumbnail" alt="Preview" class="w-full h-full object-cover" />
+              </div>
+              <div v-else class="p-3 rounded-xl bg-white/[0.06] text-gray-300 border border-white/5 shadow-inner shrink-0">
                 <Film class="w-5 h-5 text-indigo-400" />
               </div>
               <div class="min-w-0">
@@ -512,11 +555,27 @@ async function handleOpenBgRemoverFolder() {
                 </div>
                 <div class="flex items-center space-x-3 text-xs text-gray-400 font-mono mt-1">
                   <span v-if="job.fileSizeBytes > 0">{{ formatBytes(job.fileSizeBytes) }}</span>
+                  <template v-if="job.status === 'loading_model'">
+                    <span>•</span>
+                    <span class="text-amber-400 font-semibold flex items-center space-x-1">
+                      <Loader2 class="w-3 h-3 animate-spin" />
+                      <span>Loading AI Model...</span>
+                    </span>
+                  </template>
                   <template v-if="job.status === 'processing'">
                     <span>•</span>
-                    <span class="text-indigo-400 font-semibold flex items-center space-x-1">
+                    <span class="text-indigo-400 font-semibold flex items-center space-x-1.5">
+                      <Loader2 class="w-3 h-3 animate-spin shrink-0" />
+                      <span>{{ job.fps > 0 ? `${job.fps} FPS` : 'Segmenting' }}</span>
+                      <span v-if="job.etaSeconds > 0">• ETA {{ job.etaSeconds }}s</span>
+                      <span v-if="job.totalFrames" class="text-white/40">({{ job.processedFrames || 0 }}/{{ job.totalFrames }} frames)</span>
+                    </span>
+                  </template>
+                  <template v-if="job.status === 'finalizing'">
+                    <span>•</span>
+                    <span class="text-indigo-300 font-semibold flex items-center space-x-1">
                       <Loader2 class="w-3 h-3 animate-spin" />
-                      <span>Extracting...</span>
+                      <span>Finalizing with FFmpeg...</span>
                     </span>
                   </template>
                   <template v-if="job.status === 'completed'">
@@ -539,9 +598,9 @@ async function handleOpenBgRemoverFolder() {
             </div>
 
             <div class="flex items-center space-x-4">
-              <div v-if="job.status === 'processing'" class="w-36">
+              <div v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing'" class="w-36">
                 <div class="flex justify-between text-[11px] font-mono text-gray-300 mb-1.5">
-                  <span>Extracting</span>
+                  <span>{{ job.status === 'loading_model' ? 'Model' : (job.status === 'finalizing' ? 'Finalizing' : 'Extracting') }}</span>
                   <span class="font-semibold text-indigo-400">{{ job.progressPct }}%</span>
                 </div>
                 <div class="w-full h-2 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/5">
@@ -550,6 +609,13 @@ async function handleOpenBgRemoverFolder() {
                     :style="{ width: `${job.progressPct}%` }" />
                 </div>
               </div>
+
+              <button v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing'"
+                @click="cancelJob(job.id)"
+                class="flex items-center space-x-1 px-3 py-1.5 bg-white/5 hover:bg-rose-500/20 text-white/50 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 rounded-xl text-xs font-mono transition-all">
+                <XCircle class="w-3.5 h-3.5" />
+                <span>Cancel</span>
+              </button>
 
               <button v-if="job.status === 'failed'" @click="executeExtraction(job, job.filePath, bgRemoverDir)"
                 class="flex items-center space-x-1 px-3 py-1.5 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm">

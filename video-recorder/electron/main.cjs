@@ -758,6 +758,15 @@ ipcMain.handle('save_dropped_file', async (_event, { fileName, buffer }) => {
   return destPath;
 });
 
+ipcMain.handle('read_file_buffer', async (_event, filePath) => {
+  try {
+    const buffer = await fs.promises.readFile(filePath);
+    return { success: true, buffer };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('get_camera_telemetry', () => {
   return recordedCameraTelemetry;
 });
