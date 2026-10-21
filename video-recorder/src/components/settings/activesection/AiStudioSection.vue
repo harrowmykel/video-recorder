@@ -393,25 +393,40 @@ async function handleOpenBgRemoverFolder() {
 
           </div>
         </div>
+        <!-- Drag & Drop Zone -->
+        <div @click="triggerFileInput" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop"
+          class="border-2 border-dashed rounded-3xl p-10 text-center transition-all cursor-pointer relative overflow-hidden group"
+          :class="[
+            isDragging
+              ? 'border-indigo-400 bg-indigo-500/10 scale-[1.01] shadow-[0_0_32px_rgba(99,102,241,0.3)]'
+              : 'border-white/10 hover:border-white/25 bg-[#10121A]/80 hover:bg-[#141722]/80'
+          ]">
+          <input ref="fileInputRef" type="file" accept="video/*" multiple class="hidden"
+            @change="handleFileInputChange" />
+          <div
+            class="w-16 h-16 rounded-2xl bg-indigo-500/15 border border-indigo-400/20 text-indigo-400 flex items-center justify-center mx-auto mb-4 shadow-[0_0_24px_rgba(99,102,241,0.2)] group-hover:scale-110 transition-transform">
+            <UploadCloud class="w-8 h-8" />
+          </div>
+          <h4 class="text-base font-semibold text-white tracking-wide mb-1.5">
+            Click or drag & drop any video file to remove background
+          </h4>
+          <p class="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+            Supports MP4, MOV, MKV, and WebM. Automatically segments subjects locally and exports clean transparent
+            video directly compatible with DaVinci Resolve, Premiere Pro, and Final Cut.
+          </p>
+        </div>
+
         <div
           class="border-1 border rounded-3xl p-10 text-center transition-all cursor-pointer relative overflow-hidden group">
-          <div class="flex col-2">
+          <!-- AI Background Removal Model Picker -->
 
-            <!-- AI Background Removal Model Picker -->
-            <div class="space-y-2 pt-3 border-t border-white/10">
-              <div class="flex items-center justify-between">
-                <label class="text-[10px] font-mono uppercase text-white/50 flex items-center gap-1.5">
-                  <Cpu class="w-3.5 h-3.5 text-indigo-400" />
-                  <span>In-Browser MediaPipe Model</span>
-                </label>
-                <span class="text-[10px] font-mono text-indigo-400/80 flex items-center gap-1">
-                  <Sparkles class="w-3 h-3 text-indigo-400" />
-                  <span>WebGL Shaders</span>
-                </span>
-              </div>
+          <div class="flex col-1 col-md-2">
+
+            <div class="space-y-2 pt-3">
 
               <!-- Styled Model Selector -->
               <div class="relative">
+                Model:
                 <select v-model="selectedBgModel"
                   class="w-full appearance-none bg-white/5 hover:bg-white/10 border border-white/10 focus:border-indigo-400/50 rounded-xl px-3.5 py-2.5 pr-9 text-xs text-white font-medium transition cursor-pointer">
                   <option v-for="model in BG_MODEL_OPTIONS" :key="model.id" :value="model.id"
@@ -455,7 +470,7 @@ async function handleOpenBgRemoverFolder() {
                       isCurrentModelDownloaded ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-amber-400'
                     ]" />
                     <span>{{ isCurrentModelDownloaded ? 'Cached in studio/.cache' : 'Auto-downloads on demand'
-                    }}</span>
+                      }}</span>
                   </div>
                   <span class="text-white/30">FP32 Tensor</span>
                 </div>
@@ -491,9 +506,10 @@ async function handleOpenBgRemoverFolder() {
             </div>
 
             <!-- Format Preset -->
-            <div class="relative">
+            <div class="pl-2">
+              Format
               <select v-model="defaultFormat"
-                class="appearance-none bg-[#12141D] border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-1.5 pr-8 focus:outline-none focus:border-indigo-400 font-medium">
+                class="w-full appearance-none bg-white/5 hover:bg-white/10 border border-white/10 focus:border-indigo-400/50 rounded-xl px-3.5 py-2.5 pr-9 text-xs text-white font-medium transition cursor-pointer">
                 <option value="webm_alpha" class="bg-[#12141D]">WebM VP9 Alpha (.webm)</option>
                 <option value="prores_4444" class="bg-[#12141D]">Apple ProRes 4444 (.mov)</option>
                 <option value="luma_matte" class="bg-[#12141D]">High-Contrast Luma Matte (.mp4)</option>
@@ -502,29 +518,6 @@ async function handleOpenBgRemoverFolder() {
             </div>
           </div>
         </div>
-        <!-- Drag & Drop Zone -->
-        <div @click="triggerFileInput" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop"
-          class="border-2 border-dashed rounded-3xl p-10 text-center transition-all cursor-pointer relative overflow-hidden group"
-          :class="[
-            isDragging
-              ? 'border-indigo-400 bg-indigo-500/10 scale-[1.01] shadow-[0_0_32px_rgba(99,102,241,0.3)]'
-              : 'border-white/10 hover:border-white/25 bg-[#10121A]/80 hover:bg-[#141722]/80'
-          ]">
-          <input ref="fileInputRef" type="file" accept="video/*" multiple class="hidden"
-            @change="handleFileInputChange" />
-          <div
-            class="w-16 h-16 rounded-2xl bg-indigo-500/15 border border-indigo-400/20 text-indigo-400 flex items-center justify-center mx-auto mb-4 shadow-[0_0_24px_rgba(99,102,241,0.2)] group-hover:scale-110 transition-transform">
-            <UploadCloud class="w-8 h-8" />
-          </div>
-          <h4 class="text-base font-semibold text-white tracking-wide mb-1.5">
-            Click or drag & drop any video file to remove background
-          </h4>
-          <p class="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
-            Supports MP4, MOV, MKV, and WebM. Automatically segments subjects locally and exports clean transparent
-            video directly compatible with DaVinci Resolve, Premiere Pro, and Final Cut.
-          </p>
-        </div>
-
         <!-- Batch Extraction Queue -->
         <div class="space-y-3.5">
           <div class="flex items-center justify-between">
@@ -537,10 +530,12 @@ async function handleOpenBgRemoverFolder() {
           <div v-for="job in jobs" :key="job.id"
             class="p-4 rounded-2xl glass-card flex items-center justify-between gap-4 border border-white/[0.06] transition-all hover:border-white/15">
             <div class="flex items-center space-x-3.5 min-w-0">
-              <div v-if="job.previewThumbnail" class="w-16 h-11 rounded-xl overflow-hidden border border-white/10 shrink-0 bg-black/40 shadow-inner">
+              <div v-if="job.previewThumbnail"
+                class="w-16 h-11 rounded-xl overflow-hidden border border-white/10 shrink-0 bg-black/40 shadow-inner">
                 <img :src="job.previewThumbnail" alt="Preview" class="w-full h-full object-cover" />
               </div>
-              <div v-else class="p-3 rounded-xl bg-white/[0.06] text-gray-300 border border-white/5 shadow-inner shrink-0">
+              <div v-else
+                class="p-3 rounded-xl bg-white/[0.06] text-gray-300 border border-white/5 shadow-inner shrink-0">
                 <Film class="w-5 h-5 text-indigo-400" />
               </div>
               <div class="min-w-0">
@@ -568,7 +563,8 @@ async function handleOpenBgRemoverFolder() {
                       <Loader2 class="w-3 h-3 animate-spin shrink-0" />
                       <span>{{ job.fps > 0 ? `${job.fps} FPS` : 'Segmenting' }}</span>
                       <span v-if="job.etaSeconds > 0">• ETA {{ job.etaSeconds }}s</span>
-                      <span v-if="job.totalFrames" class="text-white/40">({{ job.processedFrames || 0 }}/{{ job.totalFrames }} frames)</span>
+                      <span v-if="job.totalFrames" class="text-white/40">({{ job.processedFrames || 0 }}/{{
+                        job.totalFrames }} frames)</span>
                     </span>
                   </template>
                   <template v-if="job.status === 'finalizing'">
@@ -598,9 +594,12 @@ async function handleOpenBgRemoverFolder() {
             </div>
 
             <div class="flex items-center space-x-4">
-              <div v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing'" class="w-36">
+              <div v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing'"
+                class="w-36">
                 <div class="flex justify-between text-[11px] font-mono text-gray-300 mb-1.5">
-                  <span>{{ job.status === 'loading_model' ? 'Model' : (job.status === 'finalizing' ? 'Finalizing' : 'Extracting') }}</span>
+                  <span>{{ job.status === 'loading_model' ? 'Model' : (job.status === 'finalizing' ? 'Finalizing' :
+                    'Extracting')
+                    }}</span>
                   <span class="font-semibold text-indigo-400">{{ job.progressPct }}%</span>
                 </div>
                 <div class="w-full h-2 bg-black/60 rounded-full overflow-hidden p-0.5 border border-white/5">
@@ -610,7 +609,8 @@ async function handleOpenBgRemoverFolder() {
                 </div>
               </div>
 
-              <button v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing'"
+              <button
+                v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing'"
                 @click="cancelJob(job.id)"
                 class="flex items-center space-x-1 px-3 py-1.5 bg-white/5 hover:bg-rose-500/20 text-white/50 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 rounded-xl text-xs font-mono transition-all">
                 <XCircle class="w-3.5 h-3.5" />
