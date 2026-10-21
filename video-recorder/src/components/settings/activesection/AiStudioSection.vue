@@ -17,6 +17,7 @@ import {
   Cpu,
   XCircle,
   Clock,
+  Play,
 } from 'lucide-vue-next';
 import type { BatchMattingJob, BgModelType } from '@/types/studio';
 import {
@@ -190,10 +191,54 @@ function handleDragLeave() {
   isDragging.value = false;
 }
 
+interface StagedVideoFile {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  source: File | string;
+}
+
+const stagedFiles = shallowRef<StagedVideoFile[]>([]);
+
+async function stageFilePaths(paths: string[]) {
+  const newItems: StagedVideoFile[] = [];
+  for (const filePath of paths) {
+    const name = filePath.split(/[/\\]/).pop() || 'video.mp4';
+    newItems.push({
+      id: `staged_${Date.now()}_${Math.random()}`,
+      name,
+      sizeBytes: 0,
+      source: filePath,
+    });
+  }
+  stagedFiles.value = [...stagedFiles.value, ...newItems];
+}
+
+async function stageFiles(files: File[]) {
+  const newItems: StagedVideoFile[] = [];
+  for (const file of files) {
+    newItems.push({
+      id: `staged_${Date.now()}_${Math.random()}`,
+      name: file.name,
+      sizeBytes: file.size,
+      source: file,
+    });
+  }
+  stagedFiles.value = [...stagedFiles.value, ...newItems];
+}
+
+function removeStagedFile(id: string) {
+  stagedFiles.value = stagedFiles.value.filter((f) => f.id !== id);
+}
+
+function clearStagedFiles() {
+  stagedFiles.value = [];
+}
+
 async function triggerFileInput() {
   const nativeFiles = await selectVideoFiles();
   if (nativeFiles && nativeFiles.length > 0) {
-    await enqueueFilePaths(nativeFiles);
+    await stageFilePaths(nativeFiles);
     return;
   }
   fileInputRef.value?.click();
@@ -235,19 +280,29 @@ async function processQueue() {
   }
 }
 
-async function enqueueFilePaths(paths: string[]) {
+async function startBatchExtraction() {
+  if (stagedFiles.value.length === 0) return;
+  const items = [...stagedFiles.value];
+  stagedFiles.value = [];
+
   const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
-  for (const filePath of paths) {
-    const fileName = filePath.split(/[/\\]/).pop() || 'video.mp4';
+
+  for (const item of items) {
     const ext = defaultFormat.value === 'prores_4444' ? 'mov' : (defaultFormat.value === 'webm_alpha' ? 'webm' : 'mp4');
-    const stem = fileName.replace(/\.[^/.]+$/, '');
+    const stem = item.name.replace(/\.[^/.]+$/, '');
     const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
+
+    let filePath = typeof item.source === 'string' ? item.source : item.name;
+    if (item.source instanceof File) {
+      const nativePath = await getFilePathForFile(item.source);
+      if (nativePath) filePath = nativePath;
+    }
 
     const newJob: BatchMattingJob = reactive({
       id: `job_${Date.now()}_${Math.random()}`,
-      fileName,
+      fileName: item.name,
       filePath,
-      fileSizeBytes: 0,
+      fileSizeBytes: item.sizeBytes,
       status: 'queued',
       progressPct: 0,
       fps: 0,
@@ -255,37 +310,13 @@ async function enqueueFilePaths(paths: string[]) {
       outputFormat: defaultFormat.value,
       outputPath,
     });
+
     jobs.value.unshift(newJob);
     const reactiveJob = jobs.value[0];
-    extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: filePath, targetDir }];
+    extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: item.source, targetDir }];
   }
-  processQueue();
-}
 
-async function enqueueFiles(files: File[]) {
-  const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
-  for (const file of files) {
-    const filePath = (await getFilePathForFile(file)) || file.name;
-    const ext = defaultFormat.value === 'prores_4444' ? 'mov' : (defaultFormat.value === 'webm_alpha' ? 'webm' : 'mp4');
-    const stem = file.name.replace(/\.[^/.]+$/, '');
-    const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
-
-    const newJob: BatchMattingJob = reactive({
-      id: `job_${Date.now()}_${Math.random()}`,
-      fileName: file.name,
-      filePath,
-      fileSizeBytes: file.size,
-      status: 'queued',
-      progressPct: 0,
-      fps: 0,
-      etaSeconds: 0,
-      outputFormat: defaultFormat.value,
-      outputPath,
-    });
-    jobs.value.unshift(newJob);
-    const reactiveJob = jobs.value[0];
-    extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: file, targetDir }];
-  }
+  triggerRef(jobs);
   processQueue();
 }
 
@@ -401,13 +432,14 @@ async function handleDrop(e: DragEvent) {
   e.preventDefault();
   isDragging.value = false;
   if (!e.dataTransfer?.files) return;
-  await enqueueFiles(Array.from(e.dataTransfer.files));
+  await stageFiles(Array.from(e.dataTransfer.files));
 }
 
 async function handleFileInputChange(e: Event) {
   const input = e.target as HTMLInputElement;
   if (input.files && input.files.length > 0) {
-    await enqueueFiles(Array.from(input.files));
+    await stageFiles(Array.from(input.files));
+    input.value = '';
   }
 }
 
@@ -494,6 +526,70 @@ async function handleOpenBgRemoverFolder() {
             Supports MP4, MOV, MKV, and WebM. Automatically segments subjects locally and exports clean transparent
             video directly compatible with DaVinci Resolve, Premiere Pro, and Final Cut.
           </p>
+        </div>
+
+        <!-- Staged Videos (Temp List awaiting Start confirmation) -->
+        <div v-if="stagedFiles.length > 0"
+          class="p-5 rounded-2xl glass-card border border-indigo-500/30 bg-indigo-500/[0.04] shadow-2xl space-y-4 transition-all">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.08]">
+            <div class="flex items-center space-x-2.5">
+              <div class="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30">
+                <Film class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="text-sm font-semibold text-white tracking-wide flex items-center gap-2">
+                  <span>Staged Videos for Background Removal</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {{ stagedFiles.length }} {{ stagedFiles.length === 1 ? 'file' : 'files' }}
+                  </span>
+                </h4>
+                <p class="text-[11px] text-white/50">
+                  Ready to process with {{ currentModel.name }} ({{ defaultFormat.replace('_', ' ') }}). Click start to begin extraction.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2.5">
+              <button type="button" @click="clearStagedFiles"
+                class="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-rose-500/20 text-white/50 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 text-xs font-mono transition-all">
+                Clear All
+              </button>
+
+              <button type="button" @click="startBatchExtraction"
+                class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white text-xs font-semibold shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-95 transition-all">
+                <Play class="w-3.5 h-3.5 fill-white" />
+                <span>Start Background Removal ({{ stagedFiles.length }})</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Staged Files Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            <div v-for="file in stagedFiles" :key="file.id"
+              class="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/[0.07] hover:border-white/15 transition-colors">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="p-2 rounded-lg bg-white/5 text-gray-300 border border-white/5 shrink-0">
+                  <Film class="w-4 h-4 text-indigo-400" />
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold text-white truncate max-w-xs" :title="file.name">
+                    {{ file.name }}
+                  </p>
+                  <div class="flex items-center space-x-2 text-[10px] font-mono text-gray-400 mt-0.5">
+                    <span v-if="file.sizeBytes > 0">{{ formatBytes(file.sizeBytes) }}</span>
+                    <span>•</span>
+                    <span class="text-indigo-300 uppercase">{{ defaultFormat.replace('_', ' ') }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button type="button" @click="removeStagedFile(file.id)"
+                class="p-1.5 rounded-lg text-white/30 hover:text-rose-300 hover:bg-rose-500/15 transition-all shrink-0"
+                title="Remove from staged list">
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- AI Background Removal Model & Format Settings -->
