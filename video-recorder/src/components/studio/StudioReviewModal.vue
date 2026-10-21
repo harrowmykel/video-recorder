@@ -27,7 +27,6 @@ import {
 } from '@/lib/tauriBridge';
 
 import { useStudioState } from '@/composables/useStudioState';
-import DragDropBgRemover from '@/components/studio/DragDropBgRemover.vue';
 import ExportDestinationModal from '@/components/studio/ExportDestinationModal.vue';
 
 const props = defineProps<{
@@ -48,7 +47,6 @@ const videoNaturalWidth = shallowRef(1920);
 const videoNaturalHeight = shallowRef(1080);
 
 const isExportModalOpen = shallowRef(false);
-const activeTab = shallowRef<'review' | 'batch_ai'>('review');
 const isPlaying = shallowRef(false);
 const currentTime = shallowRef(0);
 const duration = shallowRef(15.0);
@@ -416,26 +414,12 @@ onUnmounted(() => {
 
         </div>
       </div>
-
-      <!-- Sleek Segmented Switcher -->
-      <div class="flex items-center space-x-1 p-1 rounded-2xl bg-black/50 border border-white/10 shadow-inner">
-        <button @click="activeTab = 'review'" class="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all"
-          :class="activeTab === 'review' ? 'bg-white text-black shadow-md' : 'text-gray-400 hover:text-white'">
-          Review & Cut
-        </button>
-        <button @click="activeTab = 'batch_ai'"
-          class="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5"
-          :class="activeTab === 'batch_ai' ? 'btn-indigo text-white shadow-lg shadow-indigo-500/30' : 'text-gray-400 hover:text-white'">
-          <Sparkles class="w-3.5 h-3.5" />
-          <span>AI Background Studio</span>
-        </button>
-      </div>
     </div>
 
     <!-- Main Body Area -->
     <div class="flex-1 overflow-y-auto p-6 bg-[#0B0D13]">
       <!-- Tab 1: Review & Cut View -->
-      <div v-if="activeTab === 'review'" class="space-y-6">
+      <div class="space-y-6">
         <!-- Synchronized Video Viewport -->
         <div @click="togglePlay" :class="[
           'relative rounded-2xl overflow-hidden bg-[#07080C] border border-white/10 shadow-2xl flex items-center justify-center group cursor-pointer transition-all duration-300',
@@ -635,11 +619,6 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Tab 2: AI Background Matting & Batch Drag-Drop -->
-      <div v-else>
-        <DragDropBgRemover />
       </div>
     </div>
 
