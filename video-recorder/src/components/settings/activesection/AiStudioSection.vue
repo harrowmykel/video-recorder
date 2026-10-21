@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, useTemplateRef, reactive, triggerRef } from 'vue';
+defineOptions({ name: 'AiStudioSection' });
+
+import { shallowRef, onMounted, useTemplateRef } from 'vue';
 import {
   UploadCloud,
   Sparkles,
@@ -19,167 +21,39 @@ import {
   Clock,
   Play,
 } from 'lucide-vue-next';
-import type { BatchMattingJob, BgModelType } from '@/types/studio';
-import {
-  STUDIO_BG_REMOVER_DIR,
-  getDefaultBgRemoverDirectory,
-  openExportDirectory,
-  revealInFolder,
-  selectVideoFiles,
-  getFilePathForFile,
-  readFileBuffer,
-  fetchAvailableModels,
-  downloadModel,
-  type DaemonModelInfo,
-} from '@/lib/tauriBridge';
-import { VideoBgRemoverJob } from '@/lib/videoBgRemover';
-
 import { useStudioState } from '@/composables/useStudioState';
-const bgRemoverDir = shallowRef<string>(STUDIO_BG_REMOVER_DIR);
-const { selectedBgModel: selectedBgModel } = useStudioState();
+import { useBatchMatting } from '@/composables/useBatchMatting';
+
+const { selectedBgModel } = useStudioState();
+const {
+  jobs,
+  stagedFiles,
+  defaultFormat,
+  isDownloading,
+  downloadError,
+  currentModel,
+  isCurrentModelDownloaded,
+  initBatchMatting,
+  handleDownloadModel,
+  stageFiles,
+  removeStagedFile,
+  clearStagedFiles,
+  triggerFileInput,
+  startBatchExtraction,
+  cancelJob,
+  retryJob,
+  removeJob,
+  revealOutput,
+  handleOpenBgRemoverFolder,
+  modelOptions: BG_MODEL_OPTIONS,
+  formatOptions: FORMAT_PRESET_OPTIONS,
+} = useBatchMatting();
+
 const isDragging = shallowRef(false);
-const defaultFormat = shallowRef<'prores_4444' | 'webm_alpha' | 'luma_matte'>('webm_alpha');
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
 
-const jobs = ref<BatchMattingJob[]>([
-  {
-    id: 'job_sample_1',
-    fileName: 'podcast_camera_angle_raw.mp4',
-    filePath: `${STUDIO_BG_REMOVER_DIR}/podcast_camera_angle_raw.mp4`,
-    fileSizeBytes: 64200000,
-    status: 'completed',
-    progressPct: 100,
-    fps: 34,
-    etaSeconds: 0,
-    outputFormat: 'prores_4444',
-    outputPath: `${STUDIO_BG_REMOVER_DIR}/podcast_camera_angle_transparent.mov`,
-  },
-]);
-
-interface BgModelOption {
-  id: BgModelType;
-  name: string;
-  fileName: string;
-  badge: string;
-  badgeColor: string;
-  size: string;
-  latency: string;
-  description: string;
-}
-
-const BG_MODEL_OPTIONS: BgModelOption[] = [
-  {
-    id: 'mediapipe_fast',
-    name: 'MediaPipe Selfie',
-    fileName: 'selfie_segmentation.onnx',
-    badge: 'Ultra-Fast',
-    badgeColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
-    size: '0.45 MB',
-    latency: '<25ms',
-    description: 'Ultra-low latency neural matting running via Tract SIMD on local CPU. Recommended for 30+ FPS live preview.',
-  },
-  {
-    id: 'rvm_video',
-    name: 'Robust Video Matting',
-    fileName: 'rvm_mobilenetv3.onnx',
-    badge: 'Temporal Sync',
-    badgeColor: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/30',
-    size: '15.2 MB',
-    latency: '~45ms',
-    description: 'Recurrent video matting with temporal memory to eliminate flickering and stabilize boundary silhouettes.',
-  },
-  {
-    id: 'rmbg_1_4',
-    name: 'RMBG-1.4 Studio',
-    fileName: 'rmbg_1_4.onnx',
-    badge: 'Hair-Level HQ',
-    badgeColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
-    size: '176 MB',
-    latency: '~110ms',
-    description: 'Fine edge refinement model preserving individual hair strands and semi-transparent clothing borders.',
-  },
-  {
-    id: 'birefnet_hq',
-    name: 'BiRefNet Ultra',
-    fileName: 'birefnet_general.onnx',
-    badge: 'Cinema Quality',
-    badgeColor: 'text-purple-400 bg-purple-500/15 border-purple-500/30',
-    size: '224 MB',
-    latency: '~140ms',
-    description: 'Bilateral reference network for cinema-grade edge detail in offline batch extraction and studio recording.',
-  },
-];
-
-interface FormatPresetOption {
-  id: 'webm_alpha' | 'prores_4444' | 'luma_matte';
-  name: string;
-  ext: string;
-  description: string;
-}
-
-const FORMAT_PRESET_OPTIONS: FormatPresetOption[] = [
-  {
-    id: 'webm_alpha',
-    name: 'WebM VP9 Alpha',
-    ext: '.webm',
-    description: 'Native transparent web video. Ultra-lightweight file size with full 8-bit alpha cutout.',
-  },
-  {
-    id: 'prores_4444',
-    name: 'Apple ProRes 4444',
-    ext: '.mov',
-    description: '10-bit cinema master with transparency. Supported natively in DaVinci Resolve, Premiere, and FCP.',
-  },
-  {
-    id: 'luma_matte',
-    name: 'High-Contrast Luma Matte',
-    ext: '.mp4',
-    description: 'High-contrast black & white mask track video. Universal compatibility across all video editors.',
-  },
-];
-
-const currentModel = computed(() => {
-  return BG_MODEL_OPTIONS.find((m) => m.id === selectedBgModel.value) || BG_MODEL_OPTIONS[0];
-});
-
-const daemonModels = shallowRef<DaemonModelInfo[]>([]);
-
-const isCurrentModelDownloaded = computed(() => {
-  const dm = daemonModels.value.find((m) => m.file_name === currentModel.value.fileName);
-  if (currentModel.value.id === 'mediapipe_fast') return true;
-  return Boolean(dm?.is_downloaded);
-});
-
-const isDownloading = shallowRef(false);
-const downloadError = shallowRef<string | null>(null);
-
-async function handleDownloadModel() {
-  if (isDownloading.value || isCurrentModelDownloaded.value) return;
-  isDownloading.value = true;
-  downloadError.value = null;
-  try {
-    const res = await downloadModel(currentModel.value.fileName);
-    if (res.success) {
-      daemonModels.value = await fetchAvailableModels();
-    } else {
-      downloadError.value = res.error || 'Failed to download model';
-    }
-  } catch (err: any) {
-    downloadError.value = err?.message || 'Download network error';
-  } finally {
-    isDownloading.value = false;
-  }
-}
-onMounted(async () => {
-  daemonModels.value = await fetchAvailableModels();
-  const dir = await getDefaultBgRemoverDirectory();
-  if (dir) {
-    bgRemoverDir.value = dir;
-    if (jobs.value[0]) {
-      jobs.value[0].filePath = `${dir}/podcast_camera_angle_raw.mp4`;
-      jobs.value[0].outputPath = `${dir}/podcast_camera_angle_transparent.mov`;
-    }
-  }
+onMounted(() => {
+  initBatchMatting();
 });
 
 function handleDragOver(e: DragEvent) {
@@ -189,243 +63,6 @@ function handleDragOver(e: DragEvent) {
 
 function handleDragLeave() {
   isDragging.value = false;
-}
-
-interface StagedVideoFile {
-  id: string;
-  name: string;
-  sizeBytes: number;
-  source: File | string;
-}
-
-const stagedFiles = shallowRef<StagedVideoFile[]>([]);
-
-async function stageFilePaths(paths: string[]) {
-  const newItems: StagedVideoFile[] = [];
-  for (const filePath of paths) {
-    const name = filePath.split(/[/\\]/).pop() || 'video.mp4';
-    newItems.push({
-      id: `staged_${Date.now()}_${Math.random()}`,
-      name,
-      sizeBytes: 0,
-      source: filePath,
-    });
-  }
-  stagedFiles.value = [...stagedFiles.value, ...newItems];
-}
-
-async function stageFiles(files: File[]) {
-  const newItems: StagedVideoFile[] = [];
-  for (const file of files) {
-    newItems.push({
-      id: `staged_${Date.now()}_${Math.random()}`,
-      name: file.name,
-      sizeBytes: file.size,
-      source: file,
-    });
-  }
-  stagedFiles.value = [...stagedFiles.value, ...newItems];
-}
-
-function removeStagedFile(id: string) {
-  stagedFiles.value = stagedFiles.value.filter((f) => f.id !== id);
-}
-
-function clearStagedFiles() {
-  stagedFiles.value = [];
-}
-
-async function triggerFileInput() {
-  const nativeFiles = await selectVideoFiles();
-  if (nativeFiles && nativeFiles.length > 0) {
-    await stageFilePaths(nativeFiles);
-    return;
-  }
-  fileInputRef.value?.click();
-}
-
-interface QueuedExtractionItem {
-  job: BatchMattingJob;
-  source: File | string;
-  targetDir: string;
-}
-
-const activeRemoverJobs = new Map<string, VideoBgRemoverJob>();
-const extractionQueue = shallowRef<QueuedExtractionItem[]>([]);
-let isProcessingQueue = false;
-
-async function processQueue() {
-  if (isProcessingQueue) return;
-  isProcessingQueue = true;
-
-  try {
-    while (extractionQueue.value.length > 0) {
-      const nextItem = extractionQueue.value[0];
-      if (!nextItem) break;
-
-      // Verify the job still exists in the jobs list and wasn't deleted or cancelled
-      const currentJob = jobs.value.find((j) => j.id === nextItem.job.id);
-      if (!currentJob || currentJob.status === 'failed') {
-        extractionQueue.value = extractionQueue.value.slice(1);
-        continue;
-      }
-
-      await executeExtraction(currentJob, nextItem.source, nextItem.targetDir);
-
-      // Pop finished job from queue
-      extractionQueue.value = extractionQueue.value.slice(1);
-    }
-  } finally {
-    isProcessingQueue = false;
-  }
-}
-
-async function startBatchExtraction() {
-  if (stagedFiles.value.length === 0) return;
-  const items = [...stagedFiles.value];
-  stagedFiles.value = [];
-
-  const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
-
-  for (const item of items) {
-    const ext = defaultFormat.value === 'prores_4444' ? 'mov' : (defaultFormat.value === 'webm_alpha' ? 'webm' : 'mp4');
-    const stem = item.name.replace(/\.[^/.]+$/, '');
-    const outputPath = `${targetDir}/${stem}_alpha.${ext}`;
-
-    let filePath = typeof item.source === 'string' ? item.source : item.name;
-    if (item.source instanceof File) {
-      const nativePath = await getFilePathForFile(item.source);
-      if (nativePath) filePath = nativePath;
-    }
-
-    const newJob: BatchMattingJob = reactive({
-      id: `job_${Date.now()}_${Math.random()}`,
-      fileName: item.name,
-      filePath,
-      fileSizeBytes: item.sizeBytes,
-      status: 'queued',
-      progressPct: 0,
-      fps: 0,
-      etaSeconds: 0,
-      outputFormat: defaultFormat.value,
-      outputPath,
-    });
-
-    jobs.value.unshift(newJob);
-    const reactiveJob = jobs.value[0];
-    extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: item.source, targetDir }];
-  }
-
-  triggerRef(jobs);
-  processQueue();
-}
-
-async function executeExtraction(job: BatchMattingJob, fileOrPath: File | string, targetDir: string) {
-  // Always locate the reactive proxy in jobs.value to guarantee UI reactivity
-  const reactiveJob = jobs.value.find((j) => j.id === job.id) || job;
-
-  // If the model selected is not downloaded yet, ensure it gets downloaded
-  if (currentModel.value.id !== 'mediapipe_fast' && !isCurrentModelDownloaded.value) {
-    reactiveJob.status = 'loading_model';
-    reactiveJob.errorMessage = undefined;
-    triggerRef(jobs);
-    try {
-      const res = await downloadModel(currentModel.value.fileName);
-      if (res.success) {
-        daemonModels.value = await fetchAvailableModels();
-      } else {
-        reactiveJob.status = 'failed';
-        reactiveJob.errorMessage = res.error || 'Failed to download selected AI model';
-        triggerRef(jobs);
-        return;
-      }
-    } catch (e: any) {
-      reactiveJob.status = 'failed';
-      reactiveJob.errorMessage = e?.message || 'Model download error';
-      triggerRef(jobs);
-      return;
-    }
-  }
-
-  // Obtain a File or Blob or URL for the video
-  let source: File | Blob | string = fileOrPath;
-  if (typeof fileOrPath === 'string') {
-    const buf = await readFileBuffer(fileOrPath);
-    if (buf) {
-      source = new Blob([buf], { type: 'video/mp4' });
-    }
-  }
-
-  const stem = reactiveJob.fileName.replace(/\.[^/.]+$/, '');
-  const removerJob = new VideoBgRemoverJob({
-    id: reactiveJob.id,
-    source,
-    fileName: reactiveJob.fileName,
-    fileStem: stem,
-    modelId: selectedBgModel.value,
-    modelFileName: currentModel.value.fileName,
-    outputFormat: reactiveJob.outputFormat || defaultFormat.value,
-    targetDir,
-    onProgress: (p) => {
-      reactiveJob.progressPct = p.pct;
-      reactiveJob.fps = p.fps;
-      reactiveJob.etaSeconds = p.etaSeconds;
-      reactiveJob.processedFrames = p.frame;
-      reactiveJob.totalFrames = p.totalFrames;
-      triggerRef(jobs);
-    },
-    onPreview: (thumb) => {
-      reactiveJob.previewThumbnail = thumb;
-      triggerRef(jobs);
-    },
-    onStatusChange: (status, errMsg) => {
-      reactiveJob.status = status;
-      if (errMsg) reactiveJob.errorMessage = errMsg;
-      triggerRef(jobs);
-    },
-  });
-
-  activeRemoverJobs.set(reactiveJob.id, removerJob);
-
-  const res = await removerJob.run();
-  activeRemoverJobs.delete(reactiveJob.id);
-
-  if (res.success && res.outputPath) {
-    reactiveJob.status = 'completed';
-    reactiveJob.progressPct = 100;
-    reactiveJob.outputPath = res.outputPath;
-  } else if (!reactiveJob.errorMessage) {
-    reactiveJob.status = 'failed';
-    reactiveJob.errorMessage = res.error || 'Video background extraction failed';
-  }
-  triggerRef(jobs);
-}
-
-function cancelJob(jobId: string) {
-  extractionQueue.value = extractionQueue.value.filter((item) => item.job.id !== jobId);
-  const active = activeRemoverJobs.get(jobId);
-  if (active) {
-    active.cancel();
-    activeRemoverJobs.delete(jobId);
-  }
-  const j = jobs.value.find((x) => x.id === jobId);
-  if (j && (j.status === 'processing' || j.status === 'loading_model' || j.status === 'queued' || j.status === 'finalizing')) {
-    j.status = 'failed';
-    j.errorMessage = 'Cancelled by user';
-  }
-  triggerRef(jobs);
-}
-
-function retryJob(job: BatchMattingJob) {
-  const reactiveJob = jobs.value.find((j) => j.id === job.id) || job;
-  reactiveJob.status = 'queued';
-  reactiveJob.progressPct = 0;
-  reactiveJob.fps = 0;
-  reactiveJob.etaSeconds = 0;
-  reactiveJob.errorMessage = undefined;
-  extractionQueue.value = [...extractionQueue.value, { job: reactiveJob, source: reactiveJob.filePath, targetDir: bgRemoverDir.value }];
-  triggerRef(jobs);
-  processQueue();
 }
 
 async function handleDrop(e: DragEvent) {
@@ -443,35 +80,16 @@ async function handleFileInputChange(e: Event) {
   }
 }
 
+function handleTriggerFileInput() {
+  triggerFileInput(fileInputRef.value);
+}
+
 function formatBytes(bytes: number) {
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
-
-function removeJob(id: string) {
-  cancelJob(id);
-  jobs.value = jobs.value.filter((j) => j.id !== id);
-}
-
-async function revealOutput(job: BatchMattingJob) {
-  const target = job.outputPath || job.filePath;
-  const res = await revealInFolder(target);
-  if (!res.success) {
-    navigator.clipboard?.writeText(target).catch(() => { });
-    window.alert(`Transparent video output path (copied to clipboard):\n${target}`);
-  }
-}
-
-async function handleOpenBgRemoverFolder() {
-  const dir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
-  const res = await openExportDirectory(dir);
-  if (!res.success) {
-    navigator.clipboard?.writeText(dir).catch(() => { });
-    window.alert(`AI BG Remover folder path (copied to clipboard):\n${dir}`);
-  }
 }
 </script>
 
@@ -506,7 +124,7 @@ async function handleOpenBgRemoverFolder() {
           </div>
         </div>
         <!-- Drag & Drop Zone -->
-        <div @click="triggerFileInput" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop"
+        <div @click="handleTriggerFileInput" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop"
           class="border-2 border-dashed rounded-3xl p-10 text-center transition-all cursor-pointer relative overflow-hidden group"
           :class="[
             isDragging
