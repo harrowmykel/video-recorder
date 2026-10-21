@@ -119,6 +119,34 @@ const BG_MODEL_OPTIONS: BgModelOption[] = [
   },
 ];
 
+interface FormatPresetOption {
+  id: 'webm_alpha' | 'prores_4444' | 'luma_matte';
+  name: string;
+  ext: string;
+  description: string;
+}
+
+const FORMAT_PRESET_OPTIONS: FormatPresetOption[] = [
+  {
+    id: 'webm_alpha',
+    name: 'WebM VP9 Alpha',
+    ext: '.webm',
+    description: 'Native transparent web video. Ultra-lightweight file size with full 8-bit alpha cutout.',
+  },
+  {
+    id: 'prores_4444',
+    name: 'Apple ProRes 4444',
+    ext: '.mov',
+    description: '10-bit cinema master with transparency. Supported natively in DaVinci Resolve, Premiere, and FCP.',
+  },
+  {
+    id: 'luma_matte',
+    name: 'High-Contrast Luma Matte',
+    ext: '.mp4',
+    description: 'High-contrast black & white mask track video. Universal compatibility across all video editors.',
+  },
+];
+
 const currentModel = computed(() => {
   return BG_MODEL_OPTIONS.find((m) => m.id === selectedBgModel.value) || BG_MODEL_OPTIONS[0];
 });
@@ -538,77 +566,27 @@ async function handleOpenBgRemoverFolder() {
 
               <!-- Format Preset Options -->
               <div class="space-y-2.5">
-                <!-- WebM VP9 Alpha -->
-                <div @click="defaultFormat = 'webm_alpha'"
+                <div v-for="format in FORMAT_PRESET_OPTIONS" :key="format.id"
+                  @click="defaultFormat = format.id"
                   :class="[
                     'p-3.5 rounded-xl border transition cursor-pointer flex items-start gap-3',
-                    defaultFormat === 'webm_alpha'
+                    defaultFormat === format.id
                       ? 'bg-indigo-500/15 border-indigo-400/40 shadow-[0_0_16px_rgba(99,102,241,0.15)]'
                       : 'bg-black/30 border-white/5 hover:border-white/15'
                   ]">
                   <div :class="[
                     'w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 transition-colors',
-                    defaultFormat === 'webm_alpha' ? 'border-indigo-400 bg-indigo-500' : 'border-white/30'
+                    defaultFormat === format.id ? 'border-indigo-400 bg-indigo-500' : 'border-white/30'
                   ]">
-                    <div v-if="defaultFormat === 'webm_alpha'" class="w-1.5 h-1.5 rounded-full bg-white" />
+                    <div v-if="defaultFormat === format.id" class="w-1.5 h-1.5 rounded-full bg-white" />
                   </div>
                   <div class="min-w-0">
                     <div class="flex items-center justify-between">
-                      <span class="text-xs font-semibold text-white">WebM VP9 Alpha</span>
-                      <span class="text-[10px] font-mono text-indigo-300">.webm</span>
+                      <span class="text-xs font-semibold text-white">{{ format.name }}</span>
+                      <span class="text-[10px] font-mono text-indigo-300">{{ format.ext }}</span>
                     </div>
                     <p class="text-[11px] text-white/50 leading-tight mt-1">
-                      Native transparent web video. Ultra-lightweight file size with full 8-bit alpha cutout.
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Apple ProRes 4444 -->
-                <div @click="defaultFormat = 'prores_4444'"
-                  :class="[
-                    'p-3.5 rounded-xl border transition cursor-pointer flex items-start gap-3',
-                    defaultFormat === 'prores_4444'
-                      ? 'bg-indigo-500/15 border-indigo-400/40 shadow-[0_0_16px_rgba(99,102,241,0.15)]'
-                      : 'bg-black/30 border-white/5 hover:border-white/15'
-                  ]">
-                  <div :class="[
-                    'w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 transition-colors',
-                    defaultFormat === 'prores_4444' ? 'border-indigo-400 bg-indigo-500' : 'border-white/30'
-                  ]">
-                    <div v-if="defaultFormat === 'prores_4444'" class="w-1.5 h-1.5 rounded-full bg-white" />
-                  </div>
-                  <div class="min-w-0">
-                    <div class="flex items-center justify-between">
-                      <span class="text-xs font-semibold text-white">Apple ProRes 4444</span>
-                      <span class="text-[10px] font-mono text-indigo-300">.mov</span>
-                    </div>
-                    <p class="text-[11px] text-white/50 leading-tight mt-1">
-                      10-bit cinema master with transparency. Supported natively in DaVinci Resolve, Premiere, and FCP.
-                    </p>
-                  </div>
-                </div>
-
-                <!-- High-Contrast Luma Matte -->
-                <div @click="defaultFormat = 'luma_matte'"
-                  :class="[
-                    'p-3.5 rounded-xl border transition cursor-pointer flex items-start gap-3',
-                    defaultFormat === 'luma_matte'
-                      ? 'bg-indigo-500/15 border-indigo-400/40 shadow-[0_0_16px_rgba(99,102,241,0.15)]'
-                      : 'bg-black/30 border-white/5 hover:border-white/15'
-                  ]">
-                  <div :class="[
-                    'w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 transition-colors',
-                    defaultFormat === 'luma_matte' ? 'border-indigo-400 bg-indigo-500' : 'border-white/30'
-                  ]">
-                    <div v-if="defaultFormat === 'luma_matte'" class="w-1.5 h-1.5 rounded-full bg-white" />
-                  </div>
-                  <div class="min-w-0">
-                    <div class="flex items-center justify-between">
-                      <span class="text-xs font-semibold text-white">High-Contrast Luma Matte</span>
-                      <span class="text-[10px] font-mono text-indigo-300">.mp4</span>
-                    </div>
-                    <p class="text-[11px] text-white/50 leading-tight mt-1">
-                      High-contrast black & white mask track video. Universal compatibility across all video editors.
+                      {{ format.description }}
                     </p>
                   </div>
                 </div>
