@@ -62,7 +62,7 @@ async function getOrInitSegmenter(): Promise<ImageSegmenter | null> {
           modelAssetPath: modelPath,
           delegate: 'GPU',
         },
-        runningMode: 'VIDEO',
+        runningMode: 'IMAGE',
         outputCategoryMask: false,
         outputConfidenceMasks: true,
       });
@@ -231,7 +231,6 @@ export class VideoBgRemoverJob {
       let currentFps = targetFps;
       let maskImageData: ImageData | null = null;
       let maskData32: Uint32Array | null = null;
-      let lastMpTimestamp = -1;
 
       for (let i = 0; i < totalFrames; i++) {
         if (this.isCancelled) {
@@ -248,12 +247,7 @@ export class VideoBgRemoverJob {
 
         // Compute AI Mask
         if (segmenter) {
-          let timestamp = Math.floor(frameTime * 1000);
-          if (timestamp <= lastMpTimestamp) {
-            timestamp = lastMpTimestamp + 1;
-          }
-          lastMpTimestamp = timestamp;
-          segmenter.segmentForVideo(video, timestamp, (result) => {
+          segmenter.segment(srcCanvas, (result) => {
             try {
               const confidenceMask = result.confidenceMasks?.[1] ?? result.confidenceMasks?.[0];
               if (!confidenceMask) return;
