@@ -81,6 +81,20 @@ pub fn finalize_transparent_video(
         }
     };
 
+    // Auto-increment output filename if file already exists in output directory
+    let mut final_path = output_path.clone();
+    let mut counter = 1;
+    while final_path.exists() {
+        let unique_name = match output_format {
+            OutputFormat::ProRes4444 => format!("{}_alpha ({}).mov", stem, counter),
+            OutputFormat::WebmAlpha => format!("{}_alpha ({}).webm", stem, counter),
+            OutputFormat::LumaMatte => format!("{}_matte ({}).mp4", stem, counter),
+        };
+        final_path = out_dir.join(unique_name);
+        counter += 1;
+    }
+    let output_path = final_path;
+
     let mut cmd = crate::ffmpeg::ffmpeg_cmd();
     cmd.arg("-y")
         .arg("-i")

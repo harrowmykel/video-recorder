@@ -16,6 +16,7 @@ import {
   Layers,
   Cpu,
   XCircle,
+  Clock,
 } from 'lucide-vue-next';
 import type { BatchMattingJob, BgModelType } from '@/types/studio';
 import {
@@ -209,7 +210,41 @@ async function triggerFileInput() {
   fileInputRef.value?.click();
 }
 
+interface QueuedExtractionItem {
+  job: BatchMattingJob;
+  source: File | string;
+  targetDir: string;
+}
+
 const activeRemoverJobs = new Map<string, VideoBgRemoverJob>();
+const extractionQueue = shallowRef<QueuedExtractionItem[]>([]);
+let isProcessingQueue = false;
+
+async function processQueue() {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+
+  try {
+    while (extractionQueue.value.length > 0) {
+      const nextItem = extractionQueue.value[0];
+      if (!nextItem) break;
+
+      // Verify the job still exists in the jobs list and wasn't deleted or cancelled
+      const currentJob = jobs.value.find((j) => j.id === nextItem.job.id);
+      if (!currentJob || currentJob.status === 'failed') {
+        extractionQueue.value = extractionQueue.value.slice(1);
+        continue;
+      }
+
+      await executeExtraction(nextItem.job, nextItem.source, nextItem.targetDir);
+
+      // Pop finished job from queue
+      extractionQueue.value = extractionQueue.value.slice(1);
+    }
+  } finally {
+    isProcessingQueue = false;
+  }
+}
 
 async function enqueueFilePaths(paths: string[]) {
   const targetDir = bgRemoverDir.value || (await getDefaultBgRemoverDirectory());
@@ -232,8 +267,9 @@ async function enqueueFilePaths(paths: string[]) {
       outputPath,
     };
     jobs.value.unshift(newJob);
-    executeExtraction(newJob, filePath, targetDir);
+    extractionQueue.value = [...extractionQueue.value, { job: newJob, source: filePath, targetDir }];
   }
+  processQueue();
 }
 
 async function enqueueFiles(files: File[]) {
@@ -257,9 +293,9 @@ async function enqueueFiles(files: File[]) {
       outputPath,
     };
     jobs.value.unshift(newJob);
-
-    executeExtraction(newJob, file, targetDir);
+    extractionQueue.value = [...extractionQueue.value, { job: newJob, source: file, targetDir }];
   }
+  processQueue();
 }
 
 async function executeExtraction(job: BatchMattingJob, fileOrPath: File | string, targetDir: string) {
@@ -334,6 +370,7 @@ async function executeExtraction(job: BatchMattingJob, fileOrPath: File | string
 }
 
 function cancelJob(jobId: string) {
+  extractionQueue.value = extractionQueue.value.filter((item) => item.job.id !== jobId);
   const active = activeRemoverJobs.get(jobId);
   if (active) {
     active.cancel();
@@ -344,6 +381,16 @@ function cancelJob(jobId: string) {
     j.status = 'failed';
     j.errorMessage = 'Cancelled by user';
   }
+}
+
+function retryJob(job: BatchMattingJob) {
+  job.status = 'queued';
+  job.progressPct = 0;
+  job.fps = 0;
+  job.etaSeconds = 0;
+  job.errorMessage = undefined;
+  extractionQueue.value = [...extractionQueue.value, { job, source: job.filePath, targetDir: bgRemoverDir.value }];
+  processQueue();
 }
 
 async function handleDrop(e: DragEvent) {
@@ -369,6 +416,7 @@ function formatBytes(bytes: number) {
 }
 
 function removeJob(id: string) {
+  cancelJob(id);
   jobs.value = jobs.value.filter((j) => j.id !== id);
 }
 
@@ -626,6 +674,13 @@ async function handleOpenBgRemoverFolder() {
                 </div>
                 <div class="flex items-center space-x-3 text-xs text-gray-400 font-mono mt-1">
                   <span v-if="job.fileSizeBytes > 0">{{ formatBytes(job.fileSizeBytes) }}</span>
+                  <template v-if="job.status === 'queued'">
+                    <span>•</span>
+                    <span class="text-white/40 flex items-center space-x-1.5 font-sans font-medium">
+                      <Clock class="w-3.5 h-3.5 text-white/30" />
+                      <span>Waiting in queue...</span>
+                    </span>
+                  </template>
                   <template v-if="job.status === 'loading_model'">
                     <span>•</span>
                     <span class="text-amber-400 font-semibold flex items-center space-x-1">
@@ -686,14 +741,14 @@ async function handleOpenBgRemoverFolder() {
               </div>
 
               <button
-                v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing'"
+                v-if="job.status === 'processing' || job.status === 'loading_model' || job.status === 'finalizing' || job.status === 'queued'"
                 @click="cancelJob(job.id)"
                 class="flex items-center space-x-1 px-3 py-1.5 bg-white/5 hover:bg-rose-500/20 text-white/50 hover:text-rose-300 border border-white/10 hover:border-rose-500/30 rounded-xl text-xs font-mono transition-all">
                 <XCircle class="w-3.5 h-3.5" />
                 <span>Cancel</span>
               </button>
 
-              <button v-if="job.status === 'failed'" @click="executeExtraction(job, job.filePath, bgRemoverDir)"
+              <button v-if="job.status === 'failed'" @click="retryJob(job)"
                 class="flex items-center space-x-1 px-3 py-1.5 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm">
                 <RotateCcw class="w-3.5 h-3.5" />
                 <span>Retry</span>

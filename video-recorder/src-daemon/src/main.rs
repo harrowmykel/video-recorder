@@ -12,7 +12,7 @@ use session::{
     default_recordings_base_dir, list_recorded_sessions,
 };
 use capture::{enumerate_displays, enumerate_windows};
-use ai::{finalize_transparent_video, OutputFormat};
+use ai::OutputFormat;
 
 #[derive(Deserialize)]
 struct ExtractBgRequest {

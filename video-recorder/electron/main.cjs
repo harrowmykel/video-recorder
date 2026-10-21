@@ -753,7 +753,13 @@ ipcMain.handle('select_video_files', async () => {
 
 ipcMain.handle('save_dropped_file', async (_event, { fileName, buffer }) => {
   const targetDir = getStudioSubDir('bg-remover');
-  const destPath = path.join(targetDir, fileName);
+  let destPath = path.join(targetDir, fileName);
+  const parsed = path.parse(fileName);
+  let counter = 1;
+  while (fs.existsSync(destPath)) {
+    destPath = path.join(targetDir, `${parsed.name} (${counter})${parsed.ext}`);
+    counter++;
+  }
   await fs.promises.writeFile(destPath, Buffer.from(buffer));
   return destPath;
 });
