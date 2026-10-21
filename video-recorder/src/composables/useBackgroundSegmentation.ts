@@ -1,7 +1,6 @@
 import { shallowRef, watch, onUnmounted, type Ref } from 'vue';
 import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
-import type { BgRemovalMode, BgEngineType } from '../types/studio';
-import { resolveDaemonUrl, updateCameraBackgroundMode } from '@/lib/tauriBridge';
+import type { BgRemovalMode } from '../types/studio';
 
 export interface UseBackgroundSegmentationOptions {
   videoRef: Ref<HTMLVideoElement | null>;
@@ -12,7 +11,6 @@ export interface UseBackgroundSegmentationOptions {
   bgColor?: Ref<string>;
   isMirrored: Ref<boolean>;
   hasCameraStream: Ref<boolean>;
-  bgEngine?: Ref<BgEngineType>;
 }
 
 // Module-level MediaPipe singleton to avoid re-compiling WASM shaders across component lifecycles
@@ -80,13 +78,10 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     isMirrored,
     hasCameraStream,
   } = options;
-  const bgEngine = options.bgEngine ?? shallowRef<BgEngineType>('rust');
 
   const isBgImageLoaded = shallowRef(false);
   const segmentationBackend = shallowRef<'mediapipe' | 'heuristic'>('heuristic');
   const isModelLoading = shallowRef(false);
-  const isDaemonStreamActive = shallowRef(false);
-  let daemonStreamImg: HTMLImageElement | null = null;
   let loadedBgImage: HTMLImageElement | null = null;
   let activeImageRequestId = 0;
   let animFrameId: number | null = null;
@@ -111,32 +106,8 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
     }
   }
 
-  // Offscreen canvases for fallback foreground segmentation & alpha feathering
-  async function initDaemonStream() {
-    try {
-      const daemonUrl = await resolveDaemonUrl();
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        isDaemonStreamActive.value = true;
-      };
-      img.onerror = () => {
-        isDaemonStreamActive.value = false;
-      };
-      img.src = `${daemonUrl}/camera/preview`;
-      daemonStreamImg = img;
-    } catch {
-      isDaemonStreamActive.value = false;
-    }
-  }
-
-  initDaemonStream();
-
-  watch([bgMode, bgEngine], ([mode, engine]) => {
-    if (engine === 'rust') {
-      updateCameraBackgroundMode(mode);
-    }
-    if (mode !== 'off' && (engine === 'js' || !isDaemonStreamActive.value)) {
+  watch(bgMode, (mode) => {
+    if (mode !== 'off') {
       triggerModelInit();
     }
   }, { immediate: true });
@@ -379,19 +350,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
 
         const mode = bgMode.value;
 
-        // Fast path: if Rust Core Daemon is actively streaming live AI cutout frames, render directly
-        const isRustEngine = bgEngine.value === 'rust';
-        if (isRustEngine && isDaemonStreamActive.value && daemonStreamImg && daemonStreamImg.naturalWidth > 0) {
-          ctx.save();
-          if (isMirrored.value) {
-            ctx.translate(cw, 0);
-            ctx.scale(-1, 1);
-          }
-          drawCoverImage(ctx, daemonStreamImg, cw, ch);
-          ctx.restore();
-          animFrameId = requestAnimationFrame(renderFrame);
-          return;
-        }
+
 
         const hasVideo = Boolean(hasCameraStream.value && video && video.readyState >= 2);
 
@@ -531,7 +490,7 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
   }
 
   function startSegmentationLoop() {
-    if (bgMode.value !== 'off' && (bgEngine.value === 'js' || !isDaemonStreamActive.value)) {
+    if (bgMode.value !== 'off') {
       triggerModelInit();
     }
     if (animFrameId !== null) return;
@@ -547,18 +506,12 @@ export function useBackgroundSegmentation(options: UseBackgroundSegmentationOpti
 
   onUnmounted(() => {
     stopSegmentationLoop();
-    if (daemonStreamImg) {
-      daemonStreamImg.src = '';
-      daemonStreamImg = null;
-    }
   });
 
   return {
     isBgImageLoaded,
     segmentationBackend,
     isModelLoading,
-    isDaemonStreamActive,
-    bgEngine,
     startSegmentationLoop,
     stopSegmentationLoop,
   };

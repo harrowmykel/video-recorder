@@ -9,7 +9,6 @@ import {
 } from 'lucide-vue-next';
 import { useStudioState } from '@/composables/useStudioState';
 import { useMediaDevices, type MediaDeviceOption } from '@/composables/useMediaDevices';
-import { updateCameraDevice } from '@/lib/tauriBridge';
 
 const emit = defineEmits<{
   (e: 'openBackgrounds'): void;
@@ -23,10 +22,8 @@ const {
 const { cameras, refreshDevices } = useMediaDevices();
 
 function selectCamera(cam: MediaDeviceOption|null) {
-  
   selectedCameraId.value = cam?.deviceId || 'none';
   isCameraHidden.value = cam === null;
-    updateCameraDevice(selectedCameraId.value );
 } 
 </script>
 

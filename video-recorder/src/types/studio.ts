@@ -7,7 +7,6 @@ export type CameraSize = 'S' | 'M' | 'L' | 'fullscreen';
 
 export type BgRemovalMode = 'off' | 'blur' | 'transparent' | 'color' | 'image' | 'gradient';
 export type BgModelType = 'mediapipe_fast' | 'rvm_video' | 'birefnet_hq' | 'rmbg_1_4';
-export type BgEngineType = 'rust' | 'js';
 
 export type CaptureSourceMode = 'display' | 'window' | 'area';
 

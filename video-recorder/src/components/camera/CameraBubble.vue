@@ -7,7 +7,6 @@ import {
   uploadRecordedCameraTrack,
   uploadCameraChunk,
   broadcastEvent,
-  updateCameraDevice,
 } from '@/lib/tauriBridge';
 
 import { useTheme } from '@/composables/useTheme';
@@ -49,7 +48,6 @@ const {
   bgMode,
   bgImageUrl,
   bgGradient,
-  bgEngine,
   bgColor,
   chunkDuration,
   lastRecordedSession,
@@ -110,7 +108,7 @@ let mediaStream: MediaStream | null = null;
 let mediaRecorder: MediaRecorder | null = null;
 let recordedChunks: Blob[] = [];
 
-const { isDaemonStreamActive, startSegmentationLoop, stopSegmentationLoop } = useBackgroundSegmentation({
+const { startSegmentationLoop, stopSegmentationLoop } = useBackgroundSegmentation({
   videoRef,
   canvasRef,
   bgMode,
@@ -119,34 +117,11 @@ const { isDaemonStreamActive, startSegmentationLoop, stopSegmentationLoop } = us
   bgColor,
   isMirrored,
   hasCameraStream,
-  bgEngine,
 });
 
-const hasEffectiveStream = computed(() => {
-  if (bgEngine.value === 'rust' && isDaemonStreamActive.value) return true;
-  return hasCameraStream.value;
-});
+const hasEffectiveStream = computed(() => hasCameraStream.value);
 
-const { cameras, refreshDevices } = useMediaDevices();
-
-function syncCameraToDaemon(id: string) {
-  if (id === 'none') {
-    updateCameraDevice('none');
-    return;
-  }
-  const matching = cameras.value.find((c) => c.deviceId === id);
-  if (matching && matching.label) {
-    updateCameraDevice(matching.label);
-  } else if (id && id !== 'default' && !id.startsWith('cam_')) {
-    updateCameraDevice(id);
-  }
-}
-
-watch(cameras, (list) => {
-  if (list.length > 0 && selectedCameraId.value !== 'none') {
-    syncCameraToDaemon(selectedCameraId.value);
-  }
-});
+const { refreshDevices } = useMediaDevices();
 
 async function startCameraStream(deviceId?: string) {
   if (mediaStream) {
@@ -156,7 +131,7 @@ async function startCameraStream(deviceId?: string) {
   if (videoRef.value) {
     videoRef.value.srcObject = null;
   }
-  if (!deviceId || deviceId === 'none' || bgEngine.value === 'rust') {
+  if (!deviceId || deviceId === 'none') {
     hasCameraStream.value = false;
     return;
   }
@@ -188,29 +163,10 @@ async function startCameraStream(deviceId?: string) {
 
 // Switch camera stream in real time when selectedCameraId changes
 watch(selectedCameraId, (newId) => {
-  syncCameraToDaemon(newId);
   if (newId === 'none') {
     stopCanvasRecording();
   }
-  if (bgEngine.value === 'js') {
-    startCameraStream(newId);
-  }
-});
-
-watch(bgEngine, (newEngine) => {
-  if (newEngine === 'js' && selectedCameraId.value !== 'none' && !hasCameraStream.value) {
-    startCameraStream(selectedCameraId.value);
-  } else if (newEngine === 'rust') {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((t) => t.stop());
-      mediaStream = null;
-    }
-    if (videoRef.value) {
-      videoRef.value.srcObject = null;
-    }
-    hasCameraStream.value = false;
-    syncCameraToDaemon(selectedCameraId.value);
-  }
+  startCameraStream(newId);
 });
 
 // Record composited canvas stream across recording/pause/resume and upload on stop
@@ -520,10 +476,7 @@ onMounted(async () => {
   initTheme();
   await refreshDevices(false);
   if (selectedCameraId.value !== 'none') {
-    syncCameraToDaemon(selectedCameraId.value);
-    if (bgEngine.value === 'js') {
-      await startCameraStream(selectedCameraId.value);
-    }
+    await startCameraStream(selectedCameraId.value);
   } else {
     hasCameraStream.value = false;
   }

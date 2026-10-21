@@ -273,52 +273,6 @@ export async function uploadCameraChunk(
   return null;
 }
 
-export async function getCameraPreviewUrl(): Promise<string> {
-  const daemonBase = await resolveDaemonUrl();
-  return `${daemonBase}/camera/preview`;
-}
-
-export async function updateCameraBackgroundMode(bgMode: string, bgModel?: string): Promise<boolean> {
-  try {
-    const daemonBase = await resolveDaemonUrl();
-    const payload: Record<string, any> = { bg_mode: bgMode };
-    if (bgModel) payload.bg_model = bgModel;
-    const resp = await fetch(`${daemonBase}/camera/config`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return resp.ok;
-  } catch (err) {
-    console.warn('[updateCameraBackgroundMode] Failed to sync bg_mode with daemon:', err);
-    return false;
-  }
-}
-
-export async function updateCameraDevice(deviceName: string): Promise<boolean> {
-  return updateCameraConfig({ device_name: deviceName });
-}
-
-export interface CameraConfigOptions {
-  bg_mode?: string;
-  bg_model?: string;
-  device_name?: string;
-}
-
-export async function updateCameraConfig(options: CameraConfigOptions): Promise<boolean> {
-  try {
-    const daemonBase = await resolveDaemonUrl();
-    const resp = await fetch(`${daemonBase}/camera/config`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(options),
-    });
-    return resp.ok;
-  } catch (err) {
-    console.warn('[updateCameraConfig] Failed to sync config with daemon:', err);
-    return false;
-  }
-}
 
 export interface DaemonModelInfo {
   name: string;
@@ -359,16 +313,6 @@ export async function downloadModel(fileName: string): Promise<{ success: boolea
   }
 }
 
-export async function getCameraStreamStatus(): Promise<{ bg_mode: string; is_recording: boolean } | null> {
-  try {
-    const daemonBase = await resolveDaemonUrl();
-    const resp = await fetch(`${daemonBase}/camera/status`);
-    if (resp.ok) {
-      return await resp.json();
-    }
-  } catch {}
-  return null;
-}
 
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {

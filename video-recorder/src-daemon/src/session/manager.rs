@@ -6,7 +6,7 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 
 use crate::capture::{
-    AudioRecorder, CameraRecorder, ScreenRecorder, ScreenCaptureConfig, TelemetryLogger,
+    AudioRecorder, ScreenRecorder, ScreenCaptureConfig, TelemetryLogger,
     detect_screen_dimensions, enumerate_displays, enumerate_windows,
 };
 
@@ -91,7 +91,6 @@ pub struct SessionManager {
     chunk_duration_sec: u32,
     is_paused: bool,
     screen_recorder: Option<ScreenRecorder>,
-    camera_recorder: Option<CameraRecorder>,
     audio_recorder: Option<AudioRecorder>,
     telemetry_logger: Option<TelemetryLogger>,
 }
@@ -108,7 +107,6 @@ impl Default for SessionManager {
             chunk_duration_sec: 15,
             is_paused: false,
             screen_recorder: None,
-            camera_recorder: None,
             audio_recorder: None,
             telemetry_logger: None,
         }
@@ -179,7 +177,6 @@ impl SessionManager {
         std::fs::create_dir_all(&chunks_dir)?;
 
         let screen_path = session_dir.join("screen_clean.mp4");
-        let camera_path = session_dir.join("camera_raw.mp4");
         let mic_path = session_dir.join("audio_mic.wav");
         let sys_path = session_dir.join("audio_system.wav");
         let telemetry_path = session_dir.join("telemetry.json");
@@ -249,24 +246,7 @@ impl SessionManager {
             eprintln!("[SessionManager] Warning starting screen recorder: {}", e);
         }
 
-        // 2. Start Camera Recorder (skipped if user selected 'none' or no camera)
-        let is_camera_disabled = match req.camera_device.as_deref() {
-            Some("none") | Some("") => true,
-            _ => false,
-        };
-
-        let camera_rec = if !is_camera_disabled {
-            let mut rec = CameraRecorder::new(camera_path.clone());
-            if let Err(e) = rec.start(req.camera_device.as_deref()) {
-                eprintln!("[SessionManager] Warning starting camera recorder: {}", e);
-            }
-            Some(rec)
-        } else {
-            println!("[SessionManager] Camera recording disabled by user ('none')");
-            None
-        };
-
-        // 3. Start Audio Recorder (Chunked)
+        // 2. Start Audio Recorder (Chunked)
         let mut audio_rec = AudioRecorder::new_chunked(
             mic_path.clone(),
             sys_path.clone(),
@@ -281,7 +261,7 @@ impl SessionManager {
             eprintln!("[SessionManager] Warning starting audio recorder: {}", e);
         }
 
-        // 4. Start Telemetry Logger
+        // 3. Start Telemetry Logger
         let mut telemetry_log = TelemetryLogger::new(telemetry_path.clone());
         telemetry_log.start();
 
@@ -292,11 +272,7 @@ impl SessionManager {
             duration_ms: 0,
             session_dir: session_dir.to_string_lossy().to_string(),
             screen_track: screen_path.to_string_lossy().to_string(),
-            camera_raw_track: if camera_rec.is_some() {
-                camera_path.to_string_lossy().to_string()
-            } else {
-                String::new()
-            },
+            camera_raw_track: String::new(),
             mic_track: mic_path.to_string_lossy().to_string(),
             sys_audio_track: sys_path.to_string_lossy().to_string(),
             telemetry_file: telemetry_path.to_string_lossy().to_string(),
@@ -321,7 +297,6 @@ impl SessionManager {
         self.chunk_duration_sec = chunk_duration_sec;
         self.is_paused = false;
         self.screen_recorder = Some(screen_rec);
-        self.camera_recorder = camera_rec;
         self.audio_recorder = Some(audio_rec);
         self.telemetry_logger = Some(telemetry_log);
 
@@ -336,9 +311,6 @@ impl SessionManager {
         if let Some(r) = &mut self.screen_recorder {
             r.pause();
         }
-        if let Some(r) = &mut self.camera_recorder {
-            r.pause();
-        }
         if let Some(r) = &mut self.audio_recorder {
             r.pause();
         }
@@ -351,9 +323,6 @@ impl SessionManager {
             return;
         }
         if let Some(r) = &mut self.screen_recorder {
-            r.resume();
-        }
-        if let Some(r) = &mut self.camera_recorder {
             r.resume();
         }
         if let Some(r) = &mut self.audio_recorder {
@@ -453,12 +422,6 @@ impl SessionManager {
             String::new()
         };
 
-        let camera_path = if let Some(mut r) = self.camera_recorder.take() {
-            r.stop()?.to_string_lossy().to_string()
-        } else {
-            String::new()
-        };
-
         let (mic_path, sys_path) = if let Some(mut r) = self.audio_recorder.take() {
             let (m, s) = r.stop()?;
             (m.to_string_lossy().to_string(), s.to_string_lossy().to_string())
@@ -538,6 +501,20 @@ impl SessionManager {
                 let _ = std::fs::remove_file(&concat_list_path);
             }
         }
+
+        let camera_path = if let Some(dir) = &self.session_dir {
+            let unified_raw = dir.join("camera_raw.mp4");
+            let unified_alpha = dir.join("camera_alpha.webm");
+            if unified_raw.exists() {
+                unified_raw.to_string_lossy().to_string()
+            } else if unified_alpha.exists() {
+                unified_alpha.to_string_lossy().to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
 
         let created_at = self
             .created_at_rfc3339
@@ -672,9 +649,6 @@ impl SessionManager {
         let _ = self.session_id.take();
         self.is_paused = false;
         if let Some(mut r) = self.screen_recorder.take() {
-            let _ = r.discard();
-        }
-        if let Some(mut r) = self.camera_recorder.take() {
             let _ = r.discard();
         }
         if let Some(mut r) = self.audio_recorder.take() {
