@@ -416,86 +416,107 @@ async function handleOpenBgRemoverFolder() {
           </p>
         </div>
 
-        <div
-          class="border-1 border rounded-3xl p-10 text-center transition-all cursor-pointer relative overflow-hidden group">
-          <!-- AI Background Removal Model Picker -->
+        <!-- AI Background Removal Model & Format Settings -->
+        <div class="p-6 rounded-2xl glass-card border border-white/[0.08] shadow-xl space-y-5">
+          <!-- Card Header -->
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+            <div class="flex items-center gap-2.5">
+              <div class="p-2 rounded-xl bg-indigo-500/15 border border-indigo-400/25 text-indigo-400">
+                <Cpu class="w-4 h-4" />
+              </div>
+              <div>
+                <h4 class="text-sm font-semibold text-white tracking-wide">AI Inference Model & Export Preset</h4>
+                <p class="text-[11px] text-white/50">Select GPU neural matting architecture and target editor format</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] font-mono text-indigo-300">
+                <Sparkles class="w-3 h-3 text-indigo-400" />
+                <span>WebGL / WebGPU Shaders</span>
+              </span>
+            </div>
+          </div>
 
-          <div class="flex col-1 col-md-2">
-
-            <div class="space-y-2 pt-3">
+          <!-- 2-Column Responsive Layout -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <!-- Left Column: Model Selection & Spec Card (7 cols) -->
+            <div class="lg:col-span-7 space-y-3.5">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                  <span>Matting Architecture</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500">Local Neural Network</span>
+              </div>
 
               <!-- Styled Model Selector -->
               <div class="relative">
-                Model:
                 <select v-model="selectedBgModel"
-                  class="w-full appearance-none bg-white/5 hover:bg-white/10 border border-white/10 focus:border-indigo-400/50 rounded-xl px-3.5 py-2.5 pr-9 text-xs text-white font-medium transition cursor-pointer">
+                  class="w-full appearance-none bg-black/40 hover:bg-black/60 border border-white/10 hover:border-white/20 focus:border-indigo-400/60 rounded-xl px-4 py-2.5 pr-10 text-xs text-white font-medium transition cursor-pointer outline-none">
                   <option v-for="model in BG_MODEL_OPTIONS" :key="model.id" :value="model.id"
                     class="bg-[#12141d] text-white">
                     {{ model.name }} ({{ model.badge }} • {{ model.size }})
                   </option>
                 </select>
                 <ChevronDown
-                  class="w-4 h-4 text-white/40 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  class="w-4 h-4 text-white/40 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
 
               <!-- Model Spec & Status Card -->
-              <div class="p-3 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+              <div class="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2.5">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
-                    <span :class="['text-[10px] font-semibold px-2 py-0.5 rounded-lg border', currentModel.badgeColor]">
+                    <span :class="['text-[10px] font-semibold px-2 py-0.5 rounded-md border', currentModel.badgeColor]">
                       {{ currentModel.badge }}
                     </span>
                     <span class="text-xs font-semibold text-white">{{ currentModel.name }}</span>
                   </div>
 
-                  <div class="flex items-center gap-1.5 text-[11px] font-mono">
+                  <div class="flex items-center gap-2 text-[11px] font-mono">
                     <span class="flex items-center gap-1 text-amber-300">
                       <Zap class="w-3 h-3" />
                       {{ currentModel.latency }}
                     </span>
-                    <span class="text-white/30">•</span>
+                    <span class="text-white/20">•</span>
                     <span class="text-white/50">{{ currentModel.size }}</span>
                   </div>
                 </div>
 
-                <p class="text-[11px] text-white/55 leading-relaxed">
+                <p class="text-xs text-white/60 leading-relaxed">
                   {{ currentModel.description }}
                 </p>
 
                 <div
-                  class="pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] text-white/50 font-mono">
-                  <div class="flex items-center gap-1.5">
+                  class="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono text-white/50">
+                  <div class="flex items-center gap-2">
                     <span :class="[
-                      'w-1.5 h-1.5 rounded-full',
+                      'w-2 h-2 rounded-full',
                       isCurrentModelDownloaded ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-amber-400'
                     ]" />
-                    <span>{{ isCurrentModelDownloaded ? 'Cached in studio/.cache' : 'Auto-downloads on demand'
-                      }}</span>
+                    <span class="text-white/70">{{ isCurrentModelDownloaded ? 'Cached locally on disk' : 'Auto-downloads on demand' }}</span>
                   </div>
                   <span class="text-white/30">FP32 Tensor</span>
                 </div>
               </div>
 
               <!-- Download Action Button / Ready Indicator -->
-              <div class="pt-1">
+              <div>
                 <div v-if="isCurrentModelDownloaded"
                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-medium">
                   <div class="flex items-center gap-2">
                     <CheckCircle2 class="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Model downloaded & ready for real-time matting</span>
+                    <span>Model cached & ready for local extraction</span>
                   </div>
                   <span
                     class="text-[10px] font-mono uppercase bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300 border border-emerald-500/30">Ready</span>
                 </div>
 
                 <div v-else class="space-y-1.5">
-                  <button @click="handleDownloadModel" :disabled="isDownloading"
-                    class="w-full py-2.5 px-4 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-500/20 group cursor-pointer disabled:cursor-not-allowed">
+                  <button type="button" @click="handleDownloadModel" :disabled="isDownloading"
+                    class="w-full py-2.5 px-4 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-500/20 cursor-pointer disabled:cursor-not-allowed">
                     <Loader2 v-if="isDownloading" class="w-4 h-4 animate-spin text-white" />
-                    <Download v-else class="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                    <Download v-else class="w-4 h-4 text-white" />
                     <span>{{ isDownloading ? `Downloading ${currentModel.name} (${currentModel.size})...` :
-                      `Download
-                      ${currentModel.name} (${currentModel.size})` }}</span>
+                      `Download ${currentModel.name} (${currentModel.size})` }}</span>
                   </button>
                   <p v-if="downloadError" class="text-[11px] text-rose-400 flex items-center gap-1.5">
                     <AlertCircle class="w-3.5 h-3.5 shrink-0" />
@@ -505,16 +526,93 @@ async function handleOpenBgRemoverFolder() {
               </div>
             </div>
 
-            <!-- Format Preset -->
-            <div class="pl-2">
-              Format
-              <select v-model="defaultFormat"
-                class="w-full appearance-none bg-white/5 hover:bg-white/10 border border-white/10 focus:border-indigo-400/50 rounded-xl px-3.5 py-2.5 pr-9 text-xs text-white font-medium transition cursor-pointer">
-                <option value="webm_alpha" class="bg-[#12141D]">WebM VP9 Alpha (.webm)</option>
-                <option value="prores_4444" class="bg-[#12141D]">Apple ProRes 4444 (.mov)</option>
-                <option value="luma_matte" class="bg-[#12141D]">High-Contrast Luma Matte (.mp4)</option>
-              </select>
-              <Layers class="w-3.5 h-3.5 text-emerald-400 absolute right-2.5 top-2.5 pointer-events-none" />
+            <!-- Right Column: Format Preset Selector (5 cols) -->
+            <div class="lg:col-span-5 space-y-3.5">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                  <Layers class="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Output Format Preset</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500">FFmpeg Master</span>
+              </div>
+
+              <!-- Format Preset Options -->
+              <div class="space-y-2.5">
+                <!-- WebM VP9 Alpha -->
+                <div @click="defaultFormat = 'webm_alpha'"
+                  :class="[
+                    'p-3.5 rounded-xl border transition cursor-pointer flex items-start gap-3',
+                    defaultFormat === 'webm_alpha'
+                      ? 'bg-indigo-500/15 border-indigo-400/40 shadow-[0_0_16px_rgba(99,102,241,0.15)]'
+                      : 'bg-black/30 border-white/5 hover:border-white/15'
+                  ]">
+                  <div :class="[
+                    'w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 transition-colors',
+                    defaultFormat === 'webm_alpha' ? 'border-indigo-400 bg-indigo-500' : 'border-white/30'
+                  ]">
+                    <div v-if="defaultFormat === 'webm_alpha'" class="w-1.5 h-1.5 rounded-full bg-white" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-white">WebM VP9 Alpha</span>
+                      <span class="text-[10px] font-mono text-indigo-300">.webm</span>
+                    </div>
+                    <p class="text-[11px] text-white/50 leading-tight mt-1">
+                      Native transparent web video. Ultra-lightweight file size with full 8-bit alpha cutout.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Apple ProRes 4444 -->
+                <div @click="defaultFormat = 'prores_4444'"
+                  :class="[
+                    'p-3.5 rounded-xl border transition cursor-pointer flex items-start gap-3',
+                    defaultFormat === 'prores_4444'
+                      ? 'bg-indigo-500/15 border-indigo-400/40 shadow-[0_0_16px_rgba(99,102,241,0.15)]'
+                      : 'bg-black/30 border-white/5 hover:border-white/15'
+                  ]">
+                  <div :class="[
+                    'w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 transition-colors',
+                    defaultFormat === 'prores_4444' ? 'border-indigo-400 bg-indigo-500' : 'border-white/30'
+                  ]">
+                    <div v-if="defaultFormat === 'prores_4444'" class="w-1.5 h-1.5 rounded-full bg-white" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-white">Apple ProRes 4444</span>
+                      <span class="text-[10px] font-mono text-indigo-300">.mov</span>
+                    </div>
+                    <p class="text-[11px] text-white/50 leading-tight mt-1">
+                      10-bit cinema master with transparency. Supported natively in DaVinci Resolve, Premiere, and FCP.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- High-Contrast Luma Matte -->
+                <div @click="defaultFormat = 'luma_matte'"
+                  :class="[
+                    'p-3.5 rounded-xl border transition cursor-pointer flex items-start gap-3',
+                    defaultFormat === 'luma_matte'
+                      ? 'bg-indigo-500/15 border-indigo-400/40 shadow-[0_0_16px_rgba(99,102,241,0.15)]'
+                      : 'bg-black/30 border-white/5 hover:border-white/15'
+                  ]">
+                  <div :class="[
+                    'w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 transition-colors',
+                    defaultFormat === 'luma_matte' ? 'border-indigo-400 bg-indigo-500' : 'border-white/30'
+                  ]">
+                    <div v-if="defaultFormat === 'luma_matte'" class="w-1.5 h-1.5 rounded-full bg-white" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold text-white">High-Contrast Luma Matte</span>
+                      <span class="text-[10px] font-mono text-indigo-300">.mp4</span>
+                    </div>
+                    <p class="text-[11px] text-white/50 leading-tight mt-1">
+                      High-contrast black & white mask track video. Universal compatibility across all video editors.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
