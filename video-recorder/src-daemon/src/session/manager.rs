@@ -140,6 +140,33 @@ pub fn default_exports_base_dir() -> PathBuf {
     dir
 }
 
+pub fn default_config_base_dir() -> PathBuf {
+    if let Ok(user_data) = std::env::var("STUDIO_USER_DATA_DIR") {
+        if !user_data.trim().is_empty() {
+            let dir = PathBuf::from(user_data);
+            let _ = std::fs::create_dir_all(&dir);
+            return dir;
+        }
+    }
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_else(|_| ".".to_string());
+    let dir = PathBuf::from(home).join(".config").join("video-recorder-studio");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+pub fn default_studio_cache_dir() -> PathBuf {
+    if let Ok(cache_env) = std::env::var("STUDIO_CACHE_DIR") {
+        if !cache_env.trim().is_empty() {
+            let dir = PathBuf::from(cache_env);
+            let _ = std::fs::create_dir_all(&dir);
+            return dir;
+        }
+    }
+    let dir = default_config_base_dir().join(".cache");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
 pub fn default_bg_remover_dir() -> PathBuf {
     let dir = default_studio_base_dir().join("bg-remover");
     let _ = std::fs::create_dir_all(&dir);

@@ -656,7 +656,8 @@ export const APP_DATA = '~/Videos/studio';
 export const STUDIO_PROJECTS_DIR = `${APP_DATA}/projects`;
 export const STUDIO_EXPORTS_DIR = `${APP_DATA}/exports`;
 export const STUDIO_BG_REMOVER_DIR = `${APP_DATA}/bg-remover`;
-export const STUDIO_BG_IMAGES_DIR = `${APP_DATA}/bg-images`;
+export const STUDIO_CONFIG_DIR = '~/.config/video-recorder-studio';
+export const STUDIO_BG_IMAGES_DIR = `${STUDIO_CONFIG_DIR}/bg-images`;
 
 export async function getDefaultBgImagesDirectory(): Promise<string> {
   if (typeof window !== 'undefined' && window.__ELECTRON_OVERLAY__?.invoke) {

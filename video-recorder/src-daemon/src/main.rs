@@ -287,8 +287,7 @@ async fn main() {
         });
 
     // 13c. Serve cached AI models from disk
-    let models_cache_dir = crate::session::default_studio_base_dir()
-        .join(".cache")
+    let models_cache_dir = crate::session::default_studio_cache_dir()
         .join("models");
     let _ = std::fs::create_dir_all(&models_cache_dir);
     let models_cache_route = warp::path("models")
@@ -460,9 +459,6 @@ fn save_daemon_port(port: u16) {
     let temp_file = std::env::temp_dir().join("video-recorder-daemon.port");
     let _ = std::fs::write(&temp_file, port.to_string());
 
-    if let Ok(home) = std::env::var("HOME") {
-        let config_dir = PathBuf::from(home).join(".config").join("video-recorder");
-        let _ = std::fs::create_dir_all(&config_dir);
-        let _ = std::fs::write(config_dir.join("daemon.port"), port.to_string());
-    }
+    let config_dir = crate::session::default_config_base_dir();
+    let _ = std::fs::write(config_dir.join("daemon.port"), port.to_string());
 }

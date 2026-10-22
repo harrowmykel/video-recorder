@@ -29,7 +29,14 @@ function startDaemonIfAvailable() {
   ];
 
   const ffmpegPath = getBundledFfmpegPath();
-  const daemonEnv = { ...process.env, RUST_BACKTRACE: '1' };
+  const userDataDir = app.getPath('userData');
+  const cacheDir = path.join(userDataDir, '.cache');
+  const daemonEnv = {
+    ...process.env,
+    RUST_BACKTRACE: '1',
+    STUDIO_USER_DATA_DIR: userDataDir,
+    STUDIO_CACHE_DIR: cacheDir,
+  };
   if (ffmpegPath) {
     daemonEnv.FFMPEG_PATH = ffmpegPath;
     const ffmpegDir = path.dirname(ffmpegPath);
@@ -806,6 +813,16 @@ function getStudioSubDir(sub) {
   return dir;
 }
 
+function getStudioBgImagesDir() {
+  const dir = path.join(app.getPath('userData'), 'bg-images');
+  if (!fs.existsSync(dir)) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch { }
+  }
+  return dir;
+}
+
 ipcMain.handle('get_app_data_dir', () => {
   return getStudioAppDataDir();
 });
@@ -823,7 +840,7 @@ ipcMain.handle('get_default_bg_remover_dir', () => {
 });
 
 ipcMain.handle('get_default_bg_images_dir', () => {
-  return getStudioSubDir('bg-images');
+  return getStudioBgImagesDir();
 });
 
 function getImageMimeType(filePath) {
@@ -843,7 +860,7 @@ function getImageMimeType(filePath) {
 
 ipcMain.handle('list_bg_images', async () => {
   try {
-    const bgDir = getStudioSubDir('bg-images');
+    const bgDir = getStudioBgImagesDir();
     const entries = await fs.promises.readdir(bgDir, { withFileTypes: true });
     const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.bmp', '.avif']);
     const results = [];
@@ -881,7 +898,7 @@ ipcMain.handle('list_bg_images', async () => {
 
 ipcMain.handle('save_bg_image', async (_event, { sourcePath, fileName, buffer }) => {
   try {
-    const bgDir = getStudioSubDir('bg-images');
+    const bgDir = getStudioBgImagesDir();
     let targetFileName = fileName || (sourcePath ? path.basename(sourcePath) : `bg_${Date.now()}.png`);
     // Sanitize filename
     targetFileName = targetFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -938,7 +955,7 @@ ipcMain.handle('save_bg_image', async (_event, { sourcePath, fileName, buffer })
 
 ipcMain.handle('delete_bg_image', async (_event, target) => {
   try {
-    const bgDir = getStudioSubDir('bg-images');
+    const bgDir = getStudioBgImagesDir();
     const fileName = typeof target === 'string' ? path.basename(target) : path.basename(target?.fileName || '');
     if (!fileName) return { success: false, error: 'Invalid filename' };
 

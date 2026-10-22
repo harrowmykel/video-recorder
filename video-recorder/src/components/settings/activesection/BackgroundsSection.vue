@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useTemplateRef, computed } from 'vue';
+import { useTemplateRef, computed, shallowRef, onMounted } from 'vue';
 import {
   Sparkles, Upload, Video, VideoOff,
   X,
@@ -14,6 +14,7 @@ import { useMediaDevices } from '@/composables/useMediaDevices';
 import type { SavedBgImage } from '@/types/studio';
 import {
   openExportDirectory,
+  getDefaultBgImagesDirectory,
   STUDIO_BG_IMAGES_DIR,
 } from '@/lib/tauriBridge';
 
@@ -76,6 +77,17 @@ function handleSelectSavedImage(item: SavedBgImage) {
 
 async function handleDeleteSavedBg(item: SavedBgImage) {
   await deleteBgImage(item);
+}
+
+const bgImagesDirDisplay = shallowRef<string>(STUDIO_BG_IMAGES_DIR);
+
+onMounted(async () => {
+  bgImagesDirDisplay.value = await getDefaultBgImagesDirectory();
+});
+
+async function handleOpenBgFolder() {
+  const dir = await getDefaultBgImagesDirectory();
+  await openExportDirectory(dir);
 }
 </script>
 
@@ -151,7 +163,7 @@ async function handleDeleteSavedBg(item: SavedBgImage) {
               </div>
               <div>
                 <div class="text-xs font-bold text-white">Upload or Drag & Drop Any Image</div>
-                <div class="text-[11px] text-white/50">Stored automatically in ~/Videos/studio/bg-images
+                <div class="text-[11px] text-white/50">Stored in {{ bgImagesDirDisplay }}
                 </div>
               </div>
             </div>
@@ -162,7 +174,7 @@ async function handleDeleteSavedBg(item: SavedBgImage) {
           </div>
         </div>
 
-        <!-- Recently Used / Saved Background Images from ~/Videos/studio/bg-images -->
+        <!-- Recently Used / Saved Background Images from bg-images -->
         <div class="space-y-2.5 pt-2 border-t border-white/10">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -177,7 +189,7 @@ async function handleDeleteSavedBg(item: SavedBgImage) {
                 title="Refresh saved backgrounds folder">
                 <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isLoadingSavedBgImages }" />
               </button>
-              <button @click="openExportDirectory(STUDIO_BG_IMAGES_DIR)"
+              <button @click="handleOpenBgFolder"
                 class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-white/70 hover:text-white flex items-center gap-1.5 transition"
                 title="Open bg-images folder in file manager">
                 <FolderOpen class="w-3.5 h-3.5 text-amber-400" />
@@ -223,7 +235,7 @@ async function handleDeleteSavedBg(item: SavedBgImage) {
             class="p-4 rounded-2xl bg-white/[0.03] border border-white/5 text-center text-xs text-white/40 flex flex-col items-center justify-center space-y-1">
             <p>No saved background images yet.</p>
             <p class="text-[10px] text-white/30">Upload or drag & drop an image above to store it in <code
-                class="text-white/50 font-mono">~/Videos/studio/bg-images</code>.</p>
+                class="text-white/50 font-mono">{{ bgImagesDirDisplay }}</code>.</p>
           </div>
         </div>
 

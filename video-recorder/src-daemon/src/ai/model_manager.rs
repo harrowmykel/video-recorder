@@ -27,8 +27,7 @@ pub struct ModelManager {
 
 impl ModelManager {
     pub fn new() -> Result<Self> {
-        let models_dir = crate::session::default_studio_base_dir()
-            .join(".cache")
+        let models_dir = crate::session::default_studio_cache_dir()
             .join("models");
         fs::create_dir_all(&models_dir)?;
         Ok(Self { models_dir })
