@@ -30,7 +30,7 @@ function startDaemonIfAvailable() {
 
   const ffmpegPath = getBundledFfmpegPath();
   const userDataDir = app.getPath('userData');
-  const cacheDir = path.join(userDataDir, '.cache');
+  const cacheDir = path.join(app.getPath('cache'), 'video-recorder-studio');
   const daemonEnv = {
     ...process.env,
     RUST_BACKTRACE: '1',

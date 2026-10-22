@@ -116,7 +116,10 @@ impl Default for SessionManager {
 pub fn default_studio_base_dir() -> PathBuf {
     let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
     if let Ok(home) = home {
-        let dir = PathBuf::from(home).join("Videos").join("studio");
+        #[cfg(target_os = "macos")]
+        let dir = PathBuf::from(&home).join("Movies").join("studio");
+        #[cfg(not(target_os = "macos"))]
+        let dir = PathBuf::from(&home).join("Videos").join("studio");
         if std::fs::create_dir_all(&dir).is_ok() {
             return dir;
         }
@@ -148,8 +151,19 @@ pub fn default_config_base_dir() -> PathBuf {
             return dir;
         }
     }
+    #[cfg(target_os = "windows")]
+    if let Ok(app_data) = std::env::var("APPDATA") {
+        if !app_data.trim().is_empty() {
+            let dir = PathBuf::from(app_data).join("video-recorder-studio");
+            let _ = std::fs::create_dir_all(&dir);
+            return dir;
+        }
+    }
     let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_else(|_| ".".to_string());
-    let dir = PathBuf::from(home).join(".config").join("video-recorder-studio");
+    #[cfg(target_os = "macos")]
+    let dir = PathBuf::from(&home).join("Library").join("Application Support").join("video-recorder-studio");
+    #[cfg(not(target_os = "macos"))]
+    let dir = PathBuf::from(&home).join(".config").join("video-recorder-studio");
     let _ = std::fs::create_dir_all(&dir);
     dir
 }
@@ -162,7 +176,26 @@ pub fn default_studio_cache_dir() -> PathBuf {
             return dir;
         }
     }
-    let dir = default_config_base_dir().join(".cache");
+    #[cfg(target_os = "windows")]
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        if !local_app_data.trim().is_empty() {
+            let dir = PathBuf::from(local_app_data).join("video-recorder-studio");
+            let _ = std::fs::create_dir_all(&dir);
+            return dir;
+        }
+    }
+    if let Ok(xdg_cache) = std::env::var("XDG_CACHE_HOME") {
+        if !xdg_cache.trim().is_empty() {
+            let dir = PathBuf::from(xdg_cache).join("video-recorder-studio");
+            let _ = std::fs::create_dir_all(&dir);
+            return dir;
+        }
+    }
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_else(|_| ".".to_string());
+    #[cfg(target_os = "macos")]
+    let dir = PathBuf::from(&home).join("Library").join("Caches").join("video-recorder-studio");
+    #[cfg(not(target_os = "macos"))]
+    let dir = PathBuf::from(&home).join(".cache").join("video-recorder-studio");
     let _ = std::fs::create_dir_all(&dir);
     dir
 }
